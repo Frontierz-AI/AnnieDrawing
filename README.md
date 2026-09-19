@@ -25,7 +25,7 @@ The demo stores the current drawing in the browser. That storage is local to the
 
 ## Package status
 
-The intended package name is `anniedrawing`. This repository does not claim that name is published or available. Until a release is published, build this checkout with `npm run build`, then install the tarball from `npm pack` in the consuming application.
+The intended package name is `anniedrawing`. This repository does not claim that name is published or available. Until a release is published, install this repository over git (`prepare` builds `dist/`), or build this checkout with `npm run build` and install the tarball from `npm pack`.
 
 ```ts
 import { createFellowBoard } from 'anniedrawing/fellow';
