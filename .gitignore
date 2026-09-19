@@ -1,0 +1,16 @@
+node_modules/
+dist/
+site/
+test-results/
+playwright-report/
+coverage/
+.DS_Store
+*.tgz
+.env
+.env.*
+!.env.example
+
+.tmp/
+backups/
+performance-results/
+performance-report/

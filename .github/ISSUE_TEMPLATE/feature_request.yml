@@ -1,0 +1,22 @@
+name: An idea for AnnieDrawing
+description: Tell us about a useful drawing or integration workflow.
+body:
+  - type: textarea
+    id: workflow
+    attributes:
+      label: What are you trying to do?
+      description: Describe the person, task or integration that would benefit.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would make it easier?
+      description: A small example or sketch is welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What do you do today?
+      description: Existing workarounds help us understand the gap.
