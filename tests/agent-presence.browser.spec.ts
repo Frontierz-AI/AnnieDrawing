@@ -314,7 +314,7 @@ test('dry runs, rejected operations, user edits and other pages do not animate',
     };
     const dry = board.apply([operation], { origin: 'agent:planner', dryRun: true });
     const user = board.apply([operation], { origin: 'user' });
-    const invalid = board.apply([operation], { origin: 'agent:planner' });
+    const invalid = board.apply([{ op: 'remove', id: 'missing' }], { origin: 'agent:planner' });
     board.apply([{ op: 'page.add', page: { id: 'other', name: 'Other' } }]);
     const other = board.apply(
       [{ ...operation, page: 'other', item: { ...operation.item, id: 'elsewhere' } }],
