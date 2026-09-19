@@ -10,16 +10,17 @@ import type {
   Op,
   Page,
 } from './types';
-import { clone, defaultDoc, minimalItem, normalizeItem } from './defaults';
+import { kindsSince } from './catalog';
+import { clone, defaultDoc, kindDefaultsFrom, minimalItem, normalizeItem } from './defaults';
+import { allItems, detachMissingEndpoints, pageRoots } from './item';
 import { DocumentSchema, LIMITS, OpSchema, schemaError } from './schema';
 import { migrate } from './migrate';
 import { pageId } from './ids';
 import { flattenItems, intersects, itemBounds } from '../geo/box';
-import { resolveEndpoint } from '../geo/router';
 import { placeItem } from '../agent/place';
 import { queryDoc } from '../agent/query';
 import { describeDoc } from '../agent/describe';
-import { normalizeHref, parseVideo } from './links';
+import { MEDIA_DATA_URL, normalizeHref, parseVideo } from './links';
 interface Location {
   item: Item;
   list: Item[];
@@ -36,6 +37,22 @@ interface Entry {
   label?: string;
 }
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+function escapeHtml(html: string, sanitize?: DocOptions['sanitizeHTML']): string {
+  return sanitize
+    ? sanitize(html)
+    : html
+        .replace(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[\da-f]+);)/gi, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+function assertPagePatch(patch: object): void {
+  if (Object.keys(patch).some((key) => key !== 'name' && key !== 'background'))
+    throw new Error(
+      'page.set may only update name and background. Use item operations to change page content.',
+    );
+}
 function locate(doc: AnnieDoc, id: string): Location | undefined {
   for (const page of doc.pages) {
     const walk = (list: Item[], parent?: Item): Location | undefined => {
@@ -55,11 +72,11 @@ function locate(doc: AnnieDoc, id: string): Location | undefined {
 function requireItem(doc: AnnieDoc, id: string): Location {
   const result = locate(doc, id);
   if (!result) {
-    const candidates = flattenItems(doc.pages.flatMap((s) => s.items))
+    const candidates = allItems(doc)
       .map((i) => i.id)
       .slice(0, 5);
     throw new Error(
-      `Item ${id} does not exist.${candidates.length ? ` Closest ids: ${candidates.join(', ')}.` : ''}`,
+      `Item ${id} does not exist.${candidates.length ? ` Known ids: ${candidates.join(', ')}.` : ''}`,
     );
   }
   return result;
@@ -99,8 +116,8 @@ function inversePatch(
   return result;
 }
 function assertSafeJSON(value: unknown, depth = 0, seen = new Set<unknown>()): void {
-  if (depth > LIMITS.maxDepth * 3 + 8)
-    throw new Error(`Document data exceeds maximum nesting depth ${LIMITS.maxDepth}.`);
+  if (depth > LIMITS.maxJsonDepth)
+    throw new Error(`Document data exceeds maximum nesting depth ${LIMITS.maxJsonDepth}.`);
   if (
     value === undefined ||
     value === null ||
@@ -190,9 +207,7 @@ function validateDoc(
         }
   }
   for (const [mediaId, media] of Object.entries(doc.media)) {
-    const data = /^data:image\/(png|jpeg|gif|webp|avif|svg\+xml);base64,[a-z0-9+/=\s]+$/i.test(
-      media.src,
-    );
+    const data = MEDIA_DATA_URL.test(media.src);
     let url: URL | undefined;
     try {
       url = new URL(media.src);
@@ -221,15 +236,7 @@ function cleanHref(item: Item): void {
   item.children?.forEach(cleanHref);
 }
 function sanitizeAgentItems(item: Item, sanitizeHTML?: DocOptions['sanitizeHTML']): void {
-  if (item.html !== undefined)
-    item.html = sanitizeHTML
-      ? sanitizeHTML(item.html)
-      : item.html
-          .replace(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[\da-f]+);)/gi, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;')
-          .replace(/'/g, '&#39;');
+  if (item.html !== undefined) item.html = escapeHtml(item.html, sanitizeHTML);
   if (item.mount) delete item.mount;
   item.children?.forEach((child) => sanitizeAgentItems(child, sanitizeHTML));
 }
@@ -244,11 +251,7 @@ function perform(
   created: string[];
 } {
   const op = clone(raw),
-    kindDefaults = Object.fromEntries(
-      (options.kinds ?? [])
-        .filter((kind) => kind.defaults)
-        .map((kind) => [kind.kind, kind.defaults!]),
-    );
+    kindDefaults = kindDefaultsFrom(options.kinds);
   const outline = (item: Item) =>
     options.kinds?.find((kind) => kind.kind === item.kind)?.outline?.(item);
   let inverse: Op[] = [],
@@ -261,7 +264,7 @@ function perform(
       parent = parentId ? requireItem(doc, parentId) : undefined;
     if (parent && parent.item.kind !== 'group')
       throw new Error(`Parent ${parentId} must be a group.`);
-    const page = parent?.page ?? doc.pages.find((s) => (op.page ? s.id === op.page : true));
+    const page = parent?.page ?? doc.pages.find((page) => (op.page ? page.id === op.page : true));
     if (!page) throw new Error(`Page ${op.page ?? '(first)'} does not exist.`);
     if (parent && op.page && op.page !== parent.page.id)
       throw new Error('Parent and page must refer to the same page.');
@@ -287,11 +290,8 @@ function perform(
   if (op.op === 'set') {
     const at = requireItem(doc, op.id);
     const oldLookup = Object.hasOwn(op.patch, 'children')
-      ? new Map(
-          flattenItems(doc.pages.flatMap((page) => page.items)).map((item) => [item.id, item]),
-        )
+      ? new Map(allItems(doc).map((item) => [item.id, item]))
       : undefined;
-    const oldDescendants = new Set(flattenItems(at.item.children ?? []).map((item) => item.id));
     if (Object.hasOwn(op.patch, 'id') && op.patch.id !== op.id)
       throw new Error('Item ids cannot be changed.');
     inverse = [
@@ -309,15 +309,7 @@ function perform(
       patch.href = href;
     }
     if (origin !== 'user') {
-      if (typeof patch.html === 'string')
-        patch.html = options.sanitizeHTML
-          ? options.sanitizeHTML(patch.html)
-          : patch.html
-              .replace(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[\da-f]+);)/gi, '&amp;')
-              .replace(/</g, '&lt;')
-              .replace(/>/g, '&gt;')
-              .replace(/"/g, '&quot;')
-              .replace(/'/g, '&#39;');
+      if (typeof patch.html === 'string') patch.html = escapeHtml(patch.html, options.sanitizeHTML);
       if (Object.hasOwn(patch, 'mount')) delete patch.mount;
       if (patch.children)
         patch.children.forEach((child) => sanitizeAgentItems(child, options.sanitizeHTML));
@@ -327,31 +319,14 @@ function perform(
       const newDescendants = new Set(
         flattenItems(at.list[at.index].children ?? []).map((item) => item.id),
       );
-      const removedIds = new Set([...oldDescendants].filter((id) => !newDescendants.has(id)));
       created = [...newDescendants].filter((id) => !oldLookup.has(id));
-      for (const item of flattenItems(doc.pages.flatMap((page) => page.items))) {
-        const restore: Partial<Item> = {};
-        for (const key of ['from', 'to'] as const) {
-          const endpoint = item[key];
-          if (endpoint && 'item' in endpoint && removedIds.has(endpoint.item)) {
-            restore[key] = clone(endpoint);
-            item[key] = resolveEndpoint(
-              endpoint,
-              key === 'from' ? item.to : item.from,
-              oldLookup,
-              outline,
-            );
-          }
-        }
-        if (Object.keys(restore).length) inverse.push({ op: 'set', id: item.id, patch: restore });
-      }
+      inverse.push(...detachMissingEndpoints(pageRoots(doc), oldLookup, outline));
     }
     return { op: { ...op, patch }, inverse, created };
   }
   if (op.op === 'remove') {
     const at = requireItem(doc, op.id),
-      removedIds = new Set(flattenItems([at.item]).map((i) => i.id)),
-      lookup = new Map(flattenItems(doc.pages.flatMap((s) => s.items)).map((i) => [i.id, i]));
+      lookup = new Map(allItems(doc).map((i) => [i.id, i]));
     inverse = [
       {
         op: 'add',
@@ -361,28 +336,8 @@ function perform(
         index: at.index,
       },
     ];
-    for (const item of lookup.values()) {
-      if (removedIds.has(item.id)) continue;
-      const patch: Partial<Item> = {},
-        restore: Partial<Item> = {};
-      for (const key of ['from', 'to'] as const) {
-        const endpoint = item[key];
-        if (endpoint && 'item' in endpoint && removedIds.has(endpoint.item)) {
-          restore[key] = clone(endpoint);
-          patch[key] = resolveEndpoint(
-            endpoint,
-            key === 'from' ? item.to : item.from,
-            lookup,
-            outline,
-          );
-        }
-      }
-      if (Object.keys(patch).length) {
-        Object.assign(item, patch);
-        inverse.push({ op: 'set', id: item.id, patch: restore });
-      }
-    }
     at.list.splice(at.index, 1);
+    inverse.push(...detachMissingEndpoints(pageRoots(doc), lookup, outline));
   }
   if (op.op === 'order') {
     const at = requireItem(doc, op.id),
@@ -440,11 +395,8 @@ function perform(
     };
   }
   if (op.op === 'page.set') {
-    if (Object.keys(op.patch).some((key) => key !== 'name' && key !== 'background'))
-      throw new Error(
-        'page.set may only update name and background. Use item operations to change page content.',
-      );
-    const page = doc.pages.find((s) => s.id === op.id);
+    assertPagePatch(op.patch);
+    const page = doc.pages.find((page) => page.id === op.id);
     if (!page) throw new Error(`Page ${op.id} does not exist.`);
     inverse = [{ op: 'page.set', id: op.id, patch: inversePatch(page, op.patch) }];
     Object.assign(page, mergePatch(page, op.patch));
@@ -453,7 +405,7 @@ function perform(
         delete (page as unknown as Record<string, unknown>)[key];
   }
   if (op.op === 'page.remove') {
-    const index = doc.pages.findIndex((s) => s.id === op.id);
+    const index = doc.pages.findIndex((page) => page.id === op.id);
     if (index < 0) throw new Error(`Page ${op.id} does not exist.`);
     const [page] = doc.pages.splice(index, 1);
     inverse = [{ op: 'page.add', page: clone(page), index }];
@@ -527,13 +479,10 @@ function selectiveInverse(entry: Entry, current: AnnieDoc): Op[] {
     if (op.op === 'media.set' || op.op === 'media.remove')
       return equal(current.media[op.id], entry.after.media[op.id]) ? [op] : [];
     if (op.op === 'page.set') {
-      if (Object.keys(op.patch).some((key) => key !== 'name' && key !== 'background'))
-        throw new Error(
-          'page.set may only update name and background. Use item operations to change page content.',
-        );
-      const before = entry.before.pages.find((s) => s.id === op.id),
-        after = entry.after.pages.find((s) => s.id === op.id),
-        now = current.pages.find((s) => s.id === op.id);
+      assertPagePatch(op.patch);
+      const before = entry.before.pages.find((page) => page.id === op.id),
+        after = entry.after.pages.find((page) => page.id === op.id),
+        now = current.pages.find((page) => page.id === op.id);
       if (!before || !after || !now) return [];
       const patch = revertedPatch(
         before as unknown as Record<string, unknown>,
@@ -548,18 +497,11 @@ function selectiveInverse(entry: Entry, current: AnnieDoc): Op[] {
 }
 export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocModel {
   const loadInitial = (doc: AnnieDoc) => {
-    const defaults = Object.fromEntries(
-      (options.kinds ?? [])
-        .filter((kind) => kind.defaults)
-        .map((kind) => [kind.kind, kind.defaults!]),
-    );
-    return migrate(doc, defaults);
+    return migrate(doc, kindDefaultsFrom(options.kinds));
   };
   let state = initial ? loadInitial(initial) : defaultDoc();
   validateDoc(state, options);
-  let index = new Map(
-    flattenItems(state.pages.flatMap((page) => page.items)).map((item) => [item.id, item]),
-  );
+  let index = new Map(allItems(state).map((item) => [item.id, item]));
   const observedItems = new Map<string, Signal<Item | undefined>>(),
     observedFields = new Map<string, Map<keyof Item, Signal<unknown>>>(),
     observedChildren = new Map<string, Signal<readonly string[]>>();
@@ -579,9 +521,7 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
       (item) => item.id,
     );
   const reindex = () => {
-    index = new Map(
-      flattenItems(state.pages.flatMap((page) => page.items)).map((item) => [item.id, item]),
-    );
+    index = new Map(allItems(state).map((item) => [item.id, item]));
     batch(() => {
       for (const [id, observed] of observedItems) {
         const next = index.get(id);
@@ -719,7 +659,7 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
         result.created = [];
         return result;
       }
-      const all = flattenItems(draft.pages.flatMap((s) => s.items)),
+      const all = allItems(draft),
         lookup = new Map(all.map((i) => [i.id, i]));
       for (const id of result.created) {
         const item = lookup.get(id);
@@ -764,7 +704,7 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
         previous.after = state;
       } else {
         history.push(entry);
-        if (history.length > 100) history.shift();
+        if (history.length > LIMITS.maxHistory) history.shift();
       }
       future.length = 0;
       emit(entry);
@@ -779,20 +719,14 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
     describe(describeOptions) {
       return describeDoc(state, describeOptions);
     },
+    kindsSince(since) {
+      return kindsSince(since);
+    },
     toJSON(saveOptions) {
       const json = clone(state);
       if (saveOptions?.compact === false) return json;
       for (const page of json.pages)
-        page.items = page.items.map((item) =>
-          minimalItem(
-            item,
-            Object.fromEntries(
-              (options.kinds ?? [])
-                .filter((kind) => kind.defaults)
-                .map((kind) => [kind.kind, kind.defaults!]),
-            ),
-          ),
-        );
+        page.items = page.items.map((item) => minimalItem(item, kindDefaultsFrom(options.kinds)));
       return json;
     },
     undo(undoOptions) {

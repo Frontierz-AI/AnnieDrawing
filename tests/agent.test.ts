@@ -136,10 +136,10 @@ describe('agent tools and spatial editing', () => {
     expect(
       await runTool(doc, 'board_apply', {
         ops: [{ op: 'add', item: { kind: 'note' } }],
-        agentName: 'Julia',
+        agentName: 'planner',
       }),
     ).toMatchObject({ ok: true });
-    expect(seen).toMatchObject({ agentName: 'Julia', origin: 'agent:tool' });
+    expect(seen).toMatchObject({ agentName: 'planner', origin: 'agent:tool' });
   });
   it('places inside free group slots and combines AND queries', () => {
     const doc = createDoc();
@@ -207,5 +207,25 @@ describe('agent tools and spatial editing', () => {
     expect(text).toContain('Free space:');
     expect(doc.describe({ maxItems: 1 })).toContain('2 more items');
     expect(text).toBe(doc.describe({ detail: 'full', relations: true, freeSpace: true }));
+  });
+  it('orders items forward and backward', () => {
+    const doc = createDoc();
+    doc.apply([
+      { op: 'add', item: { id: 'a', kind: 'rect', x: 0, y: 0, w: 40, h: 40 } },
+      { op: 'add', item: { id: 'b', kind: 'rect', x: 60, y: 0, w: 40, h: 40 } },
+      { op: 'add', item: { id: 'c', kind: 'rect', x: 120, y: 0, w: 40, h: 40 } },
+    ]);
+    expect(doc.apply([{ op: 'order', id: 'a', to: 'forward' }]).ok).toBe(true);
+    expect(doc.toJSON({ compact: false }).pages[0].items.map((item) => item.id)).toEqual([
+      'b',
+      'a',
+      'c',
+    ]);
+    expect(doc.apply([{ op: 'order', id: 'c', to: 'backward' }]).ok).toBe(true);
+    expect(doc.toJSON({ compact: false }).pages[0].items.map((item) => item.id)).toEqual([
+      'b',
+      'c',
+      'a',
+    ]);
   });
 });

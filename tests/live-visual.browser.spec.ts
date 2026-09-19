@@ -78,6 +78,7 @@ test('phone has seven reachable tools and secondary actions in the board menu', 
   expect(await page.evaluate(() => window.__anniedrawing![0].tool)).toBe('connector');
   await page.getByRole('button', { name: 'Board menu', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Hand', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'For agents', exact: true })).toHaveCount(0);
   await expect(page.getByRole('group', { name: 'Board menu', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('group', { name: 'Board menu', exact: true })).toHaveCount(0);

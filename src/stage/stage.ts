@@ -1,13 +1,8 @@
 import RBush from 'rbush';
 import type { AnnieDoc, Box, Item, Point } from '../core/types';
+import { applyDraft } from '../core/item';
 import { lockedItems } from '../core/locks';
-import {
-  boundsOf,
-  flattenItems,
-  itemBounds,
-  rotatePoint,
-  type OutlineResolver,
-} from '../geo/index';
+import { boundsOf, boxCorners, flattenItems, itemBounds, type OutlineResolver } from '../geo/index';
 import { createKindRegistry, type KindDef } from '../kinds/registry';
 import { ItemView } from './itemView';
 import { Lens } from './lens';
@@ -31,15 +26,6 @@ interface RecordView {
   view: ItemView;
   entry: Entry;
   hidden: boolean;
-}
-function corners(box: Box, rotation = 0): Point[] {
-  const center = { x: box.x + box.w / 2, y: box.y + box.h / 2 };
-  return [
-    { x: box.x, y: box.y },
-    { x: box.x + box.w, y: box.y },
-    { x: box.x + box.w, y: box.y + box.h },
-    { x: box.x, y: box.y + box.h },
-  ].map((point) => rotatePoint(point, center, rotation));
 }
 export class Stage {
   readonly root = document.createElement('div');
@@ -159,22 +145,14 @@ export class Stage {
       page?.background ?? (this.theme === 'dark' ? '#122f32' : '#fbfcfa'),
       this.theme,
     );
-    const entries: { item: Item; parents: Item[]; hidden: boolean }[] = [];
+    const entries: { item: Item; hidden: boolean }[] = [];
     this.lookup.clear();
     this.originals.clear();
     this.ancestors.clear();
     this.dependencies.clear();
     const walk = (items: Item[], parents: Item[], parentHidden: boolean) => {
       for (const original of items) {
-        const patch = drafts?.get(original.id);
-        const item = patch
-          ? ({
-              ...original,
-              ...patch,
-              style: patch.style ? { ...original.style, ...patch.style } : original.style,
-              text: patch.text ? { ...original.text, ...patch.text } : original.text,
-            } as Item)
-          : original;
+        const item = applyDraft(original, drafts?.get(original.id));
         const hidden = parentHidden || !!item.hidden;
         this.lookup.set(item.id, item);
         this.originals.set(item.id, original);
@@ -189,7 +167,7 @@ export class Stage {
             dependents.add(item.id);
             this.dependencies.set(endpoint.item, dependents);
           }
-        entries.push({ item, parents, hidden });
+        entries.push({ item, hidden });
         if (item.children) walk(item.children, [...parents, item], hidden);
       }
     };
@@ -263,17 +241,7 @@ export class Stage {
       const original = this.originals.get(id);
       if (!original) continue;
       const patch = drafts?.get(id);
-      this.lookup.set(
-        id,
-        patch
-          ? ({
-              ...original,
-              ...patch,
-              style: patch.style ? { ...original.style, ...patch.style } : original.style,
-              text: patch.text ? { ...original.text, ...patch.text } : original.text,
-            } as Item)
-          : original,
-      );
+      this.lookup.set(id, applyDraft(original, patch));
       for (const ancestor of this.ancestors.get(id) ?? []) dirty.add(ancestor);
       if (original.children)
         for (const child of flattenItems(original.children)) dirty.add(child.id);
@@ -381,7 +349,7 @@ export class Stage {
         items.length === 1 && !['connector', 'line', 'path', 'group'].includes(items[0].kind);
       const box = single ? items[0] : boundsOf(items, this.lookup, this.resolveOutline);
       const rotation = single ? (items[0].rotation ?? 0) : 0;
-      const points = corners(box, rotation).map((point) => this.lens.toScreen(point));
+      const points = boxCorners(box, rotation).map((point) => this.lens.toScreen(point));
       parts.push(`<path class="ad-selection-outline" d="${pathFromPoints(points, true)}"/>`);
       const positions: [string, Point, string][] = [
         ['nw', points[0], 'nwse-resize'],

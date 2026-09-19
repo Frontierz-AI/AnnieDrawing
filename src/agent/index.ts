@@ -1,7 +1,11 @@
-export * from './toolDefs';
-export * from './describe';
-export * from './query';
-export * from './place';
+/** Agent tool definitions, dispatch, descriptions, queries, and placement. */
+export { toolDefs, runTool } from './toolDefs';
+export type { ToolDefinition, AgentBoard } from './toolDefs';
+export { CATALOG_VERSION, KIND_CATALOG, kindsSince } from '../core/catalog';
+export type { KindCatalogEntry, KindCatalogSnapshot } from '../core/catalog';
+export { describeDoc } from './describe';
+export { queryDoc } from './query';
+export { placeItem } from './place';
 export {
   DocumentSchema,
   ItemSchema,

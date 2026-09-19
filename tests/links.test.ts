@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { clipboardText } from '../src/core/clipboard';
 import { hostnameOf, normalizeHref, parseVideo, videoEmbed } from '../src/core/links';
 import {
   classifyPaste,
@@ -25,9 +26,7 @@ describe('paste URL classification', () => {
       video: { provider: 'youtube', id: 'ihe1QbeGt7U' },
     });
     expect(
-      classifyPaste(
-        'A mix\nhttps://www.youtube.com/watch?v=ihe1QbeGt7U&amp;list=RDihe1QbeGt7U',
-      ),
+      classifyPaste('A mix\nhttps://www.youtube.com/watch?v=ihe1QbeGt7U&amp;list=RDihe1QbeGt7U'),
     ).toMatchObject({
       kind: 'video',
       video: { provider: 'youtube', id: 'ihe1QbeGt7U' },
@@ -35,6 +34,22 @@ describe('paste URL classification', () => {
     expect(classifyPaste('https://youtu.be/dQw4w9WgXcQ?si=abc')).toMatchObject({
       kind: 'video',
       video: { provider: 'youtube', id: 'dQw4w9WgXcQ' },
+    });
+    expect(classifyPaste('https://www.youtube.com/shorts/dQw4w9WgXcQ')).toMatchObject({
+      kind: 'video',
+      video: { provider: 'youtube', id: 'dQw4w9WgXcQ' },
+    });
+    expect(classifyPaste('https://www.youtube.com/embed/dQw4w9WgXcQ')).toMatchObject({
+      kind: 'video',
+      video: { provider: 'youtube', id: 'dQw4w9WgXcQ' },
+    });
+    expect(classifyPaste('https://m.youtube.com/watch?v=dQw4w9WgXcQ')).toMatchObject({
+      kind: 'video',
+      video: { provider: 'youtube', id: 'dQw4w9WgXcQ' },
+    });
+    expect(classifyPaste('https://player.vimeo.com/video/123456789')).toMatchObject({
+      kind: 'video',
+      video: { provider: 'vimeo', id: '123456789' },
     });
     expect(classifyPaste('https://vimeo.com/123456789')).toMatchObject({
       kind: 'video',
@@ -94,11 +109,20 @@ describe('link preview parsing', () => {
     expect(imageMime('https://cdn.example.com/a.webp')).toBe('image/webp');
     expect(prettyTitle('https://www.founderz.com/')).toBe('Founderz');
     expect(displayUrl('https://founderz.com/')).toBe('founderz.com');
-    expect(displayUrl('https://founderz.com/notes/')).toBe('founderz.com/notes');
+    expect(displayUrl('https://www.founderz.com/notes/')).toBe('founderz.com/notes');
     expect(linkFallback('https://founderz.com/')).toMatchObject({
       title: 'Founderz',
       description: 'founderz.com',
     });
+  });
+  it('reads the first non-comment uri-list line', () => {
+    expect(
+      clipboardText({
+        getData: (type: string) =>
+          type === 'text/uri-list' ? '# comment\nhttps://example.com/a\nhttps://example.com/b' : '',
+      } as DataTransfer),
+    ).toBe('https://example.com/a');
+    expect(clipboardText(null)).toBe('');
   });
 });
 

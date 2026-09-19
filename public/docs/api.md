@@ -2,13 +2,13 @@
 
 ## Imports
 
-| Import                   | Purpose                                               |
-| ------------------------ | ----------------------------------------------------- |
-| `anniedrawing`           | Browser board, public types, and built-in editor      |
-| `anniedrawing/core`      | Headless document, validation, history, and geometry  |
-| `anniedrawing/agent`     | Tool definitions, dispatch, descriptions, and queries |
-| `anniedrawing/ui`        | Optional plain-DOM editor controls                    |
-| `anniedrawing/style.css` | Editor styles                                         |
+| Import                   | Purpose                                                                            |
+| ------------------------ | ---------------------------------------------------------------------------------- |
+| `anniedrawing`           | Browser board, kinds (`defineKind`, `registerKind`), catalog (`kindsSince`), types |
+| `anniedrawing/core`      | Headless document, validation, history, geometry, and kind catalog                 |
+| `anniedrawing/agent`     | Tool definitions, dispatch, descriptions, queries, and kind catalog                |
+| `anniedrawing/ui`        | Optional plain-DOM editor controls (`mountUI`)                                     |
+| `anniedrawing/style.css` | Editor styles                                                                      |
 
 Use Node.js 24 or newer for development and headless examples. Browser hosts need Pointer Events, SVG, ResizeObserver, and `structuredClone`. All JavaScript exports are ESM.
 
@@ -18,8 +18,8 @@ Use Node.js 24 or newer for development and headless examples. Browser hosts nee
 const board = createBoard(host, {
   doc, // optional initial AnnieDoc
   readonly: false,
-  theme: 'auto', // default 'light'; also 'dark' | 'auto'
-  ui: true, // false to omit chrome; or { title, branding, agentPanel }
+  theme: 'light', // 'light' | 'dark' | 'auto' (follows the system)
+  ui: true, // false omits chrome; or { menu, export }
   autosaveKey: 'my-diagram', // opt-in browser persistence
   exposeGlobal: true, // default on; window.__anniedrawing is an array
   agentPresence: true, // default on; visiting cursor for agent: additions
@@ -35,7 +35,21 @@ board.destroy();
 
 The host must have nonzero width and height. `destroy()` releases the board's listeners, views, subscriptions, and global registration. Dispose application integrations with their own cleanup functions. The library does not ship a font file. The demo loads Nunito. The library CSS uses system fallbacks.
 
-`createDoc(initial?, { readonly?, allowedImageOrigins?, sanitizeHTML?, kinds? })` provides the model without creating DOM nodes. It returns `apply`, `get`, `query`, `describe`, `toJSON`, `undo`, `redo`, `load`, `on`, `canUndo`, `canRedo`, `itemSignal`, `fieldSignal`, and `childrenSignal`.
+`theme` is `'light'` when omitted, `'dark'`, or `'auto'` to follow `prefers-color-scheme`. `ui: false` omits editor chrome. Pass an object to keep the tools and choose header controls:
+
+```ts
+createBoard(host, {
+  theme: 'auto',
+  ui: {
+    menu: false, // hide the AnnieDrawing control
+    export: ['png', 'svg'], // default when omitted; false hides Export
+  },
+});
+```
+
+`export` accepts `'png'`, `'svg'`, and `'json'` (the AnnieDoc `.annie` file). The default for an imported board is PNG and SVG. Include `'json'` to offer AnnieDoc. The local demo passes `['png', 'svg', 'json']`. A single format downloads on click; two or more open a menu. Programmatic `board.export()` is unchanged and still supports every format.
+
+`createDoc(initial?, { readonly?, allowedImageOrigins?, sanitizeHTML?, kinds? })` provides the model without creating DOM nodes. It returns `apply`, `get`, `query`, `describe`, `kindsSince`, `toJSON`, `undo`, `redo`, `load`, `on`, `canUndo`, `canRedo`, `itemSignal`, `fieldSignal`, and `childrenSignal`. `anniedrawing/core` also exports `applyDraft`, `translateItem`, `copyItems`, `detachMissingEndpoints`, `allItems`, and `clipboardText` for hosts that implement clipboard or preview layers. `applyDraft` merges nested `style`, `text`, and `data`. `clipboardText` reads the first non-comment `text/uri-list` line, then `text/plain`.
 
 ## Signals
 
@@ -63,12 +77,15 @@ stop();
 | `board.get(id)`                              | Deep item copy, or `undefined`.                                             |
 | `board.query(selector)`                      | Matching item copies. Filters combine with AND.                             |
 | `board.describe(options?)`                   | Deterministic text with IDs, labels, and optional relations and free space. |
+| `board.kindsSince(since?)`                   | Built-in kinds added or last changed after that catalog version.            |
 | `board.boundsOf(ids?)`                       | Content bounds `{ x, y, w, h }`.                                            |
 | `board.selection`                            | Selected item IDs.                                                          |
 
 `query` accepts `kind` (string or string array), `text` (string or JavaScript `RegExp`), `within`, `inside`, `connectedTo`, `direction` (`in`, `out`, or `both`, default `both`), `data`, `hidden`, `locked`, and `page`. `text` matches `item.text.value` and `item.name`. A string is a case-insensitive substring. `kind` arrays match any listed kind.
 
 `describe` accepts `detail` (`brief`, `normal`, or `full`, default `normal`), `relations`, `freeSpace`, `maxItems` (default 100, maximum 10,000), `scope`, `page`, and `selection`. Empty pages include the line `An empty board, ready for your first idea.` A headless `board_read` tool supports whole-document scope only. Narrow a headless document with `query` and `page` or `inside`.
+
+`kindsSince(since?)` returns `{ version, since, kinds }`. Each kind is `{ kind, since, w, h, note }`. Omit `since` or pass `0` to list every built-in kind. Pass the last `version` you saw to get only kinds added or last changed after that number. `CATALOG_VERSION`, `KIND_CATALOG`, and `kindsSince` are also exported from `anniedrawing`, `anniedrawing/core`, and `anniedrawing/agent`. The catalog version is independent of the document format version. Custom host kinds are not listed.
 
 Reads scoped to `page`, `selection`, or `viewport` include only media referenced by the returned items. Whole-document reads keep the complete media table. Scoped exports follow the same boundary, so exporting a selection does not include unrelated embedded images.
 
@@ -80,7 +97,7 @@ const result = board.apply(ops, {
   label: 'Organize ideas',
   dryRun: false,
   merge: false, // fold into the previous history entry when origin and label match
-  agentName: 'Julia', // optional visiting-cursor label
+  agentName: 'planner', // optional visiting-cursor label
 });
 // { ok, created: string[], errors: [...], warnings: [...] }
 ```
@@ -144,7 +161,7 @@ The cursor ignores pointer events. Selection, focus, and the person's native cur
 
 ## Editor chrome
 
-The built-in toolbar shows select, hand, eraser, then Shapes, draw, text, sticky note, and image. Shapes groups rectangle, ellipse, diamond, line, and arrow. On phones, hand moves into the AnnieDrawing menu so the bottom bar stays tappable. That menu also opens appearance, document actions, the agent playground, and documentation. Export is a format menu that downloads the current page as PNG, SVG, or an Annie document. Page chips in the bottom bar switch pages. `+` adds a page. All pages appears when the chips overflow. The active page stays visible. Right-click a page chip to rename or delete that page. The last page cannot be deleted. Arrow keys, Home, and End navigate page tabs. The zoom percentage opens zoom controls.
+The built-in toolbar shows select, hand, eraser, then Shapes, draw, text, sticky note, and image. Shapes groups rectangle, ellipse, diamond, line, and arrow. On phones, hand moves into the AnnieDrawing menu so the bottom bar stays tappable, unless that menu is hidden. That menu also opens appearance, document actions, and documentation. Export downloads the current page. Hosts choose PNG, SVG, and AnnieDoc (`json`); an imported board defaults to PNG and SVG. Page chips in the bottom bar switch pages. `+` adds a page. All pages appears when the chips overflow. The active page stays visible. Right-click a page chip to rename or delete that page. The last page cannot be deleted. Arrow keys, Home, and End navigate page tabs. The zoom percentage opens zoom controls.
 
 Selecting an item opens a compact inspector for that item type. Fill, Line, and Opacity share one row. Color replaces fill and line on plain text. Fill, line, and text color open a palette. Text-capable shapes, including empty ones, show Text (S/M/L/XL), Align, and Font on their own rows. Font choices are Friendly (`sans`), Serif, Mono, and Handwritten (`hand`, the default). Stroked shapes also get line weight (1, 2, 4, or 8) and Pattern (solid, dashed, or dotted) on separate rows. Open freehand paths omit pattern. Sticky notes keep fill and text controls and omit line color, weight, and pattern. Images, videos, and link cards omit line and text controls. Opacity opens a 0-100% slider; the document stores opacity as 0-1. The lock icon beside Delete locks or unlocks the selection. Connector route and arrowhead controls appear for a selected connector. More arrangement options opens align, distribute, group, ungroup, and stacking. Deselect to hide the inspector. The inspector does not expose `fillMode: 'hatch'`; set that through `apply`.
 
@@ -205,6 +222,6 @@ const png = await board.export('png', {
 });
 ```
 
-The Export menu always downloads the current page, even when items are selected. Programmatic `export` defaults to `scope: 'page'`. PNG output defaults to 2× resolution. Pass `scale` to choose another resolution. The programmatic `export` API still accepts `scope` for the whole document, a selection, or the viewport. Exports are asynchronous. JSON and SVG return strings. PNG returns a Blob. Scope controls the included content. `labels` adds item IDs for vision workflows. PNG uses an offscreen canvas only for rasterization. The editor's drawing surface is HTML and SVG. Browser CORS rules still apply to remote media. Custom HTML cannot be assumed to rasterize identically across browsers. Prefer explicit custom SVG output for portable exports.
+The Export control downloads the current page, even when items are selected. Programmatic `export` defaults to `scope: 'page'`. PNG output defaults to 2× resolution. Pass `scale` to choose another resolution. The programmatic `export` API still accepts `scope` for the whole document, a selection, or the viewport. Exports are asynchronous. JSON and SVG return strings. PNG returns a Blob. Scope controls the included content. `labels` adds item IDs for vision workflows. PNG uses an offscreen canvas only for rasterization. The editor's drawing surface is HTML and SVG. Browser CORS rules still apply to remote media. Custom HTML cannot be assumed to rasterize identically across browsers. Prefer explicit custom SVG output for portable exports.
 
-Operation limits are exported as `LIMITS` from `anniedrawing/agent`: at most 1,000 operations per API or agent batch (including at most 1,000 created items across nested children), up to 50,000 operations for a local `user` batch, 50,000 items per document, coordinate magnitude 1,000,000, 100,000 text characters, nesting depth 32, 100,000 path points, and 20,000,000 characters per media source. These are validation ceilings. They are not a promise that every maximum-size document stays fast. Read the runtime exported values before building UI around them.
+Operation limits are exported as `LIMITS` from `anniedrawing/agent` and `anniedrawing/core`: at most 1,000 operations per API or agent batch (including at most 1,000 created items across nested children), up to 50,000 operations for a local `user` batch (`LIMITS.maxItems`), 50,000 items per document, coordinate magnitude 1,000,000, 100,000 text characters, nesting depth 32, JSON data nesting 104 (`LIMITS.maxJsonDepth`), 100 history entries (`LIMITS.maxHistory`), 100,000 path points, and 20,000,000 characters per media source. These are validation ceilings. They are not a promise that every maximum-size document stays fast. Read the runtime exported values before building UI around them.

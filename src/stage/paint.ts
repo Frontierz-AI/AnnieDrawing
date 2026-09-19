@@ -151,10 +151,7 @@ export function shapePath(item: Item): string {
       ).map(([x, y]) => ({ x, y })),
     );
   if (item.kind === 'path') return freehandPath(item);
-  const corner = Math.max(
-    0,
-    Math.min(item.style?.corner ?? (item.kind === 'note' ? CARD_CORNER : 12), w / 2, h / 2),
-  );
+  const corner = Math.max(0, Math.min(item.style?.corner ?? CARD_CORNER, w / 2, h / 2));
   return `M${corner},0H${w - corner}Q${w},0 ${w},${corner}V${h - corner}Q${w},${h} ${w - corner},${h}H${corner}Q0,${h} 0,${h - corner}V${corner}Q0,0 ${corner},0Z`;
 }
 export function styleFor(item: Item, theme: 'light' | 'dark'): Required<Style> {
@@ -165,7 +162,7 @@ export function styleFor(item: Item, theme: 'light' | 'dark'): Required<Style> {
     dash: item.style?.dash ?? 'solid',
     fill: color(fill, theme),
     fillMode: item.style?.fillMode ?? 'solid',
-    corner: item.style?.corner ?? 12,
+    corner: item.style?.corner ?? CARD_CORNER,
     opacity: item.style?.opacity ?? 1,
   };
 }

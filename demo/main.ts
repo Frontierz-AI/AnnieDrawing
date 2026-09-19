@@ -1,18 +1,19 @@
 import '@fontsource-variable/nunito';
 import '../src/style.css';
+import './style.css';
 import { parseLinkPreview, unfurlPage } from '../src/core/paste';
 import { createBoard } from '../src/index';
 
 const board = createBoard(document.querySelector<HTMLElement>('#app')!, {
   autosaveKey: 'annie-playground-v2',
   theme: 'light',
+  ui: { export: ['png', 'svg', 'json'] },
   unfurl: async (url) => {
     try {
       const response = await fetch(`/__ad-unfurl?url=${encodeURIComponent(url)}`);
       if (response.status === 200) {
         const html = await response.text();
-        if (html)
-          return parseLinkPreview(html, response.headers.get('x-unfurl-url') || url);
+        if (html) return parseLinkPreview(html, response.headers.get('x-unfurl-url') || url);
       }
     } catch {
       /* Fall through to a same-origin browser fetch. */

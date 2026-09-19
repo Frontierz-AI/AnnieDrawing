@@ -1,12 +1,27 @@
 import type { Board } from '../board';
-import type { Item, Op, Point } from '../core/types';
+import type { Item, Point } from '../core/types';
 import { button, icon } from './icons';
 import { color as resolveColor, DEFAULT_FONT, fonts, fontSize, styleFor } from '../stage/paint';
 import { pageId } from '../core/ids';
+import { ANNIE_MIME } from '../porter/json';
+export type UiExportFormat = 'png' | 'svg' | 'json';
 export interface UiOptions {
-  title?: string;
-  branding?: boolean;
-  agentPanel?: boolean;
+  menu?: boolean;
+  export?: boolean | UiExportFormat[];
+}
+const defaultExportFormats: UiExportFormat[] = ['png', 'svg'];
+function exportFormats(value: UiOptions['export']): UiExportFormat[] {
+  if (value === false) return [];
+  if (!Array.isArray(value)) return [...defaultExportFormats];
+  const seen = new Set<UiExportFormat>();
+  const formats: UiExportFormat[] = [];
+  for (const format of value) {
+    if (format !== 'png' && format !== 'svg' && format !== 'json') continue;
+    if (seen.has(format)) continue;
+    seen.add(format);
+    formats.push(format);
+  }
+  return formats;
 }
 const tools = [
   ['select', 'Select', 'V'],
@@ -22,17 +37,17 @@ const tools = [
   ['eraser', 'Eraser', 'E'],
 ];
 const palette = [
-  ['ink', '#103639', 'Ink'],
-  ['paper', '#FFFFFF', 'Paper'],
-  ['teal', '#05D9AB', 'Frontierz green'],
-  ['moss', '#AAF1AC', 'Soft green'],
-  ['coral', '#FF9302', 'Orange'],
-  ['violet', '#8F93F9', 'Lavender'],
-  ['slate', '#606062', 'Slate'],
-  ['amber', '#FFC68A', 'Peach'],
-  ['sky', '#92CAFF', 'Sky blue'],
-  ['rose', '#F89B97', 'Rose'],
-  ['none', 'transparent', 'No fill'],
+  ['ink', 'Ink'],
+  ['paper', 'Paper'],
+  ['teal', 'Frontierz green'],
+  ['moss', 'Soft green'],
+  ['coral', 'Orange'],
+  ['violet', 'Lavender'],
+  ['slate', 'Slate'],
+  ['amber', 'Peach'],
+  ['sky', 'Sky blue'],
+  ['rose', 'Rose'],
+  ['none', 'No fill'],
 ];
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text?: string) {
   const node = document.createElement(tag);
@@ -85,7 +100,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   board.stage.root.append(ui);
   const unsubs: (() => void)[] = [];
   let activeDialog: HTMLDialogElement | undefined;
-  function dialog(title: string, subtitle?: string) {
+  function dialog(title: string) {
     closePopover();
     activeDialog?.close();
     const previous = document.activeElement as HTMLElement;
@@ -93,7 +108,6 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     const head = el('div', 'ad-dialog-head');
     const copy = el('div');
     copy.append(el('h2', '', title));
-    if (subtitle) copy.append(el('p', 'ad-muted', subtitle));
     head.append(
       copy,
       button('Close', 'close', () => d.close()),
@@ -255,34 +269,48 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     window.removeEventListener('resize', hideOnResize);
     window.removeEventListener('pointerdown', dismissContext, true);
   });
+  const showMenu = options.menu !== false;
+  const formats = exportFormats(options.export);
   const header = el('header', 'ad-header');
-  const brand = button('Board menu', 'chevron', openMenu, 'ad-brand');
-  brand.innerHTML =
-    '<span class="ad-brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M9 29 20 8l11 21M14 22h12" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="32" cy="9" r="2.5" fill="currentColor"/></svg></span><span class="ad-brand-name">AnnieDrawing</span>' +
-    icon('chevron');
-  brand.setAttribute('aria-haspopup', 'true');
-  brand.setAttribute('aria-expanded', 'false');
-  const drawingInput = el('input');
-  drawingInput.type = 'file';
-  drawingInput.accept = '.annie,.json,application/json';
-  drawingInput.hidden = true;
-  drawingInput.onchange = () => {
-    const file = drawingInput.files?.[0];
-    drawingInput.value = '';
-    if (file)
-      void file
-        .text()
-        .then((value) => board.load(JSON.parse(value)))
-        .catch(() => undefined);
-  };
-  const actions = el('div', 'ad-header-actions');
-  const exportButton = textButton('Export', openExport, 'ad-button ad-primary');
-  exportButton.insertAdjacentHTML('afterbegin', icon('download'));
-  exportButton.setAttribute('aria-haspopup', 'true');
-  exportButton.setAttribute('aria-expanded', 'false');
-  actions.append(exportButton);
-  header.append(brand, actions);
-  ui.append(header, drawingInput);
+  let brand: HTMLButtonElement | undefined;
+  let drawingInput: HTMLInputElement | undefined;
+  let exportButton: HTMLButtonElement | undefined;
+  if (showMenu) {
+    brand = button('Board menu', 'chevron', openMenu, 'ad-brand');
+    brand.innerHTML =
+      '<span class="ad-brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M9 29 20 8l11 21M14 22h12" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="32" cy="9" r="2.5" fill="currentColor"/></svg></span><span class="ad-brand-name">AnnieDrawing</span>' +
+      icon('chevron');
+    brand.setAttribute('aria-haspopup', 'true');
+    brand.setAttribute('aria-expanded', 'false');
+    drawingInput = el('input');
+    drawingInput.type = 'file';
+    drawingInput.accept = '.annie,.json,application/json';
+    drawingInput.hidden = true;
+    drawingInput.onchange = () => {
+      const file = drawingInput?.files?.[0];
+      if (drawingInput) drawingInput.value = '';
+      if (file)
+        void file
+          .text()
+          .then((value) => board.load(JSON.parse(value)))
+          .catch(() => undefined);
+    };
+    header.append(brand);
+  }
+  if (formats.length) {
+    const actions = el('div', 'ad-header-actions');
+    exportButton = textButton('Export', openExport, 'ad-button ad-primary');
+    exportButton.insertAdjacentHTML('afterbegin', icon('download'));
+    if (formats.length > 1) {
+      exportButton.setAttribute('aria-haspopup', 'true');
+      exportButton.setAttribute('aria-expanded', 'false');
+    }
+    actions.append(exportButton);
+    header.append(actions);
+  }
+  if (!showMenu) header.classList.add('ad-header-end');
+  if (showMenu || formats.length) ui.append(header);
+  if (drawingInput) ui.append(drawingInput);
   const toolbar = el('nav', 'ad-toolbar');
   toolbar.setAttribute('aria-label', 'Drawing tools');
   function toolButton(id: string, expanded = false) {
@@ -331,7 +359,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   imageButton.innerHTML += '<span class="ad-tooltip">Add image</span>';
   imageButton.disabled = board.readonly;
   const hand = toolButton('hand');
-  hand.classList.add('ad-desktop-tool');
+  if (showMenu) hand.classList.add('ad-desktop-tool');
   toolbar.append(
     toolButton('select'),
     hand,
@@ -654,7 +682,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
           const panel = popover(trigger, `${label} color`);
           if (!panel) return;
           panel.classList.add('ad-color-popover');
-          for (const [token, , name] of palette) {
+          for (const [token, name] of palette) {
             const b = el('button', `ad-swatch ${token === 'none' ? 'ad-swatch-none' : ''}`);
             b.type = 'button';
             b.style.setProperty('--swatch', resolveColor(token, board.stage.resolvedTheme));
@@ -959,44 +987,50 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       actions.querySelectorAll('button').forEach((action) => (action.disabled = true));
     d.append(actions);
   }
+  function saveExport(format: UiExportFormat) {
+    void board
+      .export(format, {
+        scope: 'page',
+        padding: 40,
+        background: true,
+        ...(format === 'png' ? { scale: 2 } : {}),
+      })
+      .then((content) => {
+        const name =
+          board
+            .read()
+            .meta.title.replace(/[^a-z0-9 _-]/gi, '')
+            .trim() || 'drawing';
+        download(
+          content,
+          `${name}.${format === 'json' ? 'annie' : format}`,
+          format === 'json' ? ANNIE_MIME : format === 'svg' ? 'image/svg+xml' : 'image/png',
+        );
+      })
+      .catch(() => undefined);
+  }
   function openExport() {
+    if (formats.length === 1) {
+      saveExport(formats[0]);
+      return;
+    }
+    if (!exportButton) return;
     const panel = popover(exportButton, 'Export');
     if (!panel) return;
     panel.classList.add('ad-tool-options');
-    for (const [format, label, glyph] of [
-      ['png', 'PNG Image', 'image'],
-      ['svg', 'SVG Image', 'image'],
-      ['json', 'AnnieDoc format', 'code'],
-    ] as const) {
+    const choices: Record<UiExportFormat, [string, string]> = {
+      png: ['PNG Image', 'image'],
+      svg: ['SVG Image', 'image'],
+      json: ['AnnieDoc format', 'code'],
+    };
+    for (const format of formats) {
+      const [label, glyph] = choices[format];
       const option = button(
         label,
         glyph,
         () => {
           closePopover();
-          void board
-            .export(format, {
-              scope: 'page',
-              padding: 40,
-              background: true,
-              ...(format === 'png' ? { scale: 2 } : {}),
-            })
-            .then((content) => {
-              const name =
-                board
-                  .read()
-                  .meta.title.replace(/[^a-z0-9 _-]/gi, '')
-                  .trim() || 'drawing';
-              download(
-                content,
-                `${name}.${format === 'json' ? 'annie' : format}`,
-                format === 'json'
-                  ? 'application/vnd.anniedrawing+json'
-                  : format === 'svg'
-                    ? 'image/svg+xml'
-                    : 'image/png',
-              );
-            })
-            .catch(() => undefined);
+          saveExport(format);
         },
         'ad-tool-option',
       );
@@ -1005,140 +1039,8 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     }
     showPopover(panel, exportButton);
   }
-  function openAgent() {
-    const d = dialog(
-      'A board you can talk to.',
-      'Read the scene, apply a change, watch it happen. No account or API key needed.',
-    );
-    d.classList.add('ad-agent-dialog');
-    const tabs = el('div', 'ad-dialog-tabs');
-    const content = el('div', 'ad-agent-content');
-    let current = 'describe';
-    function paint() {
-      content.replaceChildren();
-      if (current === 'describe') {
-        const pre = el(
-          'pre',
-          'ad-code',
-          board.describe({ detail: 'full', relations: true, freeSpace: true }),
-        );
-        content.append(pre, textButton('Refresh scene', paint, 'ad-button ad-subtle'));
-      }
-      if (current === 'apply') {
-        const textarea = el('textarea', 'ad-code ad-ops-editor');
-        textarea.rows = 13;
-        textarea.spellcheck = false;
-        textarea.setAttribute('aria-label', 'Operations JSON');
-        const selected =
-          board.selection[0] ?? board.items.find((i) => i.kind === 'rect' || i.kind === 'note')?.id;
-        textarea.value = JSON.stringify(
-          [
-            {
-              op: 'add',
-              item: {
-                kind: 'note',
-                w: 200,
-                h: 150,
-                text: { value: 'Hello from your agent ✨' },
-                style: { fill: 'moss', stroke: 'none' },
-              },
-              ...(selected
-                ? { place: { rightOf: selected, gap: 40, align: 'middle' } }
-                : {
-                    item: {
-                      kind: 'note',
-                      x: 100,
-                      y: 100,
-                      w: 200,
-                      h: 150,
-                      text: { value: 'Hello from your agent ✨' },
-                      style: { fill: 'moss', stroke: 'none' },
-                    },
-                  }),
-            },
-          ],
-          null,
-          2,
-        );
-        const result = el('pre', 'ad-result');
-        result.setAttribute('role', 'status');
-        const run = (dryRun: boolean) => {
-          try {
-            const value = JSON.parse(textarea.value);
-            const names = ['Julia', 'Samuel', 'Anita'] as const;
-            const agentName = names[Math.floor(Math.random() * names.length)];
-            const response = board.apply(value, {
-              origin: `agent:${agentName}`,
-              agentName,
-              label: 'Agent playground',
-              dryRun,
-            });
-            result.textContent = JSON.stringify(response, null, 2);
-            textarea.setAttribute('aria-invalid', String(!response.ok));
-            if (response.ok && !dryRun) {
-              board.view.fit();
-              d.close();
-            }
-          } catch (error) {
-            result.textContent = String(error);
-            textarea.setAttribute('aria-invalid', 'true');
-          }
-        };
-        const actions = el('div', 'ad-dialog-actions');
-        const apply = textButton('Apply to board', () => run(false), 'ad-button ad-primary');
-        apply.disabled = board.readonly;
-        actions.append(
-          textButton('Validate first', () => run(true), 'ad-button ad-subtle'),
-          apply,
-        );
-        content.append(textarea, actions, result);
-      }
-      if (current === 'code') {
-        const pre = el(
-          'pre',
-          'ad-code',
-          `// In this browser, right now\nconst board = window.__anniedrawing[0];\n\nboard.describe();\nboard.read();\nboard.query({ kind: 'note' });\n\nboard.apply([{\n  op: 'add',\n  item: { kind: 'rect', x: 100, y: 100,\n    w: 220, h: 120,\n    text: { value: 'An idea worth keeping' } }\n}], { origin: 'agent:my-assistant' });\n\n// In your own project\nimport { createBoard } from 'anniedrawing';\nimport 'anniedrawing/style.css';\nconst editor = createBoard(host);`,
-        );
-        content.append(
-          pre,
-          textButton(
-            'Copy example',
-            () => {
-              void navigator.clipboard.writeText(pre.textContent ?? '').catch(() => undefined);
-            },
-            'ad-button ad-subtle',
-          ),
-          el(
-            'p',
-            'ad-muted',
-            'The agent entry point includes tool definitions, JSON schemas and a dispatcher. The repository also includes an authenticated local MCP bridge.',
-          ),
-        );
-      }
-      tabs
-        .querySelectorAll('button')
-        .forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tab === current)));
-    }
-    for (const [id, label] of [
-      ['describe', 'Read the board'],
-      ['apply', 'Try an operation'],
-      ['code', 'Use the API'],
-    ]) {
-      const b = textButton(
-        label,
-        () => {
-          current = id;
-          paint();
-        },
-        'ad-tab-button',
-      );
-      b.dataset.tab = id;
-      tabs.append(b);
-    }
-    d.append(tabs, content);
-    paint();
-  }
   function openMenu() {
+    if (!brand) return;
     const panel = popover(brand, 'Board menu');
     if (!panel) return;
     panel.classList.add('ad-tool-options');
@@ -1156,7 +1058,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       option.disabled = disabled;
       panel.append(option);
     };
-    add('Open a drawing', 'upload', () => drawingInput.click(), board.readonly);
+    add('Open a drawing', 'upload', () => drawingInput?.click(), board.readonly);
     if (board.stage.root.clientWidth <= 700) {
       add('Hand', 'hand', () => {
         board.setTool('hand');
@@ -1164,16 +1066,10 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       });
     }
     add(board.grid ? 'Hide grid' : 'Show grid', 'grid', () => board.setGrid(!board.grid));
-    add(
-      board.theme === 'dark' ? 'Light appearance' : 'Dark appearance',
-      board.theme === 'dark' ? 'sun' : 'moon',
-      () => board.setTheme(board.theme === 'dark' ? 'light' : 'dark'),
+    const dark = board.stage.resolvedTheme === 'dark';
+    add(dark ? 'Light appearance' : 'Dark appearance', dark ? 'sun' : 'moon', () =>
+      board.setTheme(dark ? 'light' : 'dark'),
     );
-    if (options.agentPanel !== false)
-      add('For agents', 'spark', () => {
-        brand.focus();
-        openAgent();
-      });
     add('Documentation', 'book', () => {
       window.open('./docs/index.html', '_blank', 'noopener');
     });
@@ -1256,4 +1152,3 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     ui.remove();
   };
 }
-export { icon } from './icons';

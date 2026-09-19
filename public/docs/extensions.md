@@ -1,6 +1,6 @@
 # Extensions
 
-Custom kinds extend the built-in renderer. Applications that embed HTML must pass an explicit sanitizer.
+Custom kinds extend the built-in renderer. They do not appear in `kindsSince` until they are added to the built-in catalog. Applications that embed HTML must pass an explicit sanitizer.
 
 ## Sanitized HTML
 
@@ -22,7 +22,7 @@ Built-in `video` and `link` items are not HTML. They store an `href` and optiona
 ## Custom kinds
 
 ```ts
-import { createBoard, defineKind } from 'anniedrawing';
+import { createBoard, defineKind, registerKind } from 'anniedrawing';
 
 const badge = defineKind({
   kind: 'badge',
@@ -56,7 +56,12 @@ board.apply([
 
 Kind names must start with a letter and contain only letters, digits, `_`, or `-`. Kind callbacks are trusted application code. Escape user text with `context.escape` when composing SVG strings. Use DOM `textContent` in the browser. Shape callbacks have `element`, `shape`, `text`, and the current document. Implement `toSVG` for anything that must survive portable SVG export. Unknown kinds remain saved and render as placeholders when the application has not registered them.
 
-`defineKind` returns the definition. Pass it in `createBoard({ kinds })` or `createDoc({ kinds })` for that instance. `registerKind` installs a default for boards created afterward and returns an uninstall function.
+`defineKind` returns the definition. Pass it in `createBoard({ kinds })` or `createDoc({ kinds })` for that instance. `registerKind` installs a default for boards created afterward and returns an uninstall function:
+
+```ts
+import { registerKind } from 'anniedrawing';
+const uninstall = registerKind(badge);
+```
 
 Custom kind `defaults` supply item properties before validation. A kind may also provide a Valibot `schema` for its extra fields. That schema runs during imports and operation validation. Pass the same kind definitions to `createDoc(..., { kinds })` for headless validation.
 

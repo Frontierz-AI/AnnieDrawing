@@ -1,6 +1,6 @@
 import type { Item } from './types';
 
-// Moving a group must not move a locked descendant; locked groups protect their children.
+/** Moving a group must not move a locked descendant; locked groups protect their children. */
 export function lockedItems(items: Item[]): Set<string> {
   const locked = new Set<string>();
   const visit = (item: Item, inherited = false): boolean => {

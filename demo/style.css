@@ -1,0 +1,16 @@
+:root {
+  font-family: 'Nunito Variable', 'Nunito', 'Trebuchet MS', sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  color: #103639;
+  background: #f8faf8;
+}
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}

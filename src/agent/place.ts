@@ -1,5 +1,6 @@
 import type { Item, Placement } from '../core/types';
 import { contains, intersects, itemBounds, lookupItem, type ItemLookup } from '../geo/box';
+/** Exactly one of rightOf, leftOf, above, below, inside, or near. */
 export function placeItem(
   item: Item,
   place: Placement,

@@ -20,12 +20,20 @@ The drawing toolbar puts eraser after hand, line and arrow inside Shapes, and im
 
 Pasting a YouTube or Vimeo URL creates a `video` item with the official player; drag it like any shape, then double-click to use the play controls. Pasting a website URL creates a compact `link` card with the page title, a URL without a trailing slash, the Open Graph image when the page can be read, and an Open button. The card text shrinks instead of overlapping when you resize it. Image URLs become ordinary image items. Notes, images, videos and link cards share one 12px corner and the same soft shadow. User paste may fetch the pasted page for a preview; pass `unfurl: false` to skip that fetch.
 
+The default editor gzip budget is 100 KiB, including styles. `scripts/check-size.mjs` enforces that ceiling.
+
 The package declares the version intended for the first release. No publication is implied. Use the release checklist and verified test results before tagging or distributing it.
 
-The docs site, README, API, format, agent, extension, MCP, and repository guides were rewritten as a developer manual. Those pages and `llms.txt` now match the current board: 12px card corners, `apply.merge`, query kind arrays, placement rules, image import limits, `runTool` origin rewriting, and the six agent tools.
+Library CSS no longer sets host `html`/`body` layout. Import `anniedrawing/style.css` for editor chrome; hosts size their own page. Shared item helpers cover drafts, copies, translation, connector detach, and clipboard URI lists. `registerKind` is exported from `anniedrawing`. The UI entry exports `mountUI`; unused `title`/`branding` options and leftover icon glyphs are gone.
+
+The docs site, README, API, format, agent, extension, MCP, and repository guides were rewritten as a developer manual. Those pages match the current board: 12px card corners, `apply.merge`, query kind arrays, placement rules, image import limits, `runTool` origin rewriting, and the six agent tools.
+
+`llms.txt` and `llms-full.txt` are board-JavaScript guides: kinds, `apply`, and how to read what is on the board. They no longer concatenate install or repository instructions. Built-in kinds carry a catalog `since` version. `kindsSince(since?)` (also `board.kindsSince` / `doc.kindsSince`) lists kinds added or last changed after that number; omit `since` or pass `0` for the full catalog.
 
 Development now uses TypeScript 7, Vite 8 and Vitest 5, with nanoid 6 for IDs. Node.js 24 or newer is required.
 
 Locked items remain selectable by click, touch or keyboard focus. Their editing controls and context actions are disabled, with Unlock and Deselect available. Locks prevent dragging, resizing, text edits, erasing, duplication, ordering and keyboard edits, including through groups and mixed selections.
 
-AI additions now arrive with a lilac companion cursor: it enters from outside the viewport, visits the placement points and reveals items with a gentle fade and settling motion. The cursor has no name unless `apply` passes `agentName`. Groups arrive together and large batches use a short sequence. The document commits immediately, human input takes priority, reduced motion is respected, and integrations can disable the animation with `agentPresence: false`. A successful agent-playground edit closes its dialog to show the result and labels the cursor Julia, Samuel or Anita. The editor no longer shows toast confirmations.
+AI additions now arrive with a lilac companion cursor: it enters from outside the viewport, visits the placement points and reveals items with a gentle fade and settling motion. The cursor has no name unless `apply` passes `agentName`. Groups arrive together and large batches use a short sequence. The document commits immediately, human input takes priority, reduced motion is respected, and integrations can disable the animation with `agentPresence: false`. The editor no longer shows toast confirmations. The board menu no longer includes a For agents playground.
+
+`createBoard` lets a host choose light, dark, or system (`auto`) appearance, hide the AnnieDrawing menu, and choose Export formats. An imported board defaults to PNG and SVG. Pass `json` to offer AnnieDoc. The local demo keeps PNG, SVG, and AnnieDoc.

@@ -1,4 +1,4 @@
-import { DEFAULT_SIZES } from '../core/defaults';
+import { sizeOf } from '../core/defaults';
 import { mediaId } from '../core/ids';
 import { hostnameOf, type LinkPreview } from '../core/links';
 import { classifyPaste, imageMime, linkFallback, unfurlPage } from '../core/paste';
@@ -22,7 +22,7 @@ function place(
   point?: Point,
   size?: [number, number],
 ) {
-  const [w, h] = size ?? DEFAULT_SIZES[kind];
+  const [w, h] = size ?? sizeOf(kind);
   const p = point ?? host.view.center;
   let x = p.x - w / 2,
     y = p.y - h / 2;
@@ -145,5 +145,3 @@ export function pastePlain(host: PasteHost, value: string, point?: Point) {
     if (result.ok) host.select(result.created);
   }
 }
-
-export { clipboardText } from '../core/paste';

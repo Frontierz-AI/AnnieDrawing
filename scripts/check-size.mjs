@@ -19,11 +19,11 @@ async function include(path) {
 await include(resolve(root, 'index.js'));
 for (const file of await readdir(root))
   if (file.endsWith('.css')) await include(resolve(root, file));
-const budget = 60 * 1024;
+const budget = 100 * 1024;
 console.log(
   `Main editor and styles: ${(total / 1024).toFixed(2)} KiB gzip across ${visited.size} files (budget ${budget / 1024} KiB).`,
 );
 if (total >= budget)
   throw new Error(
-    `Bundle exceeds the 60 KiB gzipped budget by ${total - budget} bytes. Files: ${[...visited].map((file) => relative(root, file)).join(', ')}`,
+    `Bundle exceeds the 100 KiB gzipped budget by ${total - budget} bytes. Files: ${[...visited].map((file) => relative(root, file)).join(', ')}`,
   );

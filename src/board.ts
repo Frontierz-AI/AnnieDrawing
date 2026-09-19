@@ -1,9 +1,14 @@
 import { signal } from '@preact/signals-core';
-import { CARD_CORNER } from './core/defaults';
+import { kindsSince } from './core/catalog';
+import type { KindCatalogSnapshot } from './core/catalog';
+import { CARD_CORNER, clone, sizeOf } from './core/defaults';
 import { itemId, mediaId } from './core/ids';
+import { LIMITS } from './core/schema';
 import { createDoc } from './core/doc';
 import type { LinkPreview } from './core/links';
 import { lockedItems } from './core/locks';
+import { clipboardText } from './core/clipboard';
+import { applyDraft, copyItems, detachMissingEndpoints, translateItem } from './core/item';
 import { describeDoc } from './agent/describe';
 import type {
   AnnieDoc,
@@ -13,11 +18,9 @@ import type {
   ChangeEvent,
   DescribeOptions,
   DocModel,
-  Endpoint,
   ExportOptions,
   Item,
   LensState,
-  NewItem,
   Op,
   Point,
   Query,
@@ -28,14 +31,17 @@ import { Stage } from './stage/stage';
 import {
   SpatialIndex,
   boundsOf as geometryBounds,
+  flattenItems,
   itemBounds,
   rotatePoint,
-  resolveEndpoint,
+  simplifyStroke,
 } from './geo/index';
 import { getKinds, type KindDef } from './kinds/index';
 import { exportSVG } from './porter/svg';
 import { exportPNG } from './porter/png';
+import { ANNIE_MIME, exportJSON } from './porter/json';
 import { mountUI, type UiOptions } from './ui/index';
+export type { UiOptions, UiExportFormat } from './ui/index';
 import { openAutosave } from './input/autosave';
 import { measureText } from './input/measure';
 import { cursorForTool } from './input/cursors';
@@ -76,22 +82,6 @@ type Drag = {
   moved: boolean;
   alt?: boolean;
 };
-const clone = <T>(value: T): T => structuredClone(value);
-export function flatten(items: Item[]): Item[] {
-  return items.flatMap((item) => [item, ...flatten(item.children ?? [])]);
-}
-function boxOf(items: Item[]): Box {
-  const list = items.filter((i) => i.kind !== 'connector');
-  if (!list.length) return { x: 0, y: 0, w: 0, h: 0 };
-  const x = Math.min(...list.map((i) => i.x)),
-    y = Math.min(...list.map((i) => i.y));
-  return {
-    x,
-    y,
-    w: Math.max(...list.map((i) => i.x + i.w)) - x,
-    h: Math.max(...list.map((i) => i.y + i.h)) - y,
-  };
-}
 const shortcuts: Record<string, string> = {
   v: 'select',
   h: 'hand',
@@ -105,22 +95,11 @@ const shortcuts: Record<string, string> = {
   n: 'note',
   e: 'eraser',
 };
-const uid = itemId;
-function translation(item: Item, dx: number, dy: number): Partial<Item> {
-  const patch: Partial<Item> = { x: (item.x ?? 0) + dx, y: (item.y ?? 0) + dy };
-  if (item.kind === 'connector') {
-    for (const key of ['from', 'to'] as const) {
-      const endpoint = item[key];
-      if (endpoint && !('item' in endpoint))
-        patch[key] = { x: endpoint.x + dx, y: endpoint.y + dy };
-    }
-    if (item.waypoints) patch.waypoints = item.waypoints.map(([x, y]) => [x + dx, y + dy]);
-  }
-  return patch;
-}
 
+/** Browser editor: document session, pointer input, and the public Board API. */
 export class Board {
   readonly host: HTMLElement;
+  /** @internal Renderer. Use `view` and documented Board methods. */
   readonly stage: Stage;
   readonly model: DocModel;
   readonly ready: Promise<void>;
@@ -128,7 +107,8 @@ export class Board {
   readonly selectionSignal = signal<string[]>([]);
   readonly toolSignal = signal('select');
   readonly drafts = new Map<string, Partial<Item>>();
-  defaultStyle: Style = { stroke: 'ink', strokeWidth: 2, fill: 'paper', corner: 12 };
+  /** Drawing tools fill paper; compact JSON omits fill and treats missing fill as none. */
+  defaultStyle: Style = { stroke: 'ink', strokeWidth: 2, fill: 'paper', corner: CARD_CORNER };
   grid = true;
   pageId: string;
   private document: AnnieDoc;
@@ -182,7 +162,6 @@ export class Board {
     this.updateCursor();
     this.refreshGeometry();
     this.rect = this.stage.root.getBoundingClientRect();
-    this.stage.root.setAttribute('aria-label', 'Drawing board');
     this.stage.root.dataset.adBoard = '';
     this.cleanup.push(
       this.model.on('change', (event) => {
@@ -192,7 +171,7 @@ export class Board {
         )
           this.stage.finishPresentation();
         this.document = this.model.toJSON({ compact: false });
-        if (!this.document.pages.some((s) => s.id === this.pageId))
+        if (!this.document.pages.some((page) => page.id === this.pageId))
           this.pageId = this.document.pages[0].id;
         this.refreshGeometry();
         if (
@@ -304,7 +283,7 @@ export class Board {
     return this.model.canRedo;
   }
   get items() {
-    return flatten(this.document.pages.find((s) => s.id === this.pageId)?.items ?? []);
+    return flattenItems(this.pageItems());
   }
   get view() {
     const board = this;
@@ -337,9 +316,9 @@ export class Board {
     const options = typeof scope === 'string' ? { scope } : scope;
     const doc = this.model.toJSON();
     if (options.includeDrafts && this.drawPreview)
-      doc.pages.find((s) => s.id === this.pageId)?.items.push(clone(this.drawPreview));
+      doc.pages.find((page) => page.id === this.pageId)?.items.push(clone(this.drawPreview));
     if (options.scope && options.scope !== 'doc')
-      doc.pages = doc.pages.filter((s) => s.id === this.pageId);
+      doc.pages = doc.pages.filter((page) => page.id === this.pageId);
     if (options.scope === 'selection' || options.scope === 'viewport') {
       const ids =
         options.scope === 'selection'
@@ -350,10 +329,14 @@ export class Board {
       for (const page of doc.pages) page.items = filter(page.items);
     }
     if (options.includeDrafts)
-      for (const item of doc.pages.flatMap((s) => flatten(s.items)))
-        Object.assign(item, this.drafts.get(item.id));
+      for (const item of doc.pages.flatMap((page) => flattenItems(page.items))) {
+        const next = applyDraft(item, this.drafts.get(item.id));
+        Object.assign(item, next);
+      }
     if (options.scope && options.scope !== 'doc') {
-      const media = new Set(doc.pages.flatMap((s) => flatten(s.items)).map((item) => item.media));
+      const media = new Set(
+        doc.pages.flatMap((page) => flattenItems(page.items)).map((item) => item.media),
+      );
       doc.media = Object.fromEntries(Object.entries(doc.media).filter(([id]) => media.has(id)));
     }
     return doc;
@@ -381,6 +364,10 @@ export class Board {
       page: options.page ?? (options.scope === 'doc' ? undefined : this.pageId),
       selection: this.selection,
     });
+  }
+  /** Built-in kinds added or last changed after `since`. Omit or pass 0 for the full catalog. */
+  kindsSince(since = 0): KindCatalogSnapshot {
+    return kindsSince(since);
   }
   boundsOf(ids?: string[]): Box {
     const idsSet = ids ? new Set(ids) : undefined;
@@ -411,7 +398,7 @@ export class Board {
           item.kind === 'text' &&
           item.autoWidth &&
           typeof item.text?.value === 'string' &&
-          item.text.value.length <= 100000
+          item.text.value.length <= LIMITS.maxTextLength
         )
           item = { ...item, ...measureText(this.host.ownerDocument, item.text) };
         return { ...op, item, ...(!op.page && !op.parent ? { page: this.pageId } : {}) };
@@ -424,7 +411,7 @@ export class Board {
           (op.patch.text || op.patch.autoWidth)
         ) {
           const text = { ...item.text, ...op.patch.text };
-          if (typeof text.value === 'string' && text.value.length <= 100000)
+          if (typeof text.value === 'string' && text.value.length <= LIMITS.maxTextLength)
             return {
               ...op,
               patch: {
@@ -471,9 +458,9 @@ export class Board {
   }
   clear() {
     return this.apply(
-      (this.document.pages.find((s) => s.id === this.pageId)?.items ?? []).map((i) => ({
+      this.pageItems().map((item) => ({
         op: 'remove',
-        id: i.id,
+        id: item.id,
       })),
       { origin: 'user', label: 'Clear page' },
     );
@@ -494,10 +481,9 @@ export class Board {
   setTheme(theme: 'light' | 'dark' | 'auto') {
     this.themeValue = theme;
     this.stage.setTheme(theme);
-    this.render();
   }
   setPage(id: string) {
-    if (!this.document.pages.some((s) => s.id === id)) return;
+    if (!this.document.pages.some((page) => page.id === id)) return;
     this.cancel();
     this.pageId = id;
     this.refreshGeometry();
@@ -526,22 +512,14 @@ export class Board {
   ): Promise<string | Blob> {
     const doc = this.read(options.scope ?? 'page');
     if (format === 'json') {
-      const items = doc.pages.flatMap((s) => flatten(s.items)),
-        ids = new Set(items.map((i) => i.id));
-      for (const item of items)
-        for (const key of ['from', 'to'] as const) {
-          const endpoint = item[key];
-          if (endpoint && 'item' in endpoint && !ids.has(endpoint.item))
-            item[key] = resolveEndpoint(
-              endpoint,
-              item[key === 'from' ? 'to' : 'from'],
-              this.geometryLookup,
-              this.outline,
-            );
-        }
-      return JSON.stringify(doc, null, 2);
+      detachMissingEndpoints(
+        doc.pages.flatMap((page) => page.items),
+        this.geometryLookup,
+        this.outline,
+      );
+      return exportJSON(doc);
     }
-    const items = doc.pages.flatMap((s) => s.items).map((item) => this.get(item.id) ?? item);
+    const items = doc.pages.flatMap((page) => page.items).map((item) => this.get(item.id) ?? item);
     const svg = exportSVG(this.document, items, {
       ...options,
       theme: this.stage.resolvedTheme,
@@ -571,8 +549,7 @@ export class Board {
   }
   add(kind: string, point?: Point) {
     const p = point ?? this.view.center;
-    const w = kind === 'text' ? 250 : kind === 'note' ? 210 : 180,
-      h = kind === 'text' ? 60 : kind === 'note' ? 180 : 110;
+    const [w, h] = sizeOf(kind);
     const result = this.apply(
       [
         {
@@ -654,7 +631,7 @@ export class Board {
     const items = this.topSelection()
       .map((id) => this.get(id)!)
       .filter(Boolean);
-    const copies = this.copyItems(items, offset);
+    const copies = copyItems(items, offset);
     const result = this.apply(
       copies.map((item) => ({ op: 'add', item, page: this.pageId })),
       { origin: 'user', label: 'Duplicate' },
@@ -666,7 +643,7 @@ export class Board {
     if (this.selection.length < 2 || this.selection.some((id) => this.isLocked(id))) return;
     const ids = this.topSelection(),
       box = this.boundsOf(ids),
-      id = uid();
+      id = itemId();
     this.apply(
       [
         { op: 'add', page: this.pageId, item: { kind: 'group', id, ...box, children: [] } },
@@ -697,35 +674,40 @@ export class Board {
     const items = this.topSelection()
         .map((id) => this.get(id)!)
         .filter((i) => i && !i.locked && i.kind !== 'connector'),
-      box = boxOf(items);
-    const sorted = [...items].sort((a, b) => (mode === 'horizontal' ? a.x - b.x : a.y - b.y));
+      visual = (item: Item) => itemBounds(item, this.geometryLookup, this.outline),
+      box = geometryBounds(items, this.geometryLookup, this.outline);
+    const sorted = [...items].sort((a, b) =>
+      mode === 'horizontal' ? visual(a).x - visual(b).x : visual(a).y - visual(b).y,
+    );
     let cursor = mode === 'horizontal' ? box.x : box.y;
     const gap =
       items.length > 1
         ? ((mode === 'horizontal' ? box.w : box.h) -
-            items.reduce((s, i) => s + (mode === 'horizontal' ? i.w : i.h), 0)) /
+            items.reduce((s, i) => s + (mode === 'horizontal' ? visual(i).w : visual(i).h), 0)) /
           (items.length - 1)
         : 0;
     const ops = sorted.flatMap((i) => {
-      const patch: Partial<Item> = {};
-      if (mode === 'left') patch.x = box.x;
-      if (mode === 'center') patch.x = box.x + (box.w - i.w) / 2;
-      if (mode === 'right') patch.x = box.x + box.w - i.w;
-      if (mode === 'top') patch.y = box.y;
-      if (mode === 'middle') patch.y = box.y + (box.h - i.h) / 2;
-      if (mode === 'bottom') patch.y = box.y + box.h - i.h;
+      const b = visual(i);
+      let dx = 0,
+        dy = 0;
+      if (mode === 'left') dx = box.x - b.x;
+      if (mode === 'center') dx = box.x + (box.w - b.w) / 2 - b.x;
+      if (mode === 'right') dx = box.x + box.w - b.w - b.x;
+      if (mode === 'top') dy = box.y - b.y;
+      if (mode === 'middle') dy = box.y + (box.h - b.h) / 2 - b.y;
+      if (mode === 'bottom') dy = box.y + box.h - b.h - b.y;
       if (mode === 'horizontal') {
-        patch.x = cursor;
-        cursor += i.w + gap;
+        dx = cursor - b.x;
+        cursor += b.w + gap;
       }
       if (mode === 'vertical') {
-        patch.y = cursor;
-        cursor += i.h + gap;
+        dy = cursor - b.y;
+        cursor += b.h + gap;
       }
       return this.movable([i.id]).map((child) => ({
         op: 'set' as const,
         id: child.id,
-        patch: translation(child, (patch.x ?? i.x) - i.x, (patch.y ?? i.y) - i.y),
+        patch: translateItem(child, dx, dy),
       }));
     });
     this.apply(ops, { origin: 'user', label: 'Align selection' });
@@ -866,8 +848,8 @@ export class Board {
         this.previewBase = doc;
         this.previewDocument = {
           ...doc,
-          pages: doc.pages.map((s) =>
-            s.id === this.pageId ? { ...s, items: [...s.items, this.drawPreview!] } : s,
+          pages: doc.pages.map((page) =>
+            page.id === this.pageId ? { ...page, items: [...page.items, this.drawPreview!] } : page,
           ),
         };
       }
@@ -919,8 +901,11 @@ export class Board {
         if (item.children) visit(item.children, ancestorSelected || included);
       }
     };
-    visit(this.document.pages.find((s) => s.id === this.pageId)?.items ?? []);
+    visit(this.pageItems());
     return result;
+  }
+  private pageItems() {
+    return this.document.pages.find((page) => page.id === this.pageId)?.items ?? [];
   }
   private movable(ids: string[]) {
     if (ids.some((id) => this.isLocked(id))) return [];
@@ -928,14 +913,15 @@ export class Board {
     for (const id of ids) {
       const item = this.get(id);
       if (item && !item.locked)
-        for (const child of [item, ...flatten(item.children ?? [])]) all.set(child.id, child);
+        for (const child of [item, ...flattenItems(item.children ?? [])]) all.set(child.id, child);
     }
     return [...all.values()];
   }
   private outline = (item: Item) => this.stage.kinds.get(item.kind)?.outline?.(item);
+  /** Hit-testing uses committed geometry; drafts do not update this index. */
   private refreshGeometry() {
-    const items = this.document.pages.find((page) => page.id === this.pageId)?.items ?? [];
-    this.geometryLookup = new Map(flatten(items).map((item) => [item.id, item]));
+    const items = this.pageItems();
+    this.geometryLookup = new Map(flattenItems(items).map((item) => [item.id, item]));
     this.lockedGeometry = lockedItems(this.document.pages.flatMap((page) => page.items));
     this.hiddenGeometry.clear();
     const walk = (nodes: Item[], hidden = false) => {
@@ -953,28 +939,11 @@ export class Board {
       includeLocked: true,
       tolerance: 6 / this.view.zoom,
       enteredGroup: this.enteredGroup,
-      outline: (item) => this.stage.kinds.get(item.kind)?.outline?.(item),
+      outline: this.outline,
     });
     if (!item || item.id === this.enteredGroup || (!includeLocked && this.isLocked(item.id)))
       return undefined;
     return item;
-  }
-  private distanceToLine(p: Point, a: Point, b: Point) {
-    const dx = b.x - a.x,
-      dy = b.y - a.y,
-      t = Math.max(
-        0,
-        Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)),
-      );
-    return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy);
-  }
-  private endpoint(value?: Endpoint): Point | undefined {
-    if (!value) return;
-    if ('item' in value) {
-      const i = this.get(value.item);
-      return i ? { x: i.x + i.w / 2, y: i.y + i.h / 2 } : undefined;
-    }
-    return value;
   }
   private zoomAt(zoom: number, screen: Point) {
     zoom = Math.max(0.05, Math.min(8, zoom));
@@ -1117,7 +1086,7 @@ export class Board {
     const kind = this.tool;
     const from = this.hit(start);
     const item = {
-      id: uid(),
+      id: itemId(),
       kind,
       x: start.x,
       y: start.y,
@@ -1203,7 +1172,7 @@ export class Board {
         else dx = 0;
       }
       for (const item of drag.original) {
-        this.drafts.set(item.id, translation(item, dx, dy));
+        this.drafts.set(item.id, translateItem(item, dx, dy));
       }
       this.schedule();
       return;
@@ -1375,7 +1344,7 @@ export class Board {
       const item = drag.item;
       if (item.kind === 'path') {
         const events = e.getCoalescedEvents?.() ?? [e];
-        for (const point of events.length ? events : [e]) {
+        for (const point of events) {
           const p = this.stage.lens.toPage(this.point(point));
           drag.points!.push([p.x - drag.start.x, p.y - drag.start.y, point.pressure || 0.5]);
         }
@@ -1425,7 +1394,7 @@ export class Board {
             .map((id) => drag.original.find((i) => i.id === id)!)
             .filter(Boolean);
           const changed = originals.map((item) => this.withDrafts(item));
-          const copies = this.copyItems(changed, 0);
+          const copies = copyItems(changed, 0);
           ops.push(...copies.map((item) => ({ op: 'add' as const, item, page: this.pageId })));
           this.selectionSignal.value = copies.map((i) => i.id);
         } else for (const [id, patch] of this.drafts) ops.push({ op: 'set', id, patch });
@@ -1448,18 +1417,18 @@ export class Board {
     if (drag.kind === 'draw' && drag.item) {
       const item = drag.item;
       if (!drag.moved) {
-        item.w = item.kind === 'note' ? 210 : item.kind === 'text' ? 260 : 180;
-        item.h = item.kind === 'note' ? 180 : item.kind === 'text' ? 60 : 110;
+        const [w, h] = sizeOf(item.kind);
+        item.w = item.kind === 'path' ? 1 : w;
+        item.h = item.kind === 'path' ? 1 : h;
         if (item.kind === 'connector') {
           item.to = { x: item.x + 160, y: item.y };
         }
         if (item.kind === 'line')
           item.points = [
             [0, 0],
-            [180, 0],
+            [w, 0],
           ];
         if (item.kind === 'path') {
-          item.w = item.h = 1;
           item.points = [
             [0, 0, 0.5],
             [0.1, 0.1, 0.5],
@@ -1475,7 +1444,7 @@ export class Board {
         item.y += minY;
         item.w = Math.max(1, maxX - minX);
         item.h = Math.max(1, maxY - minY);
-        item.points = this.simplify(
+        item.points = simplifyStroke(
           item.points.map((p) => [p[0] - minX, p[1] - minY, p[2]]),
           0.5 / this.view.zoom,
         );
@@ -1507,7 +1476,8 @@ export class Board {
         this.select(
           drag.alt
             ? result.created.filter(
-                (id) => !this.items.some((p) => flatten(p.children ?? []).some((c) => c.id === id)),
+                (id) =>
+                  !this.items.some((p) => flattenItems(p.children ?? []).some((c) => c.id === id)),
               )
             : [result.created[0]],
         );
@@ -1726,7 +1696,7 @@ export class Board {
         this.movable(this.topSelection()).map((i) => ({
           op: 'set',
           id: i.id,
-          patch: translation(i, dx, dy),
+          patch: translateItem(i, dx, dy),
         })),
         { origin: 'user', label: 'Nudge' },
       );
@@ -1738,33 +1708,10 @@ export class Board {
     }
   };
   private withDrafts(item: Item): Item {
-    return {
-      ...item,
-      ...this.drafts.get(item.id),
-      ...(item.children ? { children: item.children.map((i) => this.withDrafts(i)) } : {}),
-    };
-  }
-  private copyItems(items: Item[], offset: number): Item[] {
-    const ids = new Map(flatten(items).map((i) => [i.id, uid()]));
-    const copy = (i: Item): Item => {
-      const out = {
-        ...clone(i),
-        id: ids.get(i.id)!,
-        x: (i.x ?? 0) + offset,
-        y: (i.y ?? 0) + offset,
-      };
-      if (i.children) out.children = i.children.map(copy);
-      if (i.waypoints) out.waypoints = i.waypoints.map(([x, y]) => [x + offset, y + offset]);
-      for (const key of ['from', 'to'] as const) {
-        const end = i[key];
-        if (end) {
-          if ('item' in end) out[key] = { ...end, item: ids.get(end.item) ?? end.item };
-          else out[key] = { x: end.x + offset, y: end.y + offset };
-        }
-      }
-      return out;
-    };
-    return items.map(copy);
+    const next = applyDraft(item, this.drafts.get(item.id));
+    return next.children
+      ? { ...next, children: next.children.map((child) => this.withDrafts(child)) }
+      : next;
   }
   private copyEvent = (e: ClipboardEvent) => {
     if (this.isUI(e.target) || !this.selection.length) return;
@@ -1772,28 +1719,17 @@ export class Board {
     this.clipboard = this.topSelection()
       .map((id) => this.get(id)!)
       .filter(Boolean);
-    const ids = new Set(flatten(this.clipboard).map((i) => i.id));
     const media: AnnieDoc['media'] = {};
-    for (const item of flatten(this.clipboard)) {
+    for (const item of flattenItems(this.clipboard))
       if (item.media && this.document.media[item.media])
         media[item.media] = clone(this.document.media[item.media]);
-      for (const key of ['from', 'to'] as const) {
-        const endpoint = item[key];
-        if (endpoint && 'item' in endpoint && !ids.has(endpoint.item))
-          item[key] = resolveEndpoint(
-            endpoint,
-            item[key === 'from' ? 'to' : 'from'],
-            this.geometryLookup,
-            this.outline,
-          );
-      }
-    }
+    detachMissingEndpoints(this.clipboard, this.geometryLookup, this.outline);
     const value = JSON.stringify({
       format: 'anniedrawing-clipboard',
       items: this.clipboard,
       media,
     });
-    e.clipboardData?.setData('application/vnd.anniedrawing+json', value);
+    e.clipboardData?.setData(ANNIE_MIME, value);
     e.clipboardData?.setData('text/plain', value);
   };
   private cutEvent = (e: ClipboardEvent) => {
@@ -1820,23 +1756,20 @@ export class Board {
   };
   private pasteFrom(data: DataTransfer | null, point?: Point) {
     const text =
-      data?.getData('application/vnd.anniedrawing+json') ||
-      data?.getData('text/plain') ||
-      data?.getData('text/uri-list') ||
-      data?.getData('text/html') ||
-      '';
+      data?.getData(ANNIE_MIME) || clipboardText(data) || data?.getData('text/html') || '';
     if (!text) return;
     try {
       const parsed = JSON.parse(text);
-      if (!Array.isArray(parsed.items)) throw new Error('t');
-      const copies = this.copyItems(parsed.items, 24),
+      if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.items))
+        throw new Error('not clipboard json');
+      const copies = copyItems(parsed.items, 24),
         mediaIds = new Map(Object.keys(parsed.media ?? {}).map((id) => [id, mediaId()])),
         ops: Op[] = Object.entries(parsed.media ?? {}).map(([id, media]) => ({
           op: 'media.set',
           id: mediaIds.get(id)!,
           media: media as AnnieDoc['media'][string],
         }));
-      for (const item of flatten(copies))
+      for (const item of flattenItems(copies))
         if (item.media && mediaIds.has(item.media)) item.media = mediaIds.get(item.media);
       ops.push(...copies.map((item) => ({ op: 'add' as const, item, page: this.pageId })));
       const result = this.apply(ops, { origin: 'user', label: 'Paste' });
@@ -1845,7 +1778,21 @@ export class Board {
         this.host.dispatchEvent(new CustomEvent('ad-error', { detail: result.errors[0]?.message }));
     } catch {
       void import('./input/urlPaste').then(({ pastePlain }) =>
-        pastePlain(this as never, text, point),
+        pastePlain(
+          {
+            pageId: this.pageId,
+            items: this.items,
+            destroyed: this.destroyed,
+            unfurl: this.unfurl,
+            view: this.view,
+            host: this.host,
+            apply: (ops, options) => this.apply(ops, options),
+            select: (ids) => this.select(ids),
+            get: (id) => this.get(id),
+          },
+          text,
+          point,
+        ),
       );
     }
   }
@@ -1869,37 +1816,6 @@ export class Board {
     }
     if (e.dataTransfer) void this.pasteFrom(e.dataTransfer, p);
   };
-  private simplify(
-    points: [number, number, number?][],
-    epsilon: number,
-  ): [number, number, number?][] {
-    if (points.length < 3) return points;
-    let max = 0,
-      index = 0;
-    for (let i = 1; i < points.length - 1; i++) {
-      const distance = this.distanceToLine(
-        { x: points[i][0], y: points[i][1] },
-        { x: points[0][0], y: points[0][1] },
-        { x: points.at(-1)![0], y: points.at(-1)![1] },
-      );
-      const ratio = i / (points.length - 1),
-        pressure = (points[0][2] ?? 0.5) * (1 - ratio) + (points.at(-1)![2] ?? 0.5) * ratio;
-      const error = Math.max(
-        distance,
-        Math.abs((points[i][2] ?? 0.5) - pressure) > 0.08 ? epsilon * 2 : 0,
-      );
-      if (error > max) {
-        max = error;
-        index = i;
-      }
-    }
-    return max > epsilon
-      ? [
-          ...this.simplify(points.slice(0, index + 1), epsilon).slice(0, -1),
-          ...this.simplify(points.slice(index), epsilon),
-        ]
-      : [points[0], points.at(-1)!];
-  }
 }
 export function createBoard(host: HTMLElement, options?: BoardOptions) {
   return new Board(host, options);
