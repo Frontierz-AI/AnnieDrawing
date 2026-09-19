@@ -323,13 +323,24 @@ button:focus:not(:focus-visible) {
 .ad-tool-option[aria-pressed='true'] {
   background: #05d9ab25;
 }
-.ad-style-panel {
+.ad-ui > .ad-style-dock {
   position: absolute;
-  right: 24px;
-  top: 88px;
-  width: 248px;
-  max-width: calc(100% - 24px);
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
   max-height: calc(100% - 174px);
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  pointer-events: none;
+}
+.ad-style-dock > * {
+  pointer-events: auto;
+}
+.ad-style-panel {
+  width: 248px;
+  max-width: calc(100vw - 48px);
+  max-height: 100%;
   overflow: auto;
   scrollbar-width: thin;
   background: var(--ad-ui-bg);
@@ -338,25 +349,26 @@ button:focus:not(:focus-visible) {
   padding: 14px;
   box-shadow: var(--ad-shadow);
 }
-.ad-panel-head {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-bottom: 12px;
+.ad-style-dismiss {
+  width: 24px;
+  height: 44px;
+  padding: 0;
+  border-radius: 0;
+  color: var(--ad-ui-muted);
 }
-.ad-panel-head h3 {
-  font-size: 14px;
-  margin: 0;
+.ad-style-dismiss::after {
+  content: '';
+  position: absolute;
+  inset: -2px -4px -2px -16px;
 }
-.ad-panel-head .ad-icon-button {
-  width: 28px;
-  height: 28px;
-  padding: 5px;
+.ad-style-dismiss:hover {
+  background: none;
+  color: var(--ad-ui-text);
 }
-.ad-panel-head svg {
-  width: 18px;
-  height: 18px;
+.ad-style-dismiss svg {
+  width: 16px;
+  height: 16px;
+  transform: rotate(-90deg);
 }
 .ad-color-controls {
   display: flex;
@@ -781,9 +793,6 @@ button:focus:not(:focus-visible) {
   min-width: 30px;
   min-height: 1em;
 }
-.ad-item[data-ad-kind='note'] {
-  filter: drop-shadow(1px 5px 5px #1036390b);
-}
 [hidden] {
   display: none !important;
 }
@@ -797,6 +806,10 @@ button:focus:not(:focus-visible) {
   .ad-toolbar .ad-icon-button {
     width: 38px;
     height: 38px;
+  }
+  .ad-ui > .ad-style-dock {
+    top: 82px;
+    transform: none;
   }
 }
 @media (max-width: 700px) {
@@ -891,16 +904,18 @@ button:focus:not(:focus-visible) {
   .ad-page-tab {
     font-size: 14px;
   }
-  .ad-style-panel {
-    top: 76px;
-    right: 12px;
-    width: 248px;
+  .ad-ui > .ad-style-dock {
+    top: 50%;
+    transform: translateY(-50%);
     max-height: calc(100% - 278px);
+  }
+  .ad-style-panel {
+    width: 248px;
+    max-height: 100%;
     padding: 12px;
   }
-  .ad-style-panel .ad-panel-head .ad-icon-button {
-    width: 36px;
-    height: 36px;
+  .ad-style-dismiss {
+    height: 48px;
   }
   .ad-style-row {
     grid-template-columns: minmax(0, 1fr);

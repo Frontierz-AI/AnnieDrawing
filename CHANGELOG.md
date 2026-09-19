@@ -14,9 +14,11 @@ The local demo opens on a blank Page 1 instead of the previous welcome drawing. 
 
 Board text defaults to the handwritten Comic Sans-like font (`hand`) when no `font` is set. Friendly Nunito remains available as `sans`.
 
-The selection inspector is narrower and no longer shows a kind title such as Rectangle. Fill, line color and opacity share one row; the former Stroke control is labeled Line. Text size, alignment, font, line weight and dash pattern each use their own row of buttons. Pasted plain text defaults to medium (M) size. Sticky notes omit line color, weight and pattern controls. The AnnieDrawing control opens a dropdown menu, matching Export and Shapes.
+The selection inspector is narrower and no longer shows a kind title such as Rectangle. Fill, line color and opacity share one row; the former Stroke control is labeled Line. Text size, alignment, font, line weight and dash pattern each use their own row of buttons. Pasted plain text defaults to medium (M) size. Sticky notes omit line color, weight and pattern controls. The AnnieDrawing control opens a dropdown menu, matching Export and Shapes. Deselect is a chevron in the right page gutter instead of a full-width close row.
 
-The drawing toolbar puts eraser after hand, line inside Shapes, and image after sticky note. The More tools overflow is gone; on phones, hand and arrow remain in the board menu.
+The drawing toolbar puts eraser after hand, line and arrow inside Shapes, and image after sticky note. The More tools overflow is gone; on phones, hand remains in the board menu. The selection inspector is vertically centered like the tool sidebar.
+
+Pasting a YouTube or Vimeo URL creates a `video` item with the official player; drag it like any shape, then double-click to use the play controls. Pasting a website URL creates a `link` card with title, description, preview image when the page can be read, and an Open button. Image URLs become ordinary image items. Notes, images, videos and link cards share one 16px corner and the same soft shadow. User paste may fetch the pasted page for a preview; pass `unfurl: false` to skip that fetch.
 
 The package declares the version intended for the first release. No publication is implied. Use the release checklist and verified test results before tagging or distributing it.
 

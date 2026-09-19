@@ -304,7 +304,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     if (board.readonly && id !== 'hand' && id !== 'select') b.disabled = true;
     return b;
   }
-  const shapeKinds = ['rect', 'ellipse', 'diamond', 'line'];
+  const shapeKinds = ['rect', 'ellipse', 'diamond', 'line', 'connector'];
   const shapeButton = button('Shapes', 'shapes', () => {
     const panel = popover(shapeButton, 'Shapes');
     if (!panel) return;
@@ -330,17 +330,14 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   });
   imageButton.innerHTML += '<span class="ad-tooltip">Add image</span>';
   imageButton.disabled = board.readonly;
-  const hand = toolButton('hand'),
-    arrow = toolButton('connector');
+  const hand = toolButton('hand');
   hand.classList.add('ad-desktop-tool');
-  arrow.classList.add('ad-desktop-tool');
   toolbar.append(
     toolButton('select'),
     hand,
     toolButton('eraser'),
     el('div', 'ad-toolbar-divider'),
     shapeButton,
-    arrow,
     toolButton('path'),
     toolButton('text'),
     toolButton('note'),
@@ -348,10 +345,14 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     imageInput,
   );
   ui.append(toolbar);
-  const stylePanel = el('aside', 'ad-style-panel');
-  stylePanel.setAttribute('aria-label', 'Selection style');
-  stylePanel.hidden = true;
-  ui.append(stylePanel);
+  const styleDock = el('aside', 'ad-style-dock');
+  styleDock.setAttribute('aria-label', 'Selection style');
+  styleDock.hidden = true;
+  const stylePanel = el('div', 'ad-style-panel');
+  const deselect = button('Deselect', 'chevron', () => board.select([]));
+  deselect.classList.add('ad-style-dismiss');
+  styleDock.append(deselect, stylePanel);
+  ui.append(styleDock);
   const footer = el('footer', 'ad-footer');
   const history = el('div', 'ad-history');
   const undo = button('Undo', 'undo', () => board.undo()),
@@ -590,8 +591,8 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   function renderStyle() {
     const locked = board.selection.some((id) => board.isLocked(id));
     if (board.tool !== 'select') {
-      if (popoverTrigger && stylePanel.contains(popoverTrigger)) closePopover();
-      stylePanel.hidden = true;
+      if (popoverTrigger && styleDock.contains(popoverTrigger)) closePopover();
+      styleDock.hidden = true;
       return;
     }
     if (
@@ -599,15 +600,15 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       (!locked &&
         document.activeElement instanceof HTMLInputElement &&
         document.activeElement.type === 'range' &&
-        (stylePanel.contains(document.activeElement) ||
+        (styleDock.contains(document.activeElement) ||
           activePopover?.contains(document.activeElement)))
     )
       return;
-    const focused = stylePanel.contains(document.activeElement)
+    const focused = styleDock.contains(document.activeElement)
       ? (document.activeElement as HTMLElement)
       : undefined;
     const stylePopup =
-      popoverTrigger && stylePanel.contains(popoverTrigger)
+      popoverTrigger && styleDock.contains(popoverTrigger)
         ? {
             label: popoverTrigger.getAttribute('aria-label'),
             focused: activePopover?.contains(document.activeElement),
@@ -624,24 +625,20 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     }
     styleSelection = selectedKey;
     stylePanel.replaceChildren();
-    stylePanel.hidden = items.length === 0;
+    styleDock.hidden = items.length === 0;
     if (!items.length) {
       if (stylePopup?.focused) board.focus();
       return;
     }
     const item = items[0],
       single = items.length === 1;
-    const head = el('div', 'ad-panel-head');
-    const deselect = button('Deselect', 'close', () => board.select([]));
-    head.append(deselect);
-    stylePanel.append(head);
     const fillable = items.every((i) => ['rect', 'ellipse', 'diamond', 'note'].includes(i.kind));
     const stroked = items.every(
-      (i) => !['image', 'html', 'group', 'text', 'note'].includes(i.kind),
+      (i) => !['image', 'html', 'video', 'link', 'group', 'text', 'note'].includes(i.kind),
     );
     const textOnly = items.every((i) => i.kind === 'text');
     const hasText = items.every(
-      (i) => !['image', 'path', 'line', 'group', 'html'].includes(i.kind),
+      (i) => !['image', 'path', 'line', 'group', 'html', 'video', 'link'].includes(i.kind),
     );
     const colorControls = el('div', 'ad-color-controls');
     function colorControl(label: string, key: 'fill' | 'stroke') {
@@ -877,6 +874,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
             ((e as HTMLButtonElement).disabled = e !== deselect && (e !== lock || board.readonly)),
         );
     if (focusLabel === 'Unlock selection' || focusLabel === 'Lock selection') lock.focus();
+    else if (focusLabel === 'Deselect') deselect.focus();
     else if (focusLabel)
       stylePanel.querySelector<HTMLElement>(`[aria-label="${CSS.escape(focusLabel)}"]`)?.focus();
     else if (focusField)
@@ -885,7 +883,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
         ?.querySelector<HTMLElement>('input,select')
         ?.focus();
     if (focused || stylePopup?.focused)
-      if (locked && !board.readonly && !stylePanel.contains(document.activeElement)) lock.focus();
+      if (locked && !board.readonly && !styleDock.contains(document.activeElement)) lock.focus();
   }
   function openArrange() {
     const d = dialog('Give it a little order');
@@ -1160,15 +1158,6 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
         board.setTool('hand');
         board.focus();
       });
-      add(
-        'Arrow',
-        'connector',
-        () => {
-          board.setTool('connector');
-          board.focus();
-        },
-        board.readonly,
-      );
     }
     add(board.grid ? 'Hide grid' : 'Show grid', 'grid', () => board.setGrid(!board.grid));
     add(
@@ -1202,7 +1191,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     const bounds = board.stage.root.getBoundingClientRect();
     const menu = contextMenu('Element actions', { x: bounds.left + x, y: bounds.top + y });
     const locked = board.isLocked(item.id);
-    if (!['image', 'path', 'line', 'group', 'html'].includes(item.kind))
+    if (!['image', 'path', 'line', 'group', 'html', 'video', 'link'].includes(item.kind))
       menu.add('Edit text', 'text', () => board.editText(item.id), locked);
     const order = (to: 'front' | 'back') =>
       board.apply([{ op: 'order', id: item.id, to }], {

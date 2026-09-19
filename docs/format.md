@@ -34,9 +34,11 @@ The tree is `pages → items → children`. Only groups have children. Array ord
 
 Common item fields are `id`, `kind`, `x`, `y`, `w`, `h`, `rotation`, `style`, `text`, `name`, `locked`, `hidden` and application-owned `data`. The document model expands defaults internally and omits default style flags on serialization. `data` is JSON metadata; the editor does not execute it.
 
-Built-in kinds are `rect`, `ellipse`, `diamond`, `line`, `connector`, `path`, `text`, `note`, `image`, `group` and `html`. Unknown kinds are retained with a visible placeholder, so loading and saving do not silently destroy custom content.
+Built-in kinds are `rect`, `ellipse`, `diamond`, `line`, `connector`, `path`, `text`, `note`, `image`, `video`, `link`, `group` and `html`. Unknown kinds are retained with a visible placeholder, so loading and saving do not silently destroy custom content.
 
-`text` contains a plain `value`, horizontal `align`, vertical `valign`, `size` (`s`, `m`, `l`, `xl` or a number), and `font` (`sans`, `serif`, `mono`, `hand`). Omitted `font` is `hand`, the handwritten Comic Sans-like stack. Style fields include `stroke`, `strokeWidth`, `dash`, `fill`, `fillMode`, `corner` and `opacity`.
+`text` contains a plain `value`, horizontal `align`, vertical `valign`, `size` (`s`, `m`, `l`, `xl` or a number), and `font` (`sans`, `serif`, `mono`, `hand`). Omitted `font` is `hand`, the handwritten Comic Sans-like stack. Style fields include `stroke`, `strokeWidth`, `dash`, `fill`, `fillMode`, `corner` and `opacity`. Notes default to a 16px corner, matching images, videos and link cards.
+
+`href` is an http(s) URL on `video` and `link` items. `description` is optional plain text for a link card. A `video` href must be a YouTube or Vimeo watch or embed URL; the renderer derives the player address from the parsed id and does not store iframe markup.
 
 The named colors are `ink`, `slate`, `coral`, `amber`, `moss`, `teal`, `sky`, `violet`, `rose` and `paper`. These map to Frontierz colors and theme-aware foreground/background values. Ordinary CSS colors are also accepted. `fill: 'none'` creates a hollow shape.
 
@@ -48,9 +50,9 @@ Line and freehand `points` are relative to the item's x/y. Freehand points may i
 
 ## Media and HTML
 
-Image items reference a key in the top-level `media` map. A record contains `{ mime, w, h, src }`. Embedded data URLs make files portable. Remote images require an explicit allowed origin and may still fail PNG export if their server does not permit cross-origin loading.
+Image items reference a key in the top-level `media` map. A record contains `{ mime, w, h, src }`. Embedded data URLs make files portable. Remote images require an explicit allowed origin and may still fail PNG export if their server does not permit cross-origin loading. Link cards may reuse `media` for a preview image.
 
-HTML is an optional application integration. Plain text is safe by construction; rendered HTML requires an explicit sanitizer. Custom kind mount callbacks live in trusted application code, never as executable code embedded in the file. See [security](../SECURITY.md).
+HTML is an optional application integration. Plain text is safe by construction; rendered HTML requires an explicit sanitizer. Video and link items are not HTML: they are structured fields rendered with trusted DOM. Custom kind mount callbacks live in trusted application code, never as executable code embedded in the file. See [security](../SECURITY.md).
 
 ## Versioning
 

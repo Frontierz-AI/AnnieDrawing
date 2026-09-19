@@ -4,7 +4,7 @@
 
 Draw with HTML and SVG. Save an ordinary JSON document. Give an agent the same small, validated editing API that the editor uses. Everything runs locally; no account, API key, analytics, or drawing service is required.
 
-- Shapes, sticky notes, text, freehand, attached connectors, groups and images.
+- Shapes, sticky notes, text, freehand, attached connectors, groups, images, pasted YouTube/Vimeo players and website cards.
 - Infinite pan and zoom, selection, resize, rotate, undo, pages and export.
 - Click a locked item to select and unlock it; editing controls stay disabled until unlocked. Integrations can check `board.isLocked(id)` before editing.
 - Plain TypeScript and browser DOM. A headless model works in Node and workers.

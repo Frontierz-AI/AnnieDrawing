@@ -66,7 +66,7 @@ export function hitTest(
   const filled =
     !!item.text?.value ||
     (item.style?.fill !== undefined && item.style.fill !== 'none') ||
-    ['note', 'text', 'image', 'html', 'group'].includes(item.kind);
+    ['note', 'text', 'image', 'video', 'link', 'html', 'group'].includes(item.kind);
   const resolvedOutline = typeof outline === 'function' ? outline(item) : outline;
   if (resolvedOutline) {
     const outlines = Array.isArray(resolvedOutline) ? resolvedOutline : [resolvedOutline],

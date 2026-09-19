@@ -108,7 +108,29 @@ describe('portable SVG export', () => {
     expect(svg).toContain('<pattern');
     expect(svg).toContain('viewBox="10 20 50 60"');
     expect(svg).toContain('data:image/png;base64,AAAA');
+    expect(svg).toContain('clipPath');
     expect(svg).not.toContain('fill="#FFFFFF"');
+  });
+  it('exports video and link cards without scripts or iframes', () => {
+    const video = rectangle({
+      id: 'i_video',
+      kind: 'video',
+      href: 'https://youtu.be/dQw4w9WgXcQ',
+      text: { value: 'A song' },
+    });
+    const link = rectangle({
+      id: 'i_link',
+      kind: 'link',
+      href: 'https://example.com/post',
+      text: { value: 'Example' },
+      description: 'A description',
+    });
+    const svg = exportSVG(documentWith([video, link]), [video, link]);
+    expect(svg).toContain('A song');
+    expect(svg).toContain('Example');
+    expect(svg).toContain('Open');
+    expect(svg).not.toContain('<iframe');
+    expect(svg).not.toContain('foreignObject');
   });
   it('supports caller-supplied SVG exporters', () => {
     const item = rectangle({ kind: 'badge' });

@@ -9,6 +9,7 @@ export const DEFAULT_STYLE: Required<Style> = {
   corner: 12,
   opacity: 1,
 };
+export const CARD_CORNER = 16;
 export const DEFAULT_SIZES: Record<string, [number, number]> = {
   rect: [180, 110],
   ellipse: [180, 110],
@@ -19,6 +20,8 @@ export const DEFAULT_SIZES: Record<string, [number, number]> = {
   text: [200, 48],
   note: [200, 180],
   image: [240, 180],
+  video: [480, 270],
+  link: [280, 300],
   group: [0, 0],
   html: [240, 160],
 };
@@ -61,7 +64,7 @@ export function normalizeItem(
 export function minimalItem(item: Item, kindDefaults: Record<string, Partial<Item>> = {}): Item {
   const defaults = {
     ...DEFAULT_STYLE,
-    ...(item.kind === 'note' ? { fill: 'moss', strokeWidth: 0, corner: 3 } : {}),
+    ...(item.kind === 'note' ? { fill: 'moss', strokeWidth: 0, corner: CARD_CORNER } : {}),
     ...kindDefaults[item.kind]?.style,
   };
   const next = clone(item);

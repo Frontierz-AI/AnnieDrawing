@@ -1,4 +1,5 @@
 import { getStroke } from 'perfect-freehand';
+import { CARD_CORNER } from '../core/defaults';
 import type { Item, ItemText, Point, Style } from '../core/types';
 
 export const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -152,7 +153,7 @@ export function shapePath(item: Item): string {
   if (item.kind === 'path') return freehandPath(item);
   const corner = Math.max(
     0,
-    Math.min(item.style?.corner ?? (item.kind === 'note' ? 3 : 12), w / 2, h / 2),
+    Math.min(item.style?.corner ?? (item.kind === 'note' ? CARD_CORNER : 12), w / 2, h / 2),
   );
   return `M${corner},0H${w - corner}Q${w},0 ${w},${corner}V${h - corner}Q${w},${h} ${w - corner},${h}H${corner}Q0,${h} 0,${h - corner}V${corner}Q0,0 ${corner},0Z`;
 }
