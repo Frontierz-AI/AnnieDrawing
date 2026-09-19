@@ -451,7 +451,7 @@
 }
 .ad-style-row {
   display: grid;
-  grid-template-columns: 3.6rem minmax(0, 1fr);
+  grid-template-columns: 57.6px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
@@ -570,7 +570,7 @@
   display: flex;
   flex: 0 1 auto;
   min-width: 0;
-  max-width: min(520px, calc(100% - 17rem));
+  max-width: min(520px, calc(100% - 272px));
   align-items: center;
   gap: 4px;
   padding: 5px;
@@ -878,7 +878,7 @@
   }
   .ad-pages {
     flex: 0 1 auto;
-    min-width: 7.5rem;
+    min-width: 120px;
     max-width: 100%;
     padding: 3px;
   }
@@ -1021,8 +1021,8 @@
     position: absolute;
     top: 50%;
     left: 50%;
-    width: max(100%, 3rem);
-    height: max(100%, 3rem);
+    width: max(100%, 48px);
+    height: max(100%, 48px);
     transform: translate(-50%, -50%);
   }
 }

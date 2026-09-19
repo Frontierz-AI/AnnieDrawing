@@ -19,6 +19,7 @@ const ApplySchema = v.object({
   label: v.optional(v.string()),
   dryRun: v.optional(v.boolean()),
   agentName: v.optional(v.string()),
+  reveal: v.optional(v.picklist(['none', 'fit'])),
 });
 const SnapshotSchema = v.object({
   scope,
@@ -62,9 +63,13 @@ export interface AgentBoard {
   query: DocModel['query'];
   describe: DocModel['describe'];
   apply: DocModel['apply'];
+  agentName?: string;
   toJSON?: () => AnnieDoc;
   read?: (scope?: Scope) => AnnieDoc;
-  export?: (format: 'png', options?: ExportOptions) => Promise<Blob | string> | Blob | string;
+  export?: (
+    format: 'png' | 'jpeg' | 'webp',
+    options?: ExportOptions,
+  ) => Promise<Blob | string> | Blob | string;
   view?: {
     fit: (ids?: string[]) => unknown;
   };
@@ -119,7 +124,8 @@ export async function runTool(
               : 'agent:tool',
           label: args.label,
           dryRun: args.dryRun,
-          agentName: args.agentName,
+          reveal: args.reveal,
+          ...(board.agentName ? {} : { agentName: args.agentName }),
         } as ApplyOptions,
       );
     if (name === 'board_snapshot') {

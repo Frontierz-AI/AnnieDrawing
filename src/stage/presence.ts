@@ -1,10 +1,7 @@
-import type { Box, Point } from '../core/types';
+import type { AgentPresenceOptions, Box, Point } from '../core/types';
 import { cursorArrow } from '../input/cursors';
 import type { Lens } from './lens';
 import { esc } from './paint';
-
-/** In-view non-connector placements visited one by one before the rest appear together. */
-const SEQUENTIAL_STOPS = 8;
 
 interface Placement {
   box: Box;
@@ -28,10 +25,16 @@ export class AgentPresence {
     if (this.quiet()) this.clear();
   };
 
+  private maxStops: number;
+  private durationScale: number;
+
   constructor(
     private root: HTMLElement,
     private lens: Lens,
+    options: AgentPresenceOptions = {},
   ) {
+    this.maxStops = Math.max(1, options.maxStops ?? 8);
+    this.durationScale = Math.min(2, Math.max(0.25, options.durationScale ?? 1));
     this.motion.addEventListener('change', this.preference);
     document.addEventListener('visibilitychange', this.preference);
   }
@@ -160,7 +163,7 @@ export class AgentPresence {
     const from0 = this.lens.toScreen(fromPage);
     const to0 = this.lens.toScreen(toPage);
     const distance = Math.hypot(to0.x - from0.x, to0.y - from0.y);
-    await this.play(generation, Math.min(650, 320 + distance * 0.35), (t) => {
+    await this.play(generation, Math.min(650, 320 + distance * 0.35) * this.durationScale, (t) => {
       const from = this.lens.toScreen(fromPage);
       const to = this.lens.toScreen(toPage);
       const bend = Math.min(36, Math.hypot(to.x - from.x, to.y - from.y) / 8);
@@ -217,7 +220,7 @@ export class AgentPresence {
       element.style.transform = transform;
     };
     this.restore.set(element, restore);
-    void this.play(generation, 220, (t) => {
+    void this.play(generation, 220 * this.durationScale, (t) => {
       element.style.opacity = String(to * t);
       if (element.dataset.adKind !== 'connector')
         element.style.transform = `${transform} scale(${0.97 + 0.03 * t})`;
@@ -247,7 +250,7 @@ export class AgentPresence {
         continue;
       }
       const last =
-        ++stops >= SEQUENTIAL_STOPS || !this.queue.some((entry) => this.visitable(entry));
+        ++stops >= this.maxStops || !this.queue.some((entry) => this.visitable(entry));
       if (last) placement.elements.push(...this.take(deferred), ...this.take(this.queue));
       const target = this.center(placement.box);
       if (!this.cursor) {
@@ -270,7 +273,7 @@ export class AgentPresence {
       for (const element of placement.elements) this.show(generation, element);
       const svg = cursor.querySelector('svg');
       if (svg)
-        await this.play(generation, 260, (t) => {
+        await this.play(generation, 260 * this.durationScale, (t) => {
           svg.style.transform = `scale(${t < 0.35 ? 1 - (t / 0.35) * 0.1 : 0.9 + ((t - 0.35) / 0.65) * 0.1})`;
         });
       if (svg && generation === this.generation) svg.style.transform = '';

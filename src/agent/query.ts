@@ -1,5 +1,5 @@
 import type { AnnieDoc, Item, Query } from '../core/types';
-import { clone } from '../core/defaults';
+import { clone, storedKind } from '../core/defaults';
 import { allItems } from '../core/item';
 import { contains, flattenItems, itemBounds } from '../geo/box';
 /** Filters combine with AND. A `RegExp` `g`/`y` flag is stripped so lastIndex cannot skip matches. */
@@ -16,7 +16,9 @@ export function queryDoc(doc: AnnieDoc, selector: Query = {}): Item[] {
     .filter((item) => {
       if (
         selector.kind &&
-        !(Array.isArray(selector.kind) ? selector.kind : [selector.kind]).includes(item.kind)
+        !(Array.isArray(selector.kind) ? selector.kind : [selector.kind])
+          .map(storedKind)
+          .includes(item.kind)
       )
         return false;
       if (selector.text) {

@@ -13,6 +13,9 @@ export {
   defaultDoc,
   normalizeItem,
   minimalItem,
+  storedKind,
+  storedColor,
+  storedEndpoint,
 } from './defaults';
 export { itemId, pageId, mediaId } from './ids';
 export {

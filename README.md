@@ -28,6 +28,19 @@ The demo stores the current drawing in the browser. That storage is local to the
 The intended package name is `anniedrawing`. This repository does not claim that name is published or available. Until a release is published, build this checkout with `npm run build`, then install the tarball from `npm pack` in the consuming application.
 
 ```ts
+import { createFellowBoard } from 'anniedrawing/fellow';
+import 'anniedrawing/style.css';
+
+const host = document.querySelector<HTMLElement>('#drawing')!;
+const board = createFellowBoard(host, {
+  fellowName: 'Alex',
+  theme: 'auto',
+});
+```
+
+`createFellowBoard` is `createBoard` with embed defaults: hidden agent undo, camera reveal for agent creates, a 120px agent placement gap, a short visiting cursor, no global hook, no unfurl, and no menu, export, or page chips. Pass the same options to `createBoard` when you want the full editor chrome.
+
+```ts
 import { createBoard } from 'anniedrawing';
 import 'anniedrawing/style.css';
 
@@ -62,7 +75,7 @@ board.view.fit();
 console.log(board.describe());
 ```
 
-`theme` is `'light'` when omitted, `'dark'`, or `'auto'` to follow the system. `ui: false` omits editor chrome. `ui.menu` is the AnnieDrawing control (default on). `ui.export` defaults to PNG and SVG; pass `'json'` to offer AnnieDoc, or `false` to hide Export. The local demo uses `export: ['png', 'svg', 'json']`. Other defaults: `exposeGlobal` true, `agentPresence` true.
+`theme` is `'light'` when omitted, `'dark'`, or `'auto'` to follow the system. `ui: false` omits editor chrome. `ui.menu` is the AnnieDrawing control (default on). `ui.export` defaults to PNG and SVG; pass `'json'` to offer AnnieDoc, or `false` to hide Export. `ui.pages: false` hides page chips. The local demo uses `export: ['png', 'svg', 'json']`. Other defaults: `exposeGlobal` true, `agentPresence` true, `agentHistory` `'shared'`, `agentReveal` `'none'`.
 
 The host element must have a nonzero width and height, for example `height: 600px`. Call `board.destroy()` when the host is removed. Await `board.ready` before edits that depend on restored autosave content. `import 'anniedrawing/style.css'` loads editor styles only; it does not change the host page's `html` or `body` layout.
 
@@ -75,7 +88,7 @@ doc.apply([{ op: 'add', item: { kind: 'rect', text: { value: 'Node' } } }]);
 console.log(doc.toJSON());
 ```
 
-`createDoc` returns `apply`, `get`, `query`, `describe`, `kindsSince`, `toJSON`, `undo`, `redo`, `load`, `on`, `canUndo`, `canRedo`, `itemSignal`, `fieldSignal`, and `childrenSignal`. It does not create DOM nodes. `kindsSince(since?)` lists built-in kinds added or last changed after that catalog version; omit `since` or pass `0` for the full catalog.
+`createDoc` returns `apply`, `get`, `query`, `describe`, `kindsSince`, `changesSince`, `toJSON`, `undo`, `redo`, `load`, `clear`, `on`, `revision`, `canUndo`, `canRedo`, `itemSignal`, `fieldSignal`, and `childrenSignal`. It does not create DOM nodes. `kindsSince(since?)` lists built-in kinds added or last changed after that catalog version; omit `since` or pass `0` for the full catalog. `changesSince(since)` lists committed session slices. `describe({ since })` lists items written or removed after that session revision.
 
 ## Agent tools
 
@@ -105,7 +118,7 @@ Click, tap, or focus a locked item to select it. Editing controls stay disabled 
 
 Browser `apply` batches with `origin: 'user'` reject protected item mutations with `LOCKED`. Other programmatic origins and the headless model may still edit locked items. Treat user locks as a request to leave those items alone unless the task includes them.
 
-Successful browser `apply` calls with an `agent:` origin show a visiting cursor. It walks the first on-screen shapes, then reveals the rest together. A person can keep editing while that walk runs. Pass `agentName` to label the cursor. The document, exports, and undo history commit before that presentation starts. Set `agentPresence: false` on `createBoard` to skip it.
+Successful browser `apply` calls with an `agent:` origin show a visiting cursor. It walks the first on-screen shapes, then reveals the rest together. A person can keep editing while that walk runs. `createBoard({ agentName })` labels the cursor when `apply` omits `agentName`. The document, exports, and undo history commit before that presentation starts. Set `agentPresence: false` on `createBoard` to skip it, or pass `{ maxStops, durationScale }`. `reveal: 'fit'` pans to created items that are off-screen on the current page.
 
 Pasting a single `http(s)` URL creates a `video` item for YouTube and Vimeo, an `image` item for an image URL, or a `link` card for other sites. The browser may then fetch that URL, without credentials, for Open Graph title, description, and image. Pass `unfurl: false` to skip the fetch. Agent operations do not fetch.
 

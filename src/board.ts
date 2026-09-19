@@ -9,15 +9,18 @@ import type { LinkPreview } from './core/links';
 import { lockedItems } from './core/locks';
 import { clipboardText } from './core/clipboard';
 import { applyDraft, copyItems, detachMissingEndpoints, translateItem } from './core/item';
-import { describeDoc } from './agent/describe';
 import type {
+  AgentPresenceOptions,
   AnnieDoc,
+  ApplyIssue,
   ApplyOptions,
   ApplyResult,
   Box,
   ChangeEvent,
+  ChangeLog,
   DescribeOptions,
   DocModel,
+  ExportFormat,
   ExportOptions,
   Item,
   LensState,
@@ -38,7 +41,7 @@ import {
 } from './geo/index';
 import { getKinds, type KindDef } from './kinds/index';
 import { exportSVG } from './porter/svg';
-import { exportPNG } from './porter/png';
+import { exportRaster } from './porter/png';
 import { ANNIE_MIME, exportJSON } from './porter/json';
 import { mountUI, type UiOptions } from './ui/index';
 export type { UiOptions, UiExportFormat } from './ui/index';
@@ -48,7 +51,18 @@ import { cursorForTool } from './input/cursors';
 
 export interface BoardOptions {
   doc?: AnnieDoc;
-  agentPresence?: boolean;
+  /** Used when origin starts with `agent:` and apply() omits agentName. */
+  agentName?: string;
+  /**
+   * `shared` (default): undo/redo walk every origin.
+   * `hidden`: default undo/redo skip origins that start with `agent:`.
+   */
+  agentHistory?: 'shared' | 'hidden';
+  /** Default reveal for origins that start with `agent:`. Default `none`. */
+  agentReveal?: 'none' | 'fit';
+  /** Used when origin starts with `agent:` and place.gap is omitted. Default 32. */
+  agentPlaceGap?: number;
+  agentPresence?: boolean | AgentPresenceOptions;
   readonly?: boolean;
   /** `'light'` when omitted, `'dark'`, or `'auto'` for `prefers-color-scheme`. */
   theme?: 'light' | 'dark' | 'auto';
@@ -106,6 +120,7 @@ export class Board {
   readonly model: DocModel;
   readonly ready: Promise<void>;
   readonly readonly: boolean;
+  readonly agentName?: string;
   readonly selectionSignal = signal<string[]>([]);
   readonly toolSignal = signal('select');
   readonly drafts = new Map<string, Partial<Item>>();
@@ -141,15 +156,20 @@ export class Board {
   private previewBase?: AnnieDoc;
   private observer: ResizeObserver;
   private unfurl?: false | ((url: string) => Promise<LinkPreview | undefined>);
+  private agentReveal: 'none' | 'fit';
 
   constructor(host: HTMLElement, options: BoardOptions = {}) {
     this.host = host;
     this.readonly = options.readonly ?? false;
+    this.agentName = options.agentName?.trim() || undefined;
+    this.agentReveal = options.agentReveal ?? 'none';
     this.model = createDoc(options.doc, {
       readonly: this.readonly,
       allowedImageOrigins: options.allowedImageOrigins,
       kinds: [...getKinds(), ...(options.kinds ?? [])],
       sanitizeHTML: options.sanitizeHTML,
+      agentHistory: options.agentHistory,
+      agentPlaceGap: options.agentPlaceGap,
     });
     this.document = this.model.toJSON({ compact: false });
     this.pageId = this.document.pages[0].id;
@@ -279,6 +299,12 @@ export class Board {
   get canRedo() {
     return this.model.canRedo;
   }
+  get revision() {
+    return this.model.revision;
+  }
+  changesSince(since: number, options?: { origin?: string | 'user' | 'agent' }): ChangeLog {
+    return this.model.changesSince(since, options);
+  }
   get items() {
     return flattenItems(this.pageItems());
   }
@@ -356,10 +382,15 @@ export class Board {
     return this.model.query(selector);
   }
   describe(options: DescribeOptions = {}) {
-    return describeDoc(this.read(options.scope ?? 'doc'), {
+    return this.model.describe({
       ...options,
-      page: options.page ?? (options.scope === 'doc' ? undefined : this.pageId),
-      selection: this.selection,
+      page: options.page ?? (options.scope === 'doc' || !options.scope ? undefined : this.pageId),
+      selection: options.selection ?? this.selection,
+      ...(options.scope === 'viewport'
+        ? {
+            ids: this.items.filter((item) => !item.hidden && this.visible(item)).map((item) => item.id),
+          }
+        : {}),
     });
   }
   /** Built-in kinds added or last changed after `since`. Omit or pass 0 for the full catalog. */
@@ -373,19 +404,35 @@ export class Board {
     return geometryBounds(selection, this.geometryLookup, this.outline);
   }
   apply(ops: Op[], options: ApplyOptions = {}): ApplyResult {
-    if (options.origin === 'user' && Array.isArray(ops)) {
-      const blocked = ops.findIndex((op) => {
-        if (!op || typeof op !== 'object') return false;
-        if (op.op === 'set' && op.patch?.locked === false && Object.keys(op.patch).length === 1)
-          return false;
-        return (
-          (['set', 'remove', 'order', 'reparent'].includes(op.op) &&
-            'id' in op &&
-            this.isLocked(op.id)) ||
-          ((op.op === 'add' || op.op === 'reparent') && !!op.parent && this.isLocked(op.parent))
+    const lockedOp = (op: Op) => {
+      if (!op || typeof op !== 'object') return false;
+      if (op.op === 'set' && op.patch?.locked === false && Object.keys(op.patch).length === 1)
+        return false;
+      return (
+        (['set', 'remove', 'order', 'reparent'].includes(op.op) &&
+          'id' in op &&
+          this.isLocked(op.id)) ||
+        ((op.op === 'add' || op.op === 'reparent') && !!op.parent && this.isLocked(op.parent))
+      );
+    };
+    const origin = options.origin ?? 'api';
+    let batch = Array.isArray(ops) ? ops : ops;
+    const lockSkipped: ApplyIssue[] = [];
+    if (origin === 'user' && Array.isArray(ops)) {
+      const blocked = ops.flatMap((op, index) => (lockedOp(op) ? [index] : []));
+      if (blocked.length && !options.lenient) return this.lockedResult(blocked[0]);
+      if (blocked.length && options.lenient) {
+        lockSkipped.push(
+          ...blocked.map((index) => ({
+            index,
+            code: 'LOCKED',
+            message: 'Unlock the selection before editing it.',
+          })),
         );
-      });
-      if (blocked !== -1) return this.lockedResult(blocked);
+        batch = ops.filter((_, index) => !blocked.includes(index));
+        if (!batch.length)
+          return { ok: false, created: [], errors: [], warnings: [], skipped: lockSkipped };
+      }
     }
     const prepare = (op: Op): Op => {
       if (!op || typeof op !== 'object') return op;
@@ -407,7 +454,7 @@ export class Board {
           (op.patch.autoWidth ?? item.autoWidth) &&
           (op.patch.text || op.patch.autoWidth)
         ) {
-          const text = { ...item.text, ...op.patch.text };
+          const text = { ...item.text, ...(op.patch.text as { value?: string } | undefined) };
           if (typeof text.value === 'string' && text.value.length <= LIMITS.maxTextLength)
             return {
               ...op,
@@ -420,20 +467,44 @@ export class Board {
       }
       return op;
     };
-    const result = this.model.apply(Array.isArray(ops) ? ops.map(prepare) : ops, {
+    const sent = Array.isArray(batch) ? batch.map(prepare) : batch;
+    const result = this.model.apply(sent, {
       origin: 'api',
       ...options,
     });
-    if (
-      result.ok &&
-      !options.dryRun &&
-      options.origin?.startsWith('agent:') &&
-      result.created.length
-    ) {
-      this.render();
-      this.stage.present(result.created, options.agentName);
+    if (lockSkipped.length && Array.isArray(ops)) {
+      const blocked = new Set(lockSkipped.map((issue) => issue.index));
+      const kept = ops.map((_, index) => index).filter((index) => !blocked.has(index));
+      const remap = (issues?: ApplyIssue[]) =>
+        issues?.map((issue) => ({ ...issue, index: kept[issue.index] ?? issue.index }));
+      result.errors = remap(result.errors) ?? result.errors;
+      result.warnings = remap(result.warnings) ?? result.warnings;
+      result.skipped = [...lockSkipped, ...(remap(result.skipped) ?? [])].sort(
+        (a, b) => a.index - b.index,
+      );
+    }
+    if (result.ok && !options.dryRun && result.created.length) {
+      if (origin.startsWith('agent:')) {
+        this.render();
+        const name = (options.agentName ?? this.agentName)?.trim() || undefined;
+        this.stage.present(result.created, name);
+      }
+      const reveal = options.reveal ?? (origin.startsWith('agent:') ? this.agentReveal : 'none');
+      if (reveal === 'fit') this.revealCreated(result.created);
     }
     return result;
+  }
+  private revealCreated(ids: string[]) {
+    const onPage = ids.filter((id) =>
+      flattenItems(this.pageItems()).some((item) => item.id === id),
+    );
+    if (!onPage.length) return;
+    if (onPage.every((id) => {
+      const item = this.get(id);
+      return !!item && this.visible(item);
+    }))
+      return;
+    this.view.fit(onPage);
   }
   undo(options?: { origin?: string }) {
     this.cancel();
@@ -454,13 +525,14 @@ export class Board {
     this.view.fit();
   }
   clear() {
-    return this.apply(
-      this.pageItems().map((item) => ({
-        op: 'remove',
-        id: item.id,
-      })),
-      { origin: 'user', label: 'Clear page' },
-    );
+    this.cancel();
+    this.model.clear();
+    this.document = this.model.toJSON({ compact: false });
+    this.pageId = this.document.pages[0].id;
+    this.refreshGeometry();
+    this.select([]);
+    this.render();
+    this.view.fit();
   }
   select(ids: string[]) {
     const next = [...new Set(ids)].filter((id) => !!this.get(id));
@@ -503,10 +575,7 @@ export class Board {
   emit<K extends keyof Events>(name: K, event: Events[K]) {
     this.listeners.get(name)?.forEach((fn) => fn(event as never));
   }
-  async export(
-    format: 'json' | 'svg' | 'png',
-    options: ExportOptions = {},
-  ): Promise<string | Blob> {
+  async export(format: ExportFormat, options: ExportOptions = {}): Promise<string | Blob> {
     const doc = this.read(options.scope ?? 'page');
     if (format === 'json') {
       detachMissingEndpoints(
@@ -523,7 +592,14 @@ export class Board {
       kinds: [...this.stage.kinds.values()],
       ...(options.scope === 'viewport' ? { bounds: this.stage.lens.viewport(), padding: 0 } : {}),
     });
-    return format === 'svg' ? svg : exportPNG(svg, options.scale ?? 2);
+    if (format === 'svg') return svg;
+    return exportRaster(svg, {
+      format,
+      scale: options.scale ?? 2,
+      maxSide: options.maxSide,
+      maxBytes: options.maxBytes,
+      quality: options.quality,
+    });
   }
   destroy() {
     if (this.destroyed) return;

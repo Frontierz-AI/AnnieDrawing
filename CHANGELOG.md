@@ -1,39 +1,19 @@
 # Changelog
 
-## 0.2.8 (unreleased)
+## 0.3.0
 
-Initial independent AnnieDrawing implementation: a framework-free HTML/SVG board, JSON document operations, headless and agent APIs, browser editing, exports, custom-kind and sanitized-HTML integrations, local demo, and a separate local MCP example.
+First public AnnieDrawing: a framework-free HTML and SVG board, JSON document operations, headless and agent APIs, browser editing, PNG/SVG/JPEG/WebP and AnnieDoc export, custom-kind and sanitized-HTML integrations, a local demo, and a separate local MCP example.
 
-Tool menus open beside their desktop buttons and close when pressed again. Zoom options align with the fit-view button.
+The document is format version 2 with `pages`. Version 1 drawings with `sheets` migrate on load. Compact `.annie` JSON is the portable file. Session revision is memory only; it is not written to the file.
 
-Documents use format version 2 with pages. Version 1 drawings migrate on load while preserving their content. The compact inspector exposes relevant line and text controls directly. Export downloads the current page; PNG uses 2× resolution. An imported board offers PNG and SVG. AnnieDoc is opt-in. The local demo offers PNG, SVG, and AnnieDoc.
+`apply` is the write boundary. The default batch is all-or-nothing. `lenient: true` skips invalid operations and commits the rest as one transaction. Each committed apply, undo, and redo increments a session `revision`. `changesSince(since)` returns compact slices; a window older than the retained 500 slices returns `truncated: true`. `describe({ since })` lists items created, last written, or removed after that revision. `load()` and `clear()` reset the session.
 
-Page chips now live in the bottom-left bar with an overflow list and contextual rename/delete actions. Undo and redo sit beside Fit drawing in the bottom-right zoom cluster. Element actions use a compact anchored right-click menu. The inspector adds more colors, visible opacity and an icon for locking; the extra style section and text-edit button are removed. Board menu title editing and frame tooling are removed. Older frames import as groups, preserving their contents, backgrounds and labels without clipping.
+`createBoard({ agentName })` labels the visiting cursor when `apply` omits `agentName`. `agentHistory: 'hidden'` keeps `agent:` work off ordinary undo. `reveal: 'fit'` and `agentReveal` pan to created items that are off-screen on the current page. `agentPresence` accepts `{ maxStops, durationScale }`. `agentPlaceGap` sets the default `place.gap` for `agent:` origins.
 
-The local demo opens on a blank Page 1 instead of the previous welcome drawing. `npm run dev` uses Vite's default port 5173 instead of assigning a random free port.
+`export('jpeg' | 'webp')` uses the same SVG path as PNG, with `maxSide`, `maxBytes`, and `quality`. The Export menu offers PNG, SVG, and optional AnnieDoc.
 
-Board text defaults to the handwritten Comic Sans-like font (`hand`) when no `font` is set. Friendly Nunito remains available as `sans`.
+`ui.pages: false` hides page chips. Library chrome sizes in CSS pixels. `anniedrawing/fellow` is `createFellowBoard` with embed defaults (`agentHistory: 'hidden'`, `agentReveal: 'fit'`, `agentPlaceGap: 120`, a short visiting cursor, no global hook, no unfurl, no menu/export/pages).
 
-The selection inspector is narrower and no longer shows a kind title such as Rectangle. Fill, line color and opacity share one row; the former Stroke control is labeled Line. Text size, alignment, font, line weight and dash pattern each use their own row of buttons. Pasted plain text defaults to medium (M) size. Sticky notes omit line color, weight and pattern controls. The AnnieDrawing control opens a dropdown menu, matching Export and Shapes. Deselect is a chevron in the right page gutter instead of a full-width close row.
+Operation input accepts kind aliases `rectangle` → `rect` and `arrow` → `connector`, color name aliases such as `black` → `ink`, and string connector endpoints. The document stores AnnieDrawing kinds, tokens, and `{ item, side }` endpoints. `query({ kind: 'rectangle' | 'arrow' })` matches those stored kinds.
 
-The drawing toolbar puts eraser after hand, line and arrow inside Shapes, and image after sticky note. The More tools overflow is gone; on phones, including landscape, hand remains in the board menu. A short desktop window keeps the tool sidebar and inspector vertically centered, with smaller icons and tighter header, footer, and sidebar padding. The selection inspector is vertically centered like the tool sidebar.
-
-Freehand strokes keep the pointer's pressure, including when the browser reports no coalesced events. A click uses a custom kind's outline, not only its rectangular DOM box.
-
-Pasting a YouTube or Vimeo URL creates a `video` item with the official player; drag it like any shape, then double-click to use the play controls. Pasting a website URL creates a compact `link` card with the page title, a URL without a trailing slash, the Open Graph image when the page can be read, and an Open button. The card text shrinks instead of overlapping when you resize it. Image URLs become ordinary image items. Notes, images, videos and link cards share one 12px corner and the same soft shadow. User paste may fetch the pasted page for a preview; pass `unfurl: false` to skip that fetch.
-
-The default editor gzip budget is 100 KiB, including styles. `scripts/check-size.mjs` enforces that ceiling.
-
-Library CSS no longer sets host `html`/`body` layout. Import `anniedrawing/style.css` for editor chrome; hosts size their own page. Shared item helpers cover drafts, copies, translation, connector detach, and clipboard URI lists. `registerKind` is exported from `anniedrawing`. The UI entry exports `mountUI`; unused `title`/`branding` options and leftover icon glyphs are gone.
-
-The docs site, README, API, format, agent, extension, MCP, and repository guides were rewritten as a developer manual. Those pages match the current board: 12px card corners, `apply.merge`, query kind arrays, placement rules, image import limits, `runTool` origin rewriting, and the six agent tools. The documentation page stays within a 320px phone viewport.
-
-`llms.txt` and `llms-full.txt` are board-JavaScript guides: kinds, `apply`, and how to read what is on the board. They no longer concatenate install or repository instructions. Built-in kinds carry a catalog `since` version. `kindsSince(since?)` (also `board.kindsSince` / `doc.kindsSince`) lists kinds added or last changed after that number; omit `since` or pass `0` for the full catalog.
-
-Development now uses TypeScript 7, Vite 8 and Vitest 5, with nanoid 6 for IDs. Node.js 24 or newer is required.
-
-Locked items remain selectable by click, touch or keyboard focus. Their editing controls and context actions are disabled, with Unlock and Deselect available. Locks prevent dragging, resizing, text edits, erasing, duplication, ordering and keyboard edits, including through groups and mixed selections.
-
-AI additions now arrive with a lilac companion cursor: it enters from outside the viewport, visits the first on-screen shapes one after another, then reveals the rest together, including connectors and off-screen items. The cursor has no name unless `apply` passes `agentName`. Groups arrive together. The document commits immediately. A person can keep selecting, panning, and editing while the walk runs; pending items are not hittable. Reduced motion is respected, and integrations can disable the animation with `agentPresence: false`. The editor no longer shows toast confirmations. The board menu no longer includes a For agents playground.
-
-`createBoard` lets a host choose light, dark, or system (`auto`) appearance, hide the AnnieDrawing menu, and choose Export formats. An imported board defaults to PNG and SVG. Pass `json` to offer AnnieDoc. The local demo keeps PNG, SVG, and AnnieDoc.
+The default editor gzip budget is 100 KiB, including styles. Optional entries stay outside that total.

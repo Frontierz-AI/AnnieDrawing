@@ -1,17 +1,29 @@
 import { batch, signal, type Signal, type ReadonlySignal } from '@preact/signals-core';
 import type {
   AnnieDoc,
-  ApplyOptions,
+  ApplyIssue,
   ApplyResult,
   ChangeEvent,
+  ChangeSlice,
   DocModel,
   DocOptions,
   Item,
+  NewItem,
   Op,
   Page,
+  Style,
 } from './types';
 import { kindsSince } from './catalog';
-import { clone, defaultDoc, kindDefaultsFrom, minimalItem, normalizeItem } from './defaults';
+import {
+  aliasStyle,
+  clone,
+  defaultDoc,
+  kindDefaultsFrom,
+  minimalItem,
+  normalizeItem,
+  storedEndpoint,
+} from './defaults';
+import type { ItemStamp } from '../agent/describe';
 import { allItems, detachMissingEndpoints, pageRoots } from './item';
 import { DocumentSchema, LIMITS, OpSchema, schemaError } from './schema';
 import { migrate } from './migrate';
@@ -268,7 +280,11 @@ function perform(
     if (!page) throw new Error(`Page ${op.page ?? '(first)'} does not exist.`);
     if (parent && op.page && op.page !== parent.page.id)
       throw new Error('Parent and page must refer to the same page.');
-    if (op.place) item = placeItem(item, op.place, flattenItems(page.items));
+    if (op.place) {
+      const gap =
+        op.place.gap ?? (origin.startsWith('agent:') ? (options.agentPlaceGap ?? 32) : 32);
+      item = placeItem(item, { ...op.place, gap }, flattenItems(page.items));
+    }
     const list = parent ? (parent.item.children ??= []) : page.items;
     if (op.index !== undefined && op.index > list.length)
       throw new Error('Insert index is outside the target list.');
@@ -297,12 +313,19 @@ function perform(
     inverse = [
       { op: 'set', id: op.id, patch: inversePatch(at.item, op.patch, ['style', 'text', 'data']) },
     ];
-    const patch = clone(op.patch);
+    const incoming = clone(op.patch);
+    const { from, to, style, children, ...rest } = incoming;
+    const patch: Partial<Item> = { ...(rest as Partial<Item>) };
+    if (Object.hasOwn(incoming, 'style')) patch.style = aliasStyle(style as Style | undefined);
+    if (Object.hasOwn(incoming, 'from')) patch.from = storedEndpoint(from);
+    if (Object.hasOwn(incoming, 'to')) patch.to = storedEndpoint(to);
+    if (Object.hasOwn(incoming, 'children'))
+      patch.children = children
+        ? (children as NewItem[]).map((child) => normalizeItem(child, kindDefaults))
+        : undefined;
     for (const field of ['kind', 'x', 'y', 'w', 'h'] as const)
       if (Object.hasOwn(patch, field) && patch[field] === undefined)
         throw new Error(`Required field ${field} cannot be deleted.`);
-    if (patch.children)
-      patch.children = patch.children.map((child) => normalizeItem(child, kindDefaults));
     if (typeof patch.href === 'string') {
       const href = normalizeHref(patch.href);
       if (!href) throw new Error(`Bad href (${op.id}).`);
@@ -541,7 +564,60 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
   const listeners = new Set<(event: ChangeEvent) => void>(),
     history: Entry[] = [],
     future: Entry[] = [];
-  const emit = (entry: Pick<Entry, 'ops' | 'inverse' | 'origin' | 'label'>) => {
+  let revision = 0;
+  const sessionLog: ChangeSlice[] = [];
+  const written = new Map<string, ItemStamp>(),
+    removed = new Map<string, ItemStamp>();
+  const hideAgent = () => options.agentHistory === 'hidden';
+  const agentOrigin = (origin: string) => origin.startsWith('agent:');
+  const walkBack = (stack: { origin: string }[], keep: (origin: string) => boolean) => {
+    let index = stack.length - 1;
+    while (index >= 0 && !keep(stack[index].origin)) index--;
+    return index;
+  };
+  const pageOf = (doc: AnnieDoc) => {
+    const map = new Map<string, string>();
+    for (const page of doc.pages)
+      for (const item of flattenItems(page.items)) map.set(item.id, page.id);
+    return map;
+  };
+  const stampTransition = (before: AnnieDoc, after: AnnieDoc, rev: number, origin: string) => {
+    const beforeItems = new Map(allItems(before).map((item) => [item.id, item])),
+      afterItems = new Map(allItems(after).map((item) => [item.id, item])),
+      beforePages = pageOf(before),
+      afterPages = pageOf(after);
+    for (const [id, item] of afterItems) {
+      const prev = beforeItems.get(id);
+      if (!prev || !equal(prev, item)) {
+        written.set(id, { revision: rev, origin, kind: item.kind, page: afterPages.get(id)! });
+        removed.delete(id);
+      }
+    }
+    for (const [id, item] of beforeItems) {
+      if (!afterItems.has(id)) {
+        written.delete(id);
+        removed.set(id, { revision: rev, origin, kind: item.kind, page: beforePages.get(id)! });
+      }
+    }
+  };
+  const resetSession = () => {
+    revision = 0;
+    sessionLog.length = 0;
+    written.clear();
+    removed.clear();
+  };
+  const commitSession = (
+    slice: Omit<ChangeSlice, 'revision'>,
+    before: AnnieDoc,
+    after: AnnieDoc,
+  ) => {
+    revision += 1;
+    stampTransition(before, after, revision, slice.origin);
+    sessionLog.push({ ...slice, revision, ops: clone(slice.ops) });
+    if (sessionLog.length > LIMITS.maxSessionLog) sessionLog.shift();
+    return revision;
+  };
+  const emit = (entry: Pick<Entry, 'ops' | 'inverse' | 'origin' | 'label'> & { revision: number }) => {
     for (const callback of listeners) {
       try {
         callback(
@@ -550,6 +626,7 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
             inverse: entry.inverse,
             origin: entry.origin,
             label: entry.label,
+            revision: entry.revision,
           }),
         );
       } catch {
@@ -589,7 +666,8 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
     },
     apply(ops, applyOptions = {}) {
       const result: ApplyResult = { ok: false, created: [], errors: [], warnings: [] },
-        origin = applyOptions.origin ?? 'api';
+        origin = applyOptions.origin ?? 'api',
+        lenient = !!applyOptions.lenient;
       if (options.readonly) {
         result.errors.push({ index: 0, code: 'READONLY', message: 'This document is read-only.' });
         return result;
@@ -616,49 +694,66 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
         return result;
       }
       const concrete: Op[] = [],
-        inverse: Op[] = [];
+        inverse: Op[] = [],
+        failures: ApplyIssue[] = [];
       const creationOps = new Map<string, number>();
+      const mediaIds = () =>
+        new Set(concrete.filter((op) => op.op === 'media.set').map((op) => op.id));
       for (let index = 0; index < ops.length; index++) {
+        const snapshot = lenient ? clone(draft) : undefined;
         try {
           const error = schemaError(OpSchema, ops[index]);
           if (error) throw new Error(error);
           const change = perform(draft, ops[index], origin, options);
+          if (origin !== 'user' && result.created.length + change.created.length > LIMITS.maxBatch)
+            throw new Error(
+              `An agent batch may create at most ${LIMITS.maxBatch} items, including nested children.`,
+            );
+          if (lenient)
+            validateDoc(
+              draft,
+              options,
+              origin,
+              new Set([
+                ...mediaIds(),
+                ...(change.op.op === 'media.set' ? [change.op.id] : []),
+              ]),
+            );
           concrete.push(change.op);
           inverse.unshift(...change.inverse);
           result.created.push(...change.created);
           change.created.forEach((id) => creationOps.set(id, index));
-          if (origin !== 'user' && result.created.length > LIMITS.maxBatch)
-            throw new Error(
-              `An agent batch may create at most ${LIMITS.maxBatch} items, including nested children.`,
-            );
         } catch (error) {
-          result.errors.push({
+          if (snapshot) draft = snapshot;
+          failures.push({
             index,
             code: 'INVALID_OP',
             message: `${ops[index]?.op ?? 'operation'} #${index + 1}: ${error instanceof Error ? error.message : String(error)}`,
           });
         }
       }
-      if (!result.errors.length) {
+      if (!lenient && !failures.length) {
         try {
-          validateDoc(
-            draft,
-            options,
-            origin,
-            new Set(concrete.filter((op) => op.op === 'media.set').map((op) => op.id)),
-          );
+          validateDoc(draft, options, origin, mediaIds());
         } catch (error) {
-          result.errors.push({
+          failures.push({
             index: Math.max(0, ops.length - 1),
             code: 'INVALID_DOCUMENT',
             message: error instanceof Error ? error.message : String(error),
           });
         }
       }
-      if (result.errors.length) {
+      if (!lenient && failures.length) {
+        result.errors = failures;
         result.created = [];
         return result;
       }
+      if (lenient && !concrete.length) {
+        result.skipped = failures;
+        result.created = [];
+        return result;
+      }
+      if (lenient && failures.length) result.skipped = failures;
       const all = allItems(draft),
         lookup = new Map(all.map((i) => [i.id, i]));
       for (const id of result.created) {
@@ -681,7 +776,7 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
           });
       }
       result.ok = true;
-      if (applyOptions.dryRun || !ops.length) return result;
+      if (applyOptions.dryRun || !concrete.length) return result;
       const entry: Entry = {
         ops: concrete,
         inverse,
@@ -707,7 +802,14 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
         if (history.length > LIMITS.maxHistory) history.shift();
       }
       future.length = 0;
-      emit(entry);
+      emit({
+        ...entry,
+        revision: commitSession(
+          { origin, label: applyOptions.label, ops: concrete },
+          entry.before,
+          state,
+        ),
+      });
       return result;
     },
     get(id) {
@@ -717,7 +819,19 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
       return queryDoc(state, selector);
     },
     describe(describeOptions) {
-      return describeDoc(state, describeOptions);
+      return describeDoc(state, describeOptions, { written, removed });
+    },
+    changesSince(since, changeOptions) {
+      const cursor = revision;
+      if (!Number.isFinite(since) || since >= cursor) return { cursor, since, changes: [] };
+      const oldest = sessionLog[0];
+      if (oldest && since + 1 < oldest.revision)
+        return { cursor, since, changes: [], truncated: true };
+      let changes = sessionLog.filter((slice) => slice.revision > since);
+      const origin = changeOptions?.origin;
+      if (origin === 'agent') changes = changes.filter((slice) => agentOrigin(slice.origin));
+      else if (origin !== undefined) changes = changes.filter((slice) => slice.origin === origin);
+      return { cursor, since, changes: clone(changes) };
     },
     kindsSince(since) {
       return kindsSince(since);
@@ -731,9 +845,11 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
     },
     undo(undoOptions) {
       if (options.readonly) return false;
-      let index = history.length - 1;
-      if (undoOptions?.origin)
-        while (index >= 0 && history[index].origin !== undoOptions.origin) index--;
+      const index = undoOptions?.origin
+        ? walkBack(history, (origin) => origin === undoOptions.origin)
+        : hideAgent()
+          ? walkBack(history, (origin) => !agentOrigin(origin))
+          : history.length - 1;
       if (index < 0) return false;
       const entry = history[index],
         selective = index !== history.length - 1,
@@ -759,22 +875,28 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
         origin: entry.origin,
         label: entry.label,
       };
+      const before = state;
       state = draft;
       reindex();
       history.splice(index, 1);
       future.push(reverse);
+      const label = `Undo ${entry.label ?? 'change'}`;
       emit({
         ops: actual,
         inverse: redo,
         origin: entry.origin,
-        label: `Undo ${entry.label ?? 'change'}`,
+        label,
+        revision: commitSession({ origin: entry.origin, label, ops: actual }, before, state),
       });
       return true;
     },
     redo() {
       if (options.readonly) return false;
-      const reverse = future.at(-1);
-      if (!reverse) return false;
+      const index = hideAgent()
+        ? walkBack(future, (origin) => !agentOrigin(origin))
+        : future.length - 1;
+      if (index < 0) return false;
+      const reverse = future[index];
       const draft = clone(state),
         ops: Op[] = [],
         inverse: Op[] = [];
@@ -796,11 +918,19 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
         origin: reverse.origin,
         label: reverse.label,
       };
+      const before = state;
       state = draft;
       reindex();
-      future.pop();
+      future.splice(index, 1);
       history.push(entry);
-      emit({ ops, inverse, origin: entry.origin, label: `Redo ${entry.label ?? 'change'}` });
+      const label = `Redo ${entry.label ?? 'change'}`;
+      emit({
+        ops,
+        inverse,
+        origin: entry.origin,
+        label,
+        revision: commitSession({ origin: entry.origin, label, ops }, before, state),
+      });
       return true;
     },
     load(doc) {
@@ -811,17 +941,30 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
       reindex();
       history.length = 0;
       future.length = 0;
-      emit({ ops: [], inverse: [], origin: 'api', label: 'Load document' });
+      resetSession();
+      emit({ ops: [], inverse: [], origin: 'api', label: 'Load document', revision: 0 });
+    },
+    clear() {
+      if (options.readonly) throw new Error('This document is read-only.');
+      state = defaultDoc();
+      reindex();
+      history.length = 0;
+      future.length = 0;
+      resetSession();
+      emit({ ops: [], inverse: [], origin: 'api', label: 'Clear document', revision: 0 });
     },
     on(_type, callback) {
       listeners.add(callback);
       return () => listeners.delete(callback);
     },
+    get revision() {
+      return revision;
+    },
     get canUndo() {
-      return history.length > 0;
+      return hideAgent() ? history.some((entry) => !agentOrigin(entry.origin)) : history.length > 0;
     },
     get canRedo() {
-      return future.length > 0;
+      return hideAgent() ? future.some((entry) => !agentOrigin(entry.origin)) : future.length > 0;
     },
   };
   return model;

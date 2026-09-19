@@ -50,11 +50,11 @@ Style fields: `stroke`, `strokeWidth` (0 to 1000), `dash` (`solid`, `dashed`, `d
 
 `href` is an `http(s)` URL on `video` and `link` items. `description` is optional plain text for a link card. A `video` href must be a YouTube or Vimeo watch or embed URL. The renderer derives the player address from the parsed id. It does not store iframe markup. `html` holds markup for `html` items. `mount` is an internal id the renderer assigns; do not treat it as a file field to author.
 
-Named colors: `ink`, `slate`, `coral`, `amber`, `moss`, `teal`, `sky`, `violet`, `rose`, and `paper`. These map to Frontierz colors and theme-aware foreground and background values. Ordinary CSS colors are also accepted. `fill: 'none'` draws a hollow shape.
+Named colors: `ink`, `slate`, `coral`, `amber`, `moss`, `teal`, `sky`, `violet`, `rose`, and `paper`. These map to Frontierz colors and theme-aware foreground and background values. Ordinary CSS colors are also accepted. `fill: 'none'` draws a hollow shape. `apply` also accepts host color names (`black`, `grey`, `gray`, `blue`, `light-blue`, `green`, `light-green`, `red`, `light-red`, `orange`, `yellow`, `violet`, `light-violet`); compact JSON writes the token, not the alias. Kind aliases `rectangle` and `arrow` are operation input only. They are not format kinds.
 
 ## Connectors and paths
 
-A connector has `from` and `to`. Each end is either `{ "item": "i_note", "side": "right" }` or a free `{ "x": 100, "y": 200 }` point. `side` is `auto`, `top`, `right`, `bottom`, or `left`. An attached endpoint can use a normalized `anchor: [0, 0.5]`. Routes are `straight`, `elbow`, or `curve`. Heads accept `none`, `arrow`, or `dot`. Optional `waypoints` are page-space `[x, y]` points between the ends. When a target disappears, that endpoint becomes a free point at its last position in the same atomic edit.
+A connector has `from` and `to`. Each stored end is either `{ "item": "i_note", "side": "right" }` or a free `{ "x": 100, "y": 200 }` point. `apply` also accepts a string item id, stored as `{ item, side: "auto" }`. `side` is `auto`, `top`, `right`, `bottom`, or `left`. An attached endpoint can use a normalized `anchor: [0, 0.5]`. Routes are `straight`, `elbow`, or `curve`. Heads accept `none`, `arrow`, or `dot`. Optional `waypoints` are page-space `[x, y]` points between the ends. When a target disappears, that endpoint becomes a free point at its last position in the same atomic edit.
 
 Line and freehand `points` are relative to the item's `x` and `y`. Freehand points may include pressure: `[x, y, pressure]`. `closed: true` closes a path. Item IDs and connector bindings survive moves and export or import.
 
@@ -66,7 +66,7 @@ HTML is an optional application integration. Plain text is safe by construction.
 
 ## Versions
 
-The integer `version` belongs to the document format. It is independent of the package version and of the built-in kind catalog (`CATALOG_VERSION` / `kindsSince`). Version 2 is the current format and uses `pages`. New examples, saves, and exports use this form.
+The integer `version` belongs to the document format. It is independent of the package version, the built-in kind catalog (`CATALOG_VERSION` / `kindsSince`), and the session `revision` used by `changesSince`. Version 2 is the current format and uses `pages`. New examples, saves, and exports use this form. Session revision is not a file field.
 
 The loader accepts version 1 drawings with `sheets` and migrates them to version 2 `pages` before validation. It keeps page and item IDs, item trees, coordinates, connector references, media, and custom page names. Default names such as `Sheet 1` become `Page 1`. Existing `.annie` files and browser autosaves remain readable. The next save writes version 2. Migration reads the original object without mutating it.
 
@@ -76,4 +76,4 @@ Older drawings that contain `frame` items load as ordinary groups. The loader ke
 
 ## Export
 
-`board.export` writes JSON (AnnieDoc), SVG, or PNG. The editor Export control downloads the current page. An imported board lists PNG and SVG unless the host sets `ui.export`. Include `'json'` to offer a `.annie` file. The repository demo lists all three. Programmatic export is not limited by that menu. See [API reference](api.md#export).
+`board.export` writes JSON (AnnieDoc), SVG, PNG, JPEG, or WebP. The editor Export control downloads the current page as PNG, SVG, or AnnieDoc. Programmatic export is not limited by that menu. See [API reference](api.md#export).

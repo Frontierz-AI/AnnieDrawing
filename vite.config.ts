@@ -8,6 +8,7 @@ export default defineConfig({
         'core/index': resolve('src/core/index.ts'),
         'agent/index': resolve('src/agent/index.ts'),
         'ui/index': resolve('src/ui/index.ts'),
+        fellow: resolve('src/fellow.ts'),
       },
       formats: ['es'],
       fileName: (_format, name) => `${name}.js`,

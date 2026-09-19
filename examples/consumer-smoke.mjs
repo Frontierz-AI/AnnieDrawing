@@ -98,7 +98,7 @@ try {
     assert.equal('sheets' in doc.toJSON(),false);
     assert.equal(doc.get('i_consumer').text.value,'Installed from tarball');
     assert.equal(toolDefs.length,6);
-    for (const path of ['anniedrawing','anniedrawing/core','anniedrawing/agent','anniedrawing/ui','anniedrawing/style.css']) assert(import.meta.resolve(path));
+    for (const path of ['anniedrawing','anniedrawing/core','anniedrawing/agent','anniedrawing/ui','anniedrawing/fellow','anniedrawing/style.css']) assert(import.meta.resolve(path));
     assert(readFileSync(new URL(import.meta.resolve('anniedrawing/style.css')),'utf8').includes('.ad-root'));
     console.log('Tarball consumer passed: version2 pages, headless operations, six tools, CSS and all package exports.');
   `,

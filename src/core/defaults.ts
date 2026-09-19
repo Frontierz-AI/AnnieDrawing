@@ -1,6 +1,48 @@
-import type { AnnieDoc, Item, NewItem, Style } from './types';
+import type { AnnieDoc, Endpoint, EndpointInput, Item, NewItem, Style } from './types';
 import { KIND_CATALOG } from './catalog';
 import { itemId } from './ids';
+export const KIND_ALIASES: Record<string, string> = {
+  rectangle: 'rect',
+  arrow: 'connector',
+};
+export const COLOR_ALIASES: Record<string, string> = {
+  black: 'ink',
+  grey: 'slate',
+  gray: 'slate',
+  blue: 'sky',
+  'light-blue': 'sky',
+  green: 'teal',
+  'light-green': 'moss',
+  red: 'rose',
+  'light-red': 'rose',
+  orange: 'coral',
+  yellow: 'amber',
+  violet: 'violet',
+  'light-violet': 'violet',
+};
+export function storedKind(kind: string): string {
+  return KIND_ALIASES[kind] ?? kind;
+}
+export function storedColor(value?: string): string | undefined {
+  if (value === undefined) return undefined;
+  return COLOR_ALIASES[value] ?? value;
+}
+export function storedEndpoint(value?: EndpointInput): Endpoint | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === 'string') return { item: value, side: 'auto' };
+  return value;
+}
+export function aliasStyle(style?: Style): Style | undefined {
+  if (!style) return style;
+  const stroke = storedColor(style.stroke),
+    fill = storedColor(style.fill);
+  if (stroke === style.stroke && fill === style.fill) return style;
+  return {
+    ...style,
+    ...(stroke !== undefined ? { stroke } : {}),
+    ...(fill !== undefined ? { fill } : {}),
+  };
+}
 export const CARD_CORNER = 12;
 export const DEFAULT_STYLE: Required<Style> = {
   stroke: 'ink',
@@ -40,22 +82,39 @@ export function normalizeItem(
   input: NewItem,
   kindDefaults: Record<string, Partial<Item>> = {},
 ): Item {
-  const custom = kindDefaults[input.kind];
+  const originalKind = input.kind,
+    kind = storedKind(originalKind);
+  const custom = kindDefaults[kind] ?? kindDefaults[originalKind];
+  input = { ...input, kind };
   if (custom)
     input = {
       ...clone(custom),
       ...input,
       ...(custom.style ? { style: { ...clone(custom.style), ...input.style } } : {}),
     };
-  const size = sizeOf(input.kind);
+  const size = sizeOf(kind);
   const result = {
     ...clone(input),
     id: input.id ?? itemId(),
+    kind,
     x: input.x ?? 0,
     y: input.y ?? 0,
     w: input.w ?? size[0],
     h: input.h ?? size[1],
   } as Item;
+  const from = storedEndpoint(input.from),
+    to = storedEndpoint(input.to),
+    style = aliasStyle(input.style);
+  if (from) result.from = from;
+  else delete result.from;
+  if (to) result.to = to;
+  else delete result.to;
+  if (style) result.style = style;
+  else delete result.style;
+  if (originalKind === 'arrow') {
+    if (result.heads?.end === undefined) result.heads = { ...result.heads, end: 'arrow' };
+    if (result.route === undefined) result.route = 'elbow';
+  }
   if (input.children)
     result.children = input.children.map((child) => normalizeItem(child, kindDefaults));
   return result;

@@ -4,26 +4,70 @@ import { boundsOf, flattenItems, itemBounds } from '../geo/box';
 const number = (n: number) => Math.round(n * 10) / 10;
 const title = (i: Item) => i.name ?? i.text?.value;
 const quote = (s: string) => JSON.stringify(s.length > 160 ? `${s.slice(0, 157)}…` : s);
-export function describeDoc(doc: AnnieDoc, options: DescribeOptions = {}): string {
+export interface ItemStamp {
+  revision: number;
+  origin: string;
+  kind: string;
+  page: string;
+}
+export interface DescribeSession {
+  written: Map<string, ItemStamp>;
+  removed: Map<string, ItemStamp>;
+}
+export function describeDoc(
+  doc: AnnieDoc,
+  options: DescribeOptions = {},
+  session?: DescribeSession,
+): string {
   const pages = doc.pages.filter((page, index) =>
       options.page ? page.id === options.page : options.scope === 'page' ? index === 0 : true,
     ),
     detail = options.detail ?? 'normal',
     limit = options.maxItems ?? 100,
-    lines: string[] = [],
-    selected = new Set(options.selection ?? []);
+    since = options.since,
+    selected = new Set(options.selection ?? []),
+    scoped = options.ids ? new Set(options.ids) : undefined,
+    lines: string[] = [];
   let shown = 0;
   const emitted = new Set<string>();
   const all = allItems(doc),
     lookup = new Map(all.map((i) => [i.id, i]));
+  const changed =
+    since !== undefined && session
+      ? (id: string) => {
+          const stamp = session.written.get(id);
+          return !!stamp && stamp.revision > since;
+        }
+      : () => true;
+  const includePresent = (item: Item) => {
+    if (options.scope === 'selection' && !selected.has(item.id)) return false;
+    if (scoped && !scoped.has(item.id)) return false;
+    return changed(item.id);
+  };
+  const includeRemoved = (stamp: ItemStamp) => {
+    if (options.scope === 'selection' || scoped) return false;
+    if (options.page && stamp.page !== options.page) return false;
+    return since !== undefined && stamp.revision > since;
+  };
+  let any = false;
   for (const page of pages) {
-    const items = flattenItems(page.items).filter(
-      (i) => options.scope !== 'selection' || selected.has(i.id),
-    );
+    const items = flattenItems(page.items).filter(includePresent);
+    const gone = session
+      ? [...session.removed.entries()]
+          .filter(([, stamp]) => stamp.page === page.id && includeRemoved(stamp))
+          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      : [];
+    if (since !== undefined && !items.length && !gone.length) continue;
+    any = true;
+    const live = flattenItems(page.items).filter((item) => {
+      if (options.scope === 'selection' && !selected.has(item.id)) return false;
+      if (scoped && !scoped.has(item.id)) return false;
+      return true;
+    });
     lines.push(
-      `Page ${quote(page.name)} (${page.id}): ${items.length} item${items.length === 1 ? '' : 's'}.${selected.size ? ` Selection: ${[...selected].join(', ')}.` : ''}`,
+      `Page ${quote(page.name)} (${page.id}): ${since === undefined ? live.length : items.length + gone.length} item${(since === undefined ? live.length : items.length + gone.length) === 1 ? '' : 's'}.${selected.size && since === undefined ? ` Selection: ${[...selected].join(', ')}.` : ''}`,
     );
-    if (!items.length) {
+    if (!items.length && !gone.length) {
       lines.push('An empty board, ready for your first idea.');
       continue;
     }
@@ -45,6 +89,8 @@ export function describeDoc(doc: AnnieDoc, options: DescribeOptions = {}): strin
           .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
           .map(([key, value]) => `data.${key}=${JSON.stringify(value)}`)
           .join(', ')}]`;
+      if (detail !== 'brief' && session?.written.get(item.id)?.origin.startsWith('agent:'))
+        line += ', by agent';
       lines.push(line);
     }
     const connections = items.filter((i) => i.kind === 'connector');
@@ -56,10 +102,17 @@ export function describeDoc(doc: AnnieDoc, options: DescribeOptions = {}): strin
         emitted.add(item.id);
         const endpoint = (p: Item['from']) =>
           !p ? 'unset' : 'item' in p ? p.item : `(${number(p.x)},${number(p.y)})`;
-        lines.push(
-          `  ${item.id}: ${endpoint(item.from)} → ${endpoint(item.to)}${title(item) ? ` ${quote(title(item)!)}` : ''} (${item.route ?? 'straight'})`,
-        );
+        let line = `  ${item.id}: ${endpoint(item.from)} → ${endpoint(item.to)}${title(item) ? ` ${quote(title(item)!)}` : ''} (${item.route ?? 'straight'})`;
+        if (detail !== 'brief' && session?.written.get(item.id)?.origin.startsWith('agent:'))
+          line += ', by agent';
+        lines.push(line);
       }
+    }
+    for (const [id, stamp] of gone) {
+      if (shown >= limit) continue;
+      shown++;
+      emitted.add(id);
+      lines.push(detail === 'brief' ? `removed ${id}` : `removed ${id} ${stamp.kind}`);
     }
     if (options.relations && detail !== 'brief') {
       const relations: string[] = [];
@@ -74,10 +127,14 @@ export function describeDoc(doc: AnnieDoc, options: DescribeOptions = {}): strin
       if (relations.length) lines.push(`Layout: ${relations.join('; ')}.`);
     }
     if (options.freeSpace) {
-      const b = boundsOf(items, lookup);
-      lines.push(
-        `Free space: right of content from x=${number(b.x + b.w + 40)}; below content from y=${number(b.y + b.h + 40)}.`,
-      );
+      const space = since === undefined ? flattenItems(page.items).filter(includePresent) : items;
+      const source = space.length ? space : items;
+      if (source.length) {
+        const b = boundsOf(source, lookup);
+        lines.push(
+          `Free space: right of content from x=${number(b.x + b.w + 40)}; below content from y=${number(b.y + b.h + 40)}.`,
+        );
+      }
     }
     const omitted = items.filter((item) => !emitted.has(item.id));
     if (omitted.length) {
@@ -96,5 +153,6 @@ export function describeDoc(doc: AnnieDoc, options: DescribeOptions = {}): strin
       );
     }
   }
+  if (since !== undefined && !any) return `No changes since revision ${since}.`;
   return lines.join('\n');
 }

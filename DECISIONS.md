@@ -1,5 +1,17 @@
 # Design decisions
 
+## 2026-09-20: Session revision, not catalog version
+
+`revision` counts committed session transactions (`apply`, `undo`, `redo`). It is not `CATALOG_VERSION`, not a history index, and not a field in compact `.annie` JSON. `changesSince(since)` reads a 500-slice session log so hosts can poll without re-reading the scene. `kindsSince` still answers “what can I create that I did not know about.” `load()` and `clear()` reset the session counter, stamps, and log.
+
+## 2026-09-20: Hidden agent history
+
+`agentHistory: 'hidden'` makes default `undo` / `redo` and `canUndo` / `canRedo` walk only non-`agent:` entries. Origin-specific `undo({ origin })` still targets that origin. Agent batches emit `change`, increment `revision`, and appear in `changesSince`. Ordinary keyboard undo follows the default walk.
+
+## 2026-09-20: Host vocabulary aliases
+
+`rectangle` and `arrow`, a small set of English color names, and string connector ends are accepted on `apply`. The document stores `rect`, `connector`, palette tokens, and `{ item, side }` endpoints. Aliases are not catalog kinds and not format fields. `query` expands the same kind aliases.
+
 ## 2026-09-19: Kind catalog version, not per-item revisions
 
 When a built-in kind is added or its create/read contract changes, increment `CATALOG_VERSION` and set that kind's `since` to the new number. `kindsSince(since?)` returns those entries. Omit `since` or pass `0` to list every built-in kind. This is the check for "what can I create that I did not know about." It does not stamp a version on every item in a drawing. The current board is `describe`, `read`, `get`, and `query`. The `.annie` format version stays a document-schema number.
