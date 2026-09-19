@@ -76,7 +76,11 @@ export function parseLinkPreview(html: string, base: string): LinkPreview {
     decodeEntities(html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim() ?? '');
   const description =
     meta(html, 'og:description') ?? meta(html, 'twitter:description') ?? meta(html, 'description');
-  let image = meta(html, 'og:image') ?? meta(html, 'twitter:image');
+  let image =
+    meta(html, 'og:image') ??
+    meta(html, 'og:image:secure_url') ??
+    meta(html, 'twitter:image') ??
+    meta(html, 'twitter:image:src');
   if (image)
     try {
       image = normalizeHref(new URL(image, base).href);
@@ -99,17 +103,21 @@ export async function unfurlPage(href: string): Promise<LinkPreview | undefined>
   return parseLinkPreview((await response.text()).slice(0, 200000), response.url || url);
 }
 
-export function linkFallback(href: string): { title: string; description: string; host: string } {
-  const host = hostnameOf(href);
-  let path = '';
+export function displayUrl(href: string): string {
   try {
-    path = decodeURIComponent(new URL(href).pathname).replace(/\/$/, '');
+    const url = new URL(href);
+    const path = decodeURIComponent(url.pathname).replace(/\/$/, '');
+    return `${url.hostname.replace(/^www\./, '')}${path}`;
   } catch {
-    /* Keep the host title when the path cannot be read. */
+    return href.replace(/^https?:\/\//, '').replace(/\/$/, '');
   }
-  return {
-    title: host,
-    description: path && path !== '/' ? `${host}${path}` : href.replace(/^https?:\/\//, ''),
-    host,
-  };
+}
+
+export function prettyTitle(href: string): string {
+  const name = hostnameOf(href).split('.')[0] ?? '';
+  return name ? name[0].toUpperCase() + name.slice(1) : hostnameOf(href);
+}
+
+export function linkFallback(href: string): { title: string; description: string; host: string } {
+  return { title: prettyTitle(href), description: displayUrl(href), host: hostnameOf(href) };
 }

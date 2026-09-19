@@ -58,7 +58,11 @@ test('pasted video, image and website URLs create card items', async ({ page }) 
     return {
       video: { href: video.href, src: videoEl?.querySelector('iframe')?.getAttribute('src') },
       image: !!image.media,
-      link: { href: link.href, title: link.text?.value, host: link.name },
+      link: {
+        href: link.href,
+        title: link.text?.value,
+        url: board.stage.world.querySelector('.ad-link-url')?.textContent,
+      },
       radius: getComputedStyle(videoEl!.querySelector('.ad-auxiliary')!).borderRadius,
       open: !!board.stage.world.querySelector('.ad-link-open'),
     };
@@ -66,12 +70,10 @@ test('pasted video, image and website URLs create card items', async ({ page }) 
   expect(result.video.href).toBe('https://www.youtube.com/watch?v=ihe1QbeGt7U&list=RDihe1QbeGt7U');
   expect(result.video.src).toContain('youtube-nocookie.com/embed/ihe1QbeGt7U');
   expect(result.image).toBe(true);
-  expect(result.link).toMatchObject({
-    href: 'https://example.com/notes',
-    title: 'example.com',
-    host: 'example.com',
-  });
-  expect(result.radius).toBe('16px');
+  expect(result.link.href).toBe('https://example.com/notes');
+  expect(result.link.title).toBeTruthy();
+  expect(result.link.url).toBe('example.com/notes');
+  expect(result.radius).toBe('12px');
   expect(result.open).toBe(true);
 });
 

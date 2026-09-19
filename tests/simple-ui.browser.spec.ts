@@ -205,7 +205,15 @@ test('page chips allow contextual renaming and zoom controls stay compact', asyn
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Zoom in', exact: true })).toHaveCount(0);
   await expect(zoom).toBeFocused();
-  await expect(page.getByRole('button', { name: 'Fit drawing', exact: true })).toBeVisible();
+  const fit = page.getByRole('button', { name: 'Fit drawing', exact: true });
+  const undo = page.getByRole('button', { name: 'Undo', exact: true });
+  const pages = page.locator('.ad-pages');
+  await expect(fit).toBeVisible();
+  const fitBox = await fit.boundingBox();
+  const undoBox = await undo.boundingBox();
+  const pagesBox = await pages.boundingBox();
+  expect(pagesBox!.x).toBeLessThan(80);
+  expect(undoBox!.x).toBeGreaterThan(fitBox!.x);
 });
 
 test('grouped tools support keyboard navigation and escape returns focus', async ({ page }) => {

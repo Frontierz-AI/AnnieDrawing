@@ -560,18 +560,18 @@ describe('adversarial transaction regressions', () => {
     doc.apply([
       {
         op: 'add',
-        item: { id: 'note', kind: 'note', style: { fill: 'none', strokeWidth: 2, corner: 12 } },
+        item: { id: 'note', kind: 'note', style: { fill: 'none', strokeWidth: 2, corner: 8 } },
       },
     ]);
     expect(doc.toJSON().pages[0].items[0].style).toEqual({
       fill: 'none',
       strokeWidth: 2,
-      corner: 12,
+      corner: 8,
     });
     expect(createDoc(doc.toJSON()).get('note')!.style).toEqual({
       fill: 'none',
       strokeWidth: 2,
-      corner: 12,
+      corner: 8,
     });
   });
   it('rejects deletion of required geometry and normalizes replacement children', () => {

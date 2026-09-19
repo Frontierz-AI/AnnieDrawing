@@ -109,9 +109,9 @@ test('small phone controls stay inside the viewport and documentation opens', as
   expect(toolbar!.x + toolbar!.width).toBeLessThanOrEqual(320);
   await capture(page, info, 'small-phone-default');
   await page.goto('/docs/index.html');
-  await expect(page).toHaveTitle(/A little guidance/);
+  await expect(page).toHaveTitle(/AnnieDrawing documentation/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
-  await expect(page.getByRole('link', { name: 'Open the board ↗', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open the demo', exact: true })).toBeVisible();
   await capture(page, info, 'phone-documentation');
 });
 
