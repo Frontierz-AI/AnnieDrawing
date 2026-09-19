@@ -1,0 +1,21 @@
+# Changelog
+
+## 1.0.0 — Unreleased
+
+Initial independent AnnieDrawing implementation: a framework-free HTML/SVG board, JSON document operations, headless and agent APIs, browser editing, exports, custom-kind and sanitized-HTML integrations, local demo, and a separate local MCP example.
+
+Tool menus open beside their desktop buttons and close when pressed again. Zoom options align with the fit-view button.
+
+Documents use format version 2 with pages. Version 1 drawings migrate on load while preserving their content. The compact inspector exposes relevant line and text controls directly. Export is a format menu that downloads the current page as PNG, SVG or an Annie document; PNG uses 2× resolution.
+
+Page chips now live in the bottom bar with an overflow list and contextual rename/delete actions. Element actions use a compact anchored right-click menu. The inspector adds more colors, visible opacity and an icon for locking; the extra style section and text-edit button are removed. Board menu title editing and frame tooling are removed. Older frames import as groups, preserving their contents, backgrounds and labels without clipping.
+
+The local demo opens on a blank Page 1 instead of the previous welcome drawing. `npm run dev` uses Vite's default port 5173 instead of assigning a random free port.
+
+The package declares the version intended for the first release. No publication is implied. Use the release checklist and verified test results before tagging or distributing it.
+
+Development now uses TypeScript 7, Vite 8 and Vitest 5, with nanoid 6 for IDs. Node.js 24 or newer is required.
+
+Locked items remain selectable by click, touch or keyboard focus. Their editing controls and context actions are disabled, with Unlock and Deselect available. Locks prevent dragging, resizing, text edits, erasing, duplication, ordering and keyboard edits, including through groups and mixed selections.
+
+AI additions now arrive with a lilac companion cursor: it enters from outside the viewport, visits the placement points and reveals items with a gentle fade and settling motion. Groups arrive together and large batches use a short sequence. The document commits immediately, human input takes priority, reduced motion is respected, and integrations can disable the animation with `agentPresence: false`. A successful agent-playground edit closes its dialog to show the result.

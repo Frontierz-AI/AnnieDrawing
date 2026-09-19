@@ -1,0 +1,58 @@
+name: Verify
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            examples/mcp/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix examples/mcp
+      - run: npm run check
+      - run: npm run build:demo
+      - run: npm test --prefix examples/mcp
+      - run: node examples/consumer-smoke.mjs
+      - run: npx playwright install --with-deps chromium firefox webkit
+      - run: node examples/mcp/live-smoke.mjs
+      - run: npm run test:e2e
+      - run: npm run test:perf
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-results
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+      - run: npm pack --dry-run
+  dco:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check contributor sign-offs
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node --input-type=module <<'JS'
+          import { execFileSync } from 'node:child_process';
+          const commits = execFileSync('git', ['rev-list', '--no-merges', `${process.env.BASE_SHA}..${process.env.HEAD_SHA}`], { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+          for (const commit of commits) {
+            const message = execFileSync('git', ['show', '-s', '--format=%B', commit], { encoding: 'utf8' });
+            if (!/^Signed-off-by: .+ <[^<>\s]+@[^<>\s]+>\s*$/mi.test(message)) throw new Error(`${commit} needs a Developer Certificate of Origin sign-off (git commit -s).`);
+          }
+          console.log(`${commits.length} commit sign-offs verified.`);
+          JS

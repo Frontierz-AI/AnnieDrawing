@@ -1,0 +1,11 @@
+node_modules
+dist
+site
+.tmp
+test-results
+playwright-report
+performance-results
+performance-report
+package-lock.json
+examples/mcp/package-lock.json
+NOTICE

@@ -1,0 +1,34 @@
+name: Something is not working
+description: Help us reproduce a drawing, API or accessibility problem.
+title: '[Bug] '
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Include what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: How can we reproduce it?
+      description: Include a small code example, exact editing steps, or a synthetic .annie document. Remove private data first.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser and version, operating system, and whether you use a mouse, keyboard, touch or pen.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Anything else that helps?
+      description: Console errors, screenshots or a short recording are useful. Report security vulnerabilities privately instead.
