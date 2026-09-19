@@ -76,6 +76,7 @@ const result = board.apply(ops, {
   origin: 'agent:planner',
   label: 'Organize ideas',
   dryRun: false,
+  agentName: 'Julia', // optional visiting-cursor label
 });
 // { ok, created: string[], errors: [...], warnings: [...] }
 ```
@@ -116,7 +117,7 @@ A browser text item with `autoWidth: true` measures its plain text when it is ad
 
 ## AI placement presentation
 
-Successful `board.apply` calls with an `agent:` origin give newly created items a brief visual arrival. A lilac cursor labeled AI enters from outside the board, visits the placement points, reveals each item with a short fade and subtle scale, then leaves. Groups reveal their children together; connectors fade without scaling their page-space paths. After eight visible stops, the remaining batch appears together. Consecutive additions share one cursor.
+Successful `board.apply` calls with an `agent:` origin give newly created items a brief visual arrival. A lilac cursor enters from outside the board, visits the placement points, reveals each item with a short fade and subtle scale, then leaves. It has no name unless `apply` passes `agentName`. Groups reveal their children together; connectors fade without scaling their page-space paths. After eight visible stops, the remaining batch appears together. Consecutive additions share one cursor.
 
 The operation remains synchronous and atomic: `get`, `read`, exports and history contain the complete result immediately. Temporary presentation state never enters the document. Failed batches, dry runs, ordinary user/API edits, existing-item updates and headless operations do not animate. Items outside the viewport or on other pages do not summon a cursor or move the camera. An immediate `board.view.fit()` after `apply` uses the new viewport for the arrival.
 
@@ -124,9 +125,9 @@ The cursor is decorative and ignores pointer events. Selection, focus and the pe
 
 ## Pointer and keyboard editing
 
-The built-in toolbar groups rectangles, ellipses and diamonds under **Shapes**. **More tools** contains line, eraser and image tools; on phones it also contains hand and arrow. The board menu holds appearance, document actions and the agent playground. **Export** is a format menu that downloads the current page as PNG, SVG or an Annie document. Page chips in the bottom bar switch pages, and **+** adds a page. **All pages** appears when the chips overflow; the active page stays visible. Right-click a page chip to rename or delete that page. The last page cannot be deleted. Arrow keys, Home and End navigate page tabs. The zoom percentage opens zoom controls.
+The built-in toolbar shows select, hand, eraser, then **Shapes**, arrow, draw, text, sticky note and image. **Shapes** groups rectangle, ellipse, diamond and line. On phones, hand and arrow move into the **AnnieDrawing** menu so the bottom bar stays tappable. **AnnieDrawing** also opens appearance, document actions, the agent playground and documentation. **Export** is a format menu that downloads the current page as PNG, SVG or an Annie document. Page chips in the bottom bar switch pages, and **+** adds a page. **All pages** appears when the chips overflow; the active page stays visible. Right-click a page chip to rename or delete that page. The last page cannot be deleted. Arrow keys, Home and End navigate page tabs. The zoom percentage opens zoom controls.
 
-Selecting an item opens a compact inspector with controls for that item type. **Fill**, **Stroke** or **Color** opens a palette. Text-capable shapes, including empty ones, show **Text** (S/M/L/XL), **Align** and **Font** on their own rows. Friendly (`sans`), Serif, Mono and Handwritten (`hand`, the default) remain the font choices. Stroked shapes also get **Line** (1, 2, 4 or 8) and **Pattern** (solid, dashed or dotted) on separate rows. Open freehand paths omit pattern. Images omit line and text controls. **Opacity** sits beside the color controls and opens a 0–100% slider. The lock icon beside Delete locks or unlocks the selection. Connector route and arrowhead controls appear directly for a selected connector. Deselect to return to the unobstructed board.
+Selecting an item opens a compact inspector with controls for that item type. **Fill**, **Line** and **Opacity** share one row; **Color** replaces fill and line on plain text. Fill, line and text color open a palette. Text-capable shapes, including empty ones, show **Text** (S/M/L/XL), **Align** and **Font** on their own rows. Friendly (`sans`), Serif, Mono and Handwritten (`hand`, the default) remain the font choices. Stroked shapes also get line weight (1, 2, 4 or 8) and **Pattern** (solid, dashed or dotted) on separate rows. Open freehand paths omit pattern. Sticky notes keep fill and text controls and omit line color, weight and pattern. Images omit line and text controls. **Opacity** opens a 0–100% slider. The lock icon beside Delete locks or unlocks the selection. Connector route and arrowhead controls appear directly for a selected connector. Deselect to return to the unobstructed board.
 
 Select a shape and press Enter, double-click it, or double-tap it on a touchscreen to edit its text. Press and hold an item, or right-click it, to select it and open its actions. The anchored context menu offers Edit text where supported, Bring to front, Send to back, Duplicate and Delete, all for the clicked item. Shift+F10 opens the selected item’s menu; Escape dismisses it. Click, tap or focus a locked item to select it. Its editing controls and context actions are gray and disabled; Unlock and Deselect remain available in the inspector. A readonly board disables saved changes, including unlocking.
 

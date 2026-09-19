@@ -10,6 +10,20 @@ const setup = async (page: Page) => {
   });
 };
 
+test('plain text paste creates medium text', async ({ page }) => {
+  await setup(page);
+  const item = await page.evaluate(() => {
+    const b = window.__anniedrawing![0];
+    const clipboard = new DataTransfer();
+    clipboard.setData('text/plain', 'A pasted thought');
+    const event = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'clipboardData', { value: clipboard });
+    b.stage.root.dispatchEvent(event);
+    return b.query({ kind: 'text' })[0];
+  });
+  expect(item.text).toMatchObject({ value: 'A pasted thought', size: 'm' });
+});
+
 test('clipboard remaps group ids and internal connectors without corrupting originals', async ({
   page,
 }) => {

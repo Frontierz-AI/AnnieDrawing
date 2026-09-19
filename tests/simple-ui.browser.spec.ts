@@ -20,7 +20,7 @@ test('board menu stays focused and image upload remains available in the sidebar
 }) => {
   await blank(page);
   await page.getByRole('button', { name: 'Board menu', exact: true }).click();
-  const menu = page.getByRole('dialog');
+  const menu = page.getByRole('group', { name: 'Board menu', exact: true });
   await expect(menu.getByLabel('Drawing title')).toHaveCount(0);
   await expect(menu.getByRole('button', { name: 'Open a drawing' })).toBeVisible();
   await expect(menu.getByRole('button', { name: 'Hide grid' })).toBeVisible();
@@ -34,7 +34,6 @@ test('board menu stays focused and image upload remains available in the sidebar
   await expect(menu).toHaveCount(0);
   await page.locator('.ad-root').press('r');
   await expect.poll(() => page.evaluate(() => window.__anniedrawing![0].tool)).toBe('rect');
-  await page.getByRole('button', { name: 'More tools', exact: true }).click();
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Add image', exact: true }).click();
   await (
@@ -90,8 +89,9 @@ test('selection inspector shows only relevant controls and opens colors on deman
   expect(applied.ok, JSON.stringify(applied.errors)).toBe(true);
   await selectItem(page, 'i_shape');
   await expect(inspector).toBeVisible();
+  await expect(inspector.locator('.ad-panel-label')).toHaveCount(0);
   await expect(inspector.getByRole('button', { name: 'Fill', exact: true })).toBeVisible();
-  await expect(inspector.getByRole('button', { name: 'Stroke', exact: true })).toBeVisible();
+  await expect(inspector.getByRole('button', { name: 'Line', exact: true })).toBeVisible();
   await expect(
     inspector.getByRole('button', { name: 'Text size: Medium', exact: true }),
   ).toBeVisible();
@@ -147,7 +147,7 @@ test('selection inspector shows only relevant controls and opens colors on deman
   await selectItem(page, 'i_text');
   await expect(inspector.getByRole('button', { name: 'Color', exact: true })).toBeVisible();
   await expect(inspector.getByRole('button', { name: 'Fill', exact: true })).toHaveCount(0);
-  await expect(inspector.getByRole('button', { name: 'Stroke', exact: true })).toHaveCount(0);
+  await expect(inspector.getByRole('button', { name: 'Line', exact: true })).toHaveCount(0);
   await expect(
     inspector.getByRole('button', { name: 'Text size: Medium', exact: true }),
   ).toBeVisible();
@@ -163,7 +163,7 @@ test('selection inspector shows only relevant controls and opens colors on deman
   );
 
   await selectItem(page, 'i_image');
-  for (const name of ['Fill', 'Stroke', 'Color']) {
+  for (const name of ['Fill', 'Line', 'Color']) {
     await expect(inspector.getByRole('button', { name, exact: true })).toHaveCount(0);
   }
   for (const name of ['Font', 'Text', 'Align', 'Line', 'Pattern']) {
@@ -172,7 +172,7 @@ test('selection inspector shows only relevant controls and opens colors on deman
   await expect(inspector.getByRole('button', { name: 'Edit text', exact: true })).toHaveCount(0);
 
   await selectItem(page, 'i_arrow');
-  await expect(inspector.getByRole('button', { name: 'Stroke', exact: true })).toBeVisible();
+  await expect(inspector.getByRole('button', { name: 'Line', exact: true })).toBeVisible();
   await expect(inspector.getByRole('button', { name: 'Fill', exact: true })).toHaveCount(0);
   await expect(inspector.getByRole('combobox', { name: 'Route', exact: true })).toBeVisible();
   await expect(inspector.getByRole('combobox', { name: 'Arrowhead', exact: true })).toBeVisible();
@@ -220,7 +220,7 @@ test('grouped tools support keyboard navigation and escape returns focus', async
   await expect(shapes).toHaveAttribute('aria-expanded', 'false');
   await shapes.click();
   await page.keyboard.press('End');
-  await expect(page.getByRole('button', { name: 'Diamond', exact: true })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Line', exact: true })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(shapes).toBeFocused();
   await expect(shapes).toHaveAttribute('aria-expanded', 'false');
@@ -240,7 +240,7 @@ for (const width of [1440, 390]) {
   test(`popovers align with their controls and toggle closed at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await blank(page);
-    for (const name of ['Shapes', 'More tools', 'Zoom controls', 'Export']) {
+    for (const name of ['Shapes', 'Zoom controls', 'Export']) {
       const trigger = page.getByRole('button', { name, exact: true });
       const panel = page.getByRole('group', { name, exact: true });
       await trigger.click();
@@ -295,6 +295,11 @@ test('color controls match rendered defaults and retain focus after a live agent
     ]);
     board.select(['i_note_color']);
   });
+  const inspector = page.getByRole('complementary', { name: 'Selection style', exact: true });
+  await expect(inspector.getByRole('button', { name: 'Line', exact: true })).toHaveCount(0);
+  for (const name of ['Line', 'Pattern']) {
+    await expect(inspector.getByRole('group', { name, exact: true })).toHaveCount(0);
+  }
   const fill = page.getByRole('button', { name: 'Fill', exact: true });
   await fill.click();
   await expect(page.getByRole('button', { name: 'Fill: Soft green', exact: true })).toHaveAttribute(
@@ -315,6 +320,8 @@ test('color controls match rendered defaults and retain focus after a live agent
     '#FF9302',
   );
   await selectItem(page, 'i_rect_color');
+  await expect(inspector.getByRole('group', { name: 'Line', exact: true })).toBeVisible();
+  await expect(inspector.getByRole('group', { name: 'Pattern', exact: true })).toBeVisible();
   await fill.click();
   await expect(page.getByRole('button', { name: 'Fill: No fill', exact: true })).toHaveAttribute(
     'aria-pressed',

@@ -115,7 +115,7 @@ export class Stage {
   get resolvedTheme(): 'light' | 'dark' {
     return this.theme;
   }
-  present(ids: string[]) {
+  present(ids: string[], name?: string) {
     if (this.options.agentPresence === false) return;
     const added = new Set(ids);
     const placements = ids
@@ -136,7 +136,7 @@ export class Stage {
       });
     if (placements.length) {
       this.presence ??= new AgentPresence(this.root, this.lens);
-      this.presence.enqueue(placements);
+      this.presence.enqueue(placements, name);
     }
   }
   finishPresentation() {

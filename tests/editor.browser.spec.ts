@@ -155,6 +155,7 @@ test('agent playground validates then applies and readonly boards reject all wri
   expect(await count(page, 'note')).toBe(0);
   await page.getByRole('button', { name: 'Apply to board' }).click();
   expect(await count(page, 'note')).toBe(1);
+  await expect(page.locator('.ad-agent-cursor span')).toHaveText(/^(Julia|Samuel|Anita)$/);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Board menu', exact: true })).toBeFocused();
   const result = await page.evaluate(async () => {
@@ -301,9 +302,9 @@ test('mobile tools, touch and pen preserve a usable viewport', async ({ page }) 
   expect(await count(page, 'path')).toBe(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   await page.getByRole('button', { name: 'Board menu', exact: true }).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Board menu', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Board menu', exact: true })).toHaveCount(0);
 });
 
 test('hand, marquee, alt-duplicate and eraser work through their pointer tools', async ({

@@ -11,33 +11,36 @@ async function ready(page: Page) {
   });
 }
 
-async function place(page: Page, id = 'idea') {
-  return page.evaluate((id) => {
-    const board = window.__anniedrawing![0];
-    const result = board.apply(
-      [
-        {
-          op: 'add',
-          item: {
-            id,
-            kind: 'rect',
-            x: 300,
-            y: 240,
-            w: 180,
-            h: 110,
-            style: { fill: 'teal', opacity: 0.45 },
-            text: { value: 'An idea' },
+async function place(page: Page, id = 'idea', agentName?: string) {
+  return page.evaluate(
+    ({ id, agentName }) => {
+      const board = window.__anniedrawing![0];
+      const result = board.apply(
+        [
+          {
+            op: 'add',
+            item: {
+              id,
+              kind: 'rect',
+              x: 300,
+              y: 240,
+              w: 180,
+              h: 110,
+              style: { fill: 'teal', opacity: 0.45 },
+              text: { value: 'An idea' },
+            },
           },
-        },
-      ],
-      { origin: 'agent:planner', label: 'Place an idea' },
-    );
-    return {
-      result,
-      visibility: getComputedStyle(board.stage.world.querySelector(`[data-ad-id="${id}"]`)!)
-        .visibility,
-    };
-  }, id);
+        ],
+        { origin: 'agent:planner', label: 'Place an idea', agentName },
+      );
+      return {
+        result,
+        visibility: getComputedStyle(board.stage.world.querySelector(`[data-ad-id="${id}"]`)!)
+          .visibility,
+      };
+    },
+    { id, agentName },
+  );
 }
 
 test('AI placement commits immediately, enters from outside and reveals only after arrival', async ({
@@ -58,6 +61,7 @@ test('AI placement commits immediately, enters from outside and reveals only aft
   const item = page.locator('[data-ad-id="idea"]');
   const cursor = page.locator('.ad-agent-cursor');
   await expect(cursor).toHaveCount(1);
+  await expect(cursor.locator('span')).toHaveCount(0);
   await expect(cursor).toHaveAttribute('aria-hidden', 'true');
   await expect(cursor).toHaveCSS('pointer-events', 'none');
   expect(
@@ -110,6 +114,24 @@ test('AI placement commits immediately, enters from outside and reveals only aft
   await page.evaluate(() => window.__anniedrawing![0].undo());
   await expect(item).toHaveCount(0);
   await expect(page.locator('[data-ad-id="mine"]')).toBeVisible();
+});
+
+test('an apply can label the visiting cursor, and markup in the name stays text', async ({
+  page,
+}) => {
+  await ready(page);
+  await place(page, 'named', 'Anita');
+  const cursor = page.locator('.ad-agent-cursor');
+  await expect(cursor.locator('span')).toHaveText('Anita');
+  await expect(cursor).toHaveCount(0);
+  await page.evaluate(() =>
+    window.__anniedrawing![0].apply(
+      [{ op: 'add', item: { id: 'escaped', kind: 'rect', x: 300, y: 240, w: 100, h: 80 } }],
+      { origin: 'agent:planner', agentName: '<b>Hack</b>' },
+    ),
+  );
+  await expect(page.locator('.ad-agent-cursor span')).toHaveText('<b>Hack</b>');
+  await expect(page.locator('.ad-agent-cursor span b')).toHaveCount(0);
 });
 
 test('one cursor visits sequential batches and groups reveal their children together', async ({

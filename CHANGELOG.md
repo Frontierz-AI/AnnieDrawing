@@ -14,7 +14,9 @@ The local demo opens on a blank Page 1 instead of the previous welcome drawing. 
 
 Board text defaults to the handwritten Comic Sans-like font (`hand`) when no `font` is set. Friendly Nunito remains available as `sans`.
 
-The selection inspector is narrower. Text size, alignment, font, line weight and dash pattern each use their own row of buttons.
+The selection inspector is narrower and no longer shows a kind title such as Rectangle. Fill, line color and opacity share one row; the former Stroke control is labeled Line. Text size, alignment, font, line weight and dash pattern each use their own row of buttons. Pasted plain text defaults to medium (M) size. Sticky notes omit line color, weight and pattern controls. The AnnieDrawing control opens a dropdown menu, matching Export and Shapes.
+
+The drawing toolbar puts eraser after hand, line inside Shapes, and image after sticky note. The More tools overflow is gone; on phones, hand and arrow remain in the board menu.
 
 The package declares the version intended for the first release. No publication is implied. Use the release checklist and verified test results before tagging or distributing it.
 
@@ -22,4 +24,4 @@ Development now uses TypeScript 7, Vite 8 and Vitest 5, with nanoid 6 for IDs. N
 
 Locked items remain selectable by click, touch or keyboard focus. Their editing controls and context actions are disabled, with Unlock and Deselect available. Locks prevent dragging, resizing, text edits, erasing, duplication, ordering and keyboard edits, including through groups and mixed selections.
 
-AI additions now arrive with a lilac companion cursor: it enters from outside the viewport, visits the placement points and reveals items with a gentle fade and settling motion. Groups arrive together and large batches use a short sequence. The document commits immediately, human input takes priority, reduced motion is respected, and integrations can disable the animation with `agentPresence: false`. A successful agent-playground edit closes its dialog to show the result.
+AI additions now arrive with a lilac companion cursor: it enters from outside the viewport, visits the placement points and reveals items with a gentle fade and settling motion. The cursor has no name unless `apply` passes `agentName`. Groups arrive together and large batches use a short sequence. The document commits immediately, human input takes priority, reduced motion is respected, and integrations can disable the animation with `agentPresence: false`. A successful agent-playground edit closes its dialog to show the result and labels the cursor Julia, Samuel or Anita. The editor no longer shows toast confirmations.

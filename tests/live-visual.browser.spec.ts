@@ -35,34 +35,32 @@ test('desktop keeps essential controls visible and groups secondary tools', asyn
     items: [],
   });
   const toolbar = page.locator('.ad-toolbar');
-  await expect(toolbar.getByRole('button')).toHaveCount(8);
+  await expect(toolbar.getByRole('button')).toHaveCount(9);
   await expect(toolbar.getByRole('button', { name: 'Select', exact: true })).toHaveAttribute(
     'aria-keyshortcuts',
     /v/i,
   );
+  await expect(toolbar.getByRole('button', { name: 'More tools', exact: true })).toHaveCount(0);
   await capture(page, info, 'desktop-default');
   await page.getByRole('button', { name: 'Shapes', exact: true }).click();
-  for (const name of ['Rectangle', 'Ellipse', 'Diamond']) {
+  for (const name of ['Rectangle', 'Ellipse', 'Diamond', 'Line']) {
     await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
   }
-  await page.getByRole('button', { name: 'Rectangle', exact: true }).click();
-  expect(await page.evaluate(() => window.__anniedrawing![0].tool)).toBe('rect');
-  await page.getByRole('button', { name: 'More tools', exact: true }).click();
-  for (const name of ['Line', 'Eraser', 'Add image']) {
-    await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
-  }
+  await page.getByRole('button', { name: 'Line', exact: true }).click();
+  expect(await page.evaluate(() => window.__anniedrawing![0].tool)).toBe('line');
   await page.getByRole('button', { name: 'Eraser', exact: true }).click();
   expect(await page.evaluate(() => window.__anniedrawing![0].tool)).toBe('eraser');
+  await expect(page.getByRole('button', { name: 'Add image', exact: true })).toBeVisible();
 });
 
-test('phone has six reachable tools and secondary actions in the board menu', async ({
+test('phone has seven reachable tools and secondary actions in the board menu', async ({
   page,
 }, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openDemo(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   const toolbar = page.locator('.ad-toolbar');
-  await expect(toolbar.getByRole('button')).toHaveCount(6);
+  await expect(toolbar.getByRole('button')).toHaveCount(7);
   const visibleTools = await toolbar.getByRole('button').all();
   for (const tool of visibleTools) {
     const box = await tool.boundingBox();
@@ -74,14 +72,15 @@ test('phone has six reachable tools and secondary actions in the board menu', as
   await capture(page, info, 'phone-default');
   await page.getByRole('button', { name: 'Sticky note', exact: true }).click();
   expect(await page.evaluate(() => window.__anniedrawing![0].tool)).toBe('note');
-  await page.getByRole('button', { name: 'More tools', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Add image', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Board menu', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Hand', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Arrow', exact: true }).click();
   expect(await page.evaluate(() => window.__anniedrawing![0].tool)).toBe('connector');
   await page.getByRole('button', { name: 'Board menu', exact: true }).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Board menu', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Board menu', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Board menu', exact: true })).toBeFocused();
   await page.getByRole('button', { name: 'Export', exact: true }).click();
   for (const name of ['PNG Image', 'SVG Image', 'AnnieDoc format']) {

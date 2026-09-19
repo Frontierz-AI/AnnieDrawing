@@ -85,17 +85,6 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   board.stage.root.append(ui);
   const unsubs: (() => void)[] = [];
   let activeDialog: HTMLDialogElement | undefined;
-  const toast = el('div', 'ad-toast');
-  toast.setAttribute('role', 'status');
-  toast.setAttribute('aria-live', 'polite');
-  ui.append(toast);
-  let toastTimer: ReturnType<typeof setTimeout>;
-  function notify(message: string) {
-    toast.textContent = message;
-    toast.classList.add('is-visible');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 4200);
-  }
   function dialog(title: string, subtitle?: string) {
     closePopover();
     activeDialog?.close();
@@ -206,7 +195,11 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     panel.style.width = `${width}px`;
     const height = panel.getBoundingClientRect().height;
     const besideToolbar = trigger.closest('.ad-toolbar') && !mobile;
-    const left = besideToolbar ? anchor.right + 12 : anchor.right - width;
+    const left = besideToolbar
+      ? anchor.right + 12
+      : trigger.closest('.ad-header') && anchor.left < bounds.left + bounds.width / 2
+        ? anchor.left
+        : anchor.right - width;
     const top = besideToolbar
       ? anchor.top
       : anchor.top > bounds.top + bounds.height / 2
@@ -267,6 +260,21 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   brand.innerHTML =
     '<span class="ad-brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M9 29 20 8l11 21M14 22h12" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="32" cy="9" r="2.5" fill="currentColor"/></svg></span><span class="ad-brand-name">AnnieDrawing</span>' +
     icon('chevron');
+  brand.setAttribute('aria-haspopup', 'true');
+  brand.setAttribute('aria-expanded', 'false');
+  const drawingInput = el('input');
+  drawingInput.type = 'file';
+  drawingInput.accept = '.annie,.json,application/json';
+  drawingInput.hidden = true;
+  drawingInput.onchange = () => {
+    const file = drawingInput.files?.[0];
+    drawingInput.value = '';
+    if (file)
+      void file
+        .text()
+        .then((value) => board.load(JSON.parse(value)))
+        .catch(() => undefined);
+  };
   const actions = el('div', 'ad-header-actions');
   const exportButton = textButton('Export', openExport, 'ad-button ad-primary');
   exportButton.insertAdjacentHTML('afterbegin', icon('download'));
@@ -274,7 +282,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   exportButton.setAttribute('aria-expanded', 'false');
   actions.append(exportButton);
   header.append(brand, actions);
-  ui.append(header);
+  ui.append(header, drawingInput);
   const toolbar = el('nav', 'ad-toolbar');
   toolbar.setAttribute('aria-label', 'Drawing tools');
   function toolButton(id: string, expanded = false) {
@@ -296,7 +304,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     if (board.readonly && id !== 'hand' && id !== 'select') b.disabled = true;
     return b;
   }
-  const shapeKinds = ['rect', 'ellipse', 'diamond'];
+  const shapeKinds = ['rect', 'ellipse', 'diamond', 'line'];
   const shapeButton = button('Shapes', 'shapes', () => {
     const panel = popover(shapeButton, 'Shapes');
     if (!panel) return;
@@ -313,34 +321,15 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   imageInput.accept = 'image/png,image/jpeg,image/webp,image/gif,image/avif';
   imageInput.hidden = true;
   imageInput.onchange = () => {
-    if (imageInput.files?.[0])
-      void board.addImage(imageInput.files[0]).catch((e) => notify(e.message));
+    if (imageInput.files?.[0]) void board.addImage(imageInput.files[0]).catch(() => undefined);
     imageInput.value = '';
   };
-  const moreButton = button('More tools', 'more', () => {
-    const panel = popover(moreButton, 'More tools');
-    if (!panel) return;
-    panel.classList.add('ad-tool-options');
-    const mobile = board.stage.root.clientWidth <= 700;
-    for (const id of [...(mobile ? ['hand', 'connector'] : []), 'line', 'eraser'])
-      panel.append(toolButton(id, true));
-    const image = button(
-      'Add image',
-      'image',
-      () => {
-        closePopover();
-        imageInput.click();
-      },
-      'ad-tool-option',
-    );
-    image.innerHTML += '<span>Add image</span>';
-    image.disabled = board.readonly;
-    panel.append(image);
-    showPopover(panel, moreButton);
+  const imageButton = button('Add image', 'image', () => {
+    closePopover();
+    imageInput.click();
   });
-  moreButton.setAttribute('aria-haspopup', 'true');
-  moreButton.setAttribute('aria-expanded', 'false');
-  moreButton.innerHTML += '<span class="ad-tooltip">More tools</span>';
+  imageButton.innerHTML += '<span class="ad-tooltip">Add image</span>';
+  imageButton.disabled = board.readonly;
   const hand = toolButton('hand'),
     arrow = toolButton('connector');
   hand.classList.add('ad-desktop-tool');
@@ -348,13 +337,14 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   toolbar.append(
     toolButton('select'),
     hand,
+    toolButton('eraser'),
     el('div', 'ad-toolbar-divider'),
     shapeButton,
     arrow,
     toolButton('path'),
     toolButton('text'),
     toolButton('note'),
-    moreButton,
+    imageButton,
     imageInput,
   );
   ui.append(toolbar);
@@ -643,20 +633,12 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       single = items.length === 1;
     const head = el('div', 'ad-panel-head');
     const deselect = button('Deselect', 'close', () => board.select([]));
-    head.append(
-      el(
-        'span',
-        'ad-panel-label',
-        single
-          ? (tools.find(([kind]) => kind === item.kind)?.[1] ??
-              `${item.kind.charAt(0).toUpperCase()}${item.kind.slice(1)}`)
-          : `${items.length} selected`,
-      ),
-      deselect,
-    );
+    head.append(deselect);
     stylePanel.append(head);
     const fillable = items.every((i) => ['rect', 'ellipse', 'diamond', 'note'].includes(i.kind));
-    const stroked = items.every((i) => !['image', 'html', 'group', 'text'].includes(i.kind));
+    const stroked = items.every(
+      (i) => !['image', 'html', 'group', 'text', 'note'].includes(i.kind),
+    );
     const textOnly = items.every((i) => i.kind === 'text');
     const hasText = items.every(
       (i) => !['image', 'path', 'line', 'group', 'html'].includes(i.kind),
@@ -699,7 +681,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       colorControls.append(trigger);
     }
     if (fillable) colorControl('Fill', 'fill');
-    if (stroked) colorControl('Stroke', 'stroke');
+    if (stroked) colorControl('Line', 'stroke');
     if (textOnly) colorControl('Color', 'stroke');
     const opacityButton = textButton(
       'Opacity',
@@ -1011,9 +993,8 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
                     ? 'image/svg+xml'
                     : 'image/png',
               );
-              notify('A little idea, ready for the world.');
             })
-            .catch((error) => notify(error.message));
+            .catch(() => undefined);
         },
         'ad-tool-option',
       );
@@ -1082,8 +1063,11 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
         const run = (dryRun: boolean) => {
           try {
             const value = JSON.parse(textarea.value);
+            const names = ['Julia', 'Samuel', 'Anita'] as const;
+            const agentName = names[Math.floor(Math.random() * names.length)];
             const response = board.apply(value, {
-              origin: 'agent:playground',
+              origin: `agent:${agentName}`,
+              agentName,
               label: 'Agent playground',
               dryRun,
             });
@@ -1092,7 +1076,6 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
             if (response.ok && !dryRun) {
               board.view.fit();
               d.close();
-              notify('Your agent’s idea is on the board.');
             }
           } catch (error) {
             result.textContent = String(error);
@@ -1119,10 +1102,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
           textButton(
             'Copy example',
             () => {
-              void navigator.clipboard
-                .writeText(pre.textContent ?? '')
-                .then(() => notify('Example copied.'))
-                .catch(() => notify('Select the example and copy it with your keyboard.'));
+              void navigator.clipboard.writeText(pre.textContent ?? '').catch(() => undefined);
             },
             'ad-button ad-subtle',
           ),
@@ -1157,45 +1137,54 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     paint();
   }
   function openMenu() {
-    const d = dialog('Board menu');
-    const editButton = (label: string, action: () => void) => {
-      const b = textButton(label, action);
-      b.disabled = board.readonly;
-      return b;
+    const panel = popover(brand, 'Board menu');
+    if (!panel) return;
+    panel.classList.add('ad-tool-options');
+    const add = (label: string, glyph: string, action: () => void, disabled = false) => {
+      const option = button(
+        label,
+        glyph,
+        () => {
+          closePopover();
+          action();
+        },
+        'ad-tool-option',
+      );
+      option.innerHTML += `<span>${label}</span>`;
+      option.disabled = disabled;
+      panel.append(option);
     };
-    const grid = el('div', 'ad-action-grid');
-    const input = el('input');
-    input.type = 'file';
-    input.accept = '.annie,.json,application/json';
-    input.hidden = true;
-    input.onchange = () => {
-      const file = input.files?.[0];
-      if (file)
-        void file
-          .text()
-          .then((value) => {
-            board.load(JSON.parse(value));
-            d.close();
-            notify('Your drawing is ready.');
-          })
-          .catch((e) => notify(`Could not open drawing: ${e.message}`));
-    };
-    grid.append(
-      editButton('Open a drawing', () => input.click()),
-      textButton(board.grid ? 'Hide grid' : 'Show grid', () => {
-        board.setGrid(!board.grid);
-        d.close();
-      }),
-      textButton(board.theme === 'dark' ? 'Light appearance' : 'Dark appearance', () => {
-        board.setTheme(board.theme === 'dark' ? 'light' : 'dark');
-        d.close();
-      }),
+    add('Open a drawing', 'upload', () => drawingInput.click(), board.readonly);
+    if (board.stage.root.clientWidth <= 700) {
+      add('Hand', 'hand', () => {
+        board.setTool('hand');
+        board.focus();
+      });
+      add(
+        'Arrow',
+        'connector',
+        () => {
+          board.setTool('connector');
+          board.focus();
+        },
+        board.readonly,
+      );
+    }
+    add(board.grid ? 'Hide grid' : 'Show grid', 'grid', () => board.setGrid(!board.grid));
+    add(
+      board.theme === 'dark' ? 'Light appearance' : 'Dark appearance',
+      board.theme === 'dark' ? 'sun' : 'moon',
+      () => board.setTheme(board.theme === 'dark' ? 'light' : 'dark'),
     );
-    if (options.agentPanel !== false) grid.append(textButton('For agents', openAgent));
-    const about = el('div', 'ad-about');
-    about.innerHTML =
-      '<strong>AnnieDrawing by Frontierz.</strong><p>AnnieDrawing is an open-source project by Frontierz. MIT licensed. Your drawings stay in this browser until you export them.</p><a href="./docs/index.html" target="_blank" rel="noopener">Read the documentation ↗</a>';
-    d.append(grid, input, about);
+    if (options.agentPanel !== false)
+      add('For agents', 'spark', () => {
+        brand.focus();
+        openAgent();
+      });
+    add('Documentation', 'book', () => {
+      window.open('./docs/index.html', '_blank', 'noopener');
+    });
+    showPopover(panel, brand);
   }
   function refresh() {
     undo.disabled = !board.canUndo;
@@ -1245,9 +1234,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     );
     menu.show();
   };
-  const error = (e: Event) => notify((e as CustomEvent).detail);
   board.host.addEventListener('ad-context', context);
-  board.host.addEventListener('ad-error', error);
   unsubs.push(
     board.on('change', refresh),
     board.on('select', () => {
@@ -1262,29 +1249,17 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       for (const b of ui.querySelectorAll<HTMLElement>('[data-tool]'))
         b.setAttribute('aria-pressed', String(id === b.dataset.tool));
       shapeButton.setAttribute('aria-pressed', String(shapeKinds.includes(id)));
-      moreButton.setAttribute(
-        'aria-pressed',
-        String(
-          ['line', 'eraser'].includes(id) ||
-            (board.stage.root.clientWidth <= 700 && ['hand', 'connector'].includes(id)),
-        ),
-      );
       board.stage.root.dataset.adTool = id;
       renderStyle();
-    }),
-    board.on('save', (event) => {
-      if (event.message) notify(event.message);
     }),
   );
   refresh();
   return () => {
-    clearTimeout(toastTimer);
     clearTimeout(pagePressTimer);
     closePopover();
     unsubs.forEach((fn) => fn());
     activeDialog?.close();
     board.host.removeEventListener('ad-context', context);
-    board.host.removeEventListener('ad-error', error);
     ui.remove();
   };
 }

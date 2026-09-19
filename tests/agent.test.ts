@@ -125,6 +125,22 @@ describe('agent tools and spatial editing', () => {
     });
     expect(result).toMatchObject({ ok: false });
   });
+  it('forwards an optional visiting-cursor name on apply', async () => {
+    const doc = createDoc();
+    const apply = doc.apply.bind(doc);
+    let seen: { agentName?: string } | undefined;
+    doc.apply = (ops, options) => {
+      seen = options;
+      return apply(ops, options);
+    };
+    expect(
+      await runTool(doc, 'board_apply', {
+        ops: [{ op: 'add', item: { kind: 'note' } }],
+        agentName: 'Julia',
+      }),
+    ).toMatchObject({ ok: true });
+    expect(seen).toMatchObject({ agentName: 'Julia', origin: 'agent:tool' });
+  });
   it('places inside free group slots and combines AND queries', () => {
     const doc = createDoc();
     const result = doc.apply([

@@ -89,6 +89,7 @@
   font-size: 11px;
   font-weight: 800;
   line-height: 16px;
+  white-space: nowrap;
 }
 .ad-root[data-theme='dark'] .ad-agent-cursor svg {
   filter: none;
