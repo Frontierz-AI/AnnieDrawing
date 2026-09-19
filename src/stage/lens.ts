@@ -14,7 +14,7 @@ export class Lens {
     if (typeof ResizeObserver !== 'undefined') {
       this.observer = new ResizeObserver((entries) => {
         const rect = entries[0]?.contentRect;
-        if (!rect) return;
+        if (!rect || (rect.width === this.width && rect.height === this.height)) return;
         this.width = rect.width;
         this.height = rect.height;
         this.emit();

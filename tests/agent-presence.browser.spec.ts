@@ -66,14 +66,9 @@ test('AI placement commits immediately, enters from outside and reveals only aft
   await expect(cursor).toHaveCSS('pointer-events', 'none');
   expect(
     await cursor.evaluate((element) => {
-      const origin = new DOMMatrix((element as HTMLElement).style.transform);
+      const [x, y] = (element as HTMLElement).dataset.adFrom!.split(',').map(Number);
       const root = element.parentElement!;
-      return (
-        origin.e + 7 < 0 ||
-        origin.f + 7 < 0 ||
-        origin.e > root.clientWidth ||
-        origin.f > root.clientHeight
-      );
+      return x < 0 || y < 0 || x > root.clientWidth || y > root.clientHeight;
     }),
   ).toBe(true);
   const committed = await page.evaluate(async () => {
@@ -102,9 +97,13 @@ test('AI placement commits immediately, enters from outside and reveals only aft
   await page.waitForFunction(
     () => getComputedStyle(document.querySelector('[data-ad-id="idea"]')!).visibility === 'visible',
   );
-  const landing = await cursor.boundingBox();
-  expect(landing!.x + 7).toBeCloseTo(390, 0);
-  expect(landing!.y + 7).toBeCloseTo(295, 0);
+  const landing = await cursor.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const root = element.parentElement!.getBoundingClientRect();
+    return { x: box.x - root.x + 7, y: box.y - root.y + 7 };
+  });
+  expect(landing.x).toBeCloseTo(390, 0);
+  expect(landing.y).toBeCloseTo(295, 0);
   const settling = await item.boundingBox();
   expect(settling!.x + settling!.width / 2).toBeCloseTo(390, 0);
   expect(settling!.y + settling!.height / 2).toBeCloseTo(295, 0);
@@ -195,12 +194,18 @@ test('immediate fit uses the new camera; a later pan cancels presentation withou
   await page.waitForFunction(
     () => getComputedStyle(document.querySelector('[data-ad-id="far"]')!).visibility === 'visible',
   );
-  const landing = await page.locator('.ad-agent-cursor').boundingBox();
-  const target = await page.evaluate(() =>
-    window.__anniedrawing![0].stage.lens.toScreen({ x: 12100, y: 9065 }),
-  );
-  expect(landing!.x + 7).toBeCloseTo(target.x, 0);
-  expect(landing!.y + 7).toBeCloseTo(target.y, 0);
+  const { landing, target } = await page.evaluate(() => {
+    const board = window.__anniedrawing![0];
+    const cursor = document.querySelector('.ad-agent-cursor')!;
+    const box = cursor.getBoundingClientRect();
+    const root = board.stage.root.getBoundingClientRect();
+    return {
+      landing: { x: box.x - root.x + 7, y: box.y - root.y + 7 },
+      target: board.stage.lens.toScreen({ x: 12100, y: 9065 }),
+    };
+  });
+  expect(landing.x).toBeCloseTo(target.x, 0);
+  expect(landing.y).toBeCloseTo(target.y, 0);
   await page.evaluate(() => window.__anniedrawing![0].stage.lens.set({ x: 0, y: 0, zoom: 1 }));
   await expect(page.locator('.ad-agent-cursor')).toHaveCount(0);
   await place(page);
@@ -247,6 +252,7 @@ test('reduced motion is immediate and changing that preference finishes a runnin
   expect((await place(page)).visibility).toBe('visible');
   await expect(page.locator('.ad-agent-cursor')).toHaveCount(0);
   await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.waitForFunction(() => !matchMedia('(prefers-reduced-motion: reduce)').matches);
   await place(page, 'second');
   await expect(page.locator('.ad-agent-cursor')).toHaveCount(1);
   await page.emulateMedia({ reducedMotion: 'reduce' });

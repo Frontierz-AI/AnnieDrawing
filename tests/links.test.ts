@@ -58,6 +58,11 @@ describe('paste URL classification', () => {
     expect(classifyPaste('https://example.com/photo.PNG?w=800')).toMatchObject({
       kind: 'image',
     });
+    expect(
+      classifyPaste(
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgvBn6PwAE+QKJBZFmAAAAAElFTkSuQmCC',
+      ),
+    ).toMatchObject({ kind: 'image' });
     expect(classifyPaste('https://example.com/article')).toMatchObject({
       kind: 'link',
       href: 'https://example.com/article',
