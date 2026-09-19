@@ -100,6 +100,10 @@ export class Stage {
   get resolvedTheme(): 'light' | 'dark' {
     return this.theme;
   }
+  whenPresentationIdle(callback: () => void) {
+    if (!this.presence) callback();
+    else this.presence.whenIdle(callback);
+  }
   present(ids: string[], name?: string) {
     if (this.options.agentPresence === false) return;
     const added = new Set(ids);

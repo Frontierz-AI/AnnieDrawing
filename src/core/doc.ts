@@ -24,7 +24,7 @@ import {
   storedEndpoint,
 } from './defaults';
 import type { ItemStamp } from '../agent/describe';
-import { allItems, detachMissingEndpoints, pageRoots } from './item';
+import { allItems, detachMissingEndpoints, pageRoots, remapAgentCreateIds } from './item';
 import { DocumentSchema, LIMITS, OpSchema, schemaError } from './schema';
 import { migrate } from './migrate';
 import { pageId } from './ids';
@@ -617,7 +617,9 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
     if (sessionLog.length > LIMITS.maxSessionLog) sessionLog.shift();
     return revision;
   };
-  const emit = (entry: Pick<Entry, 'ops' | 'inverse' | 'origin' | 'label'> & { revision: number }) => {
+  const emit = (
+    entry: Pick<Entry, 'ops' | 'inverse' | 'origin' | 'label'> & { revision: number },
+  ) => {
     for (const callback of listeners) {
       try {
         callback(
@@ -693,18 +695,23 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
         });
         return result;
       }
+      const remapped = origin.startsWith('agent:')
+        ? remapAgentCreateIds(draft, ops)
+        : { ops, warnings: [] as ApplyIssue[] };
+      result.warnings.push(...remapped.warnings);
       const concrete: Op[] = [],
         inverse: Op[] = [],
         failures: ApplyIssue[] = [];
       const creationOps = new Map<string, number>();
       const mediaIds = () =>
         new Set(concrete.filter((op) => op.op === 'media.set').map((op) => op.id));
-      for (let index = 0; index < ops.length; index++) {
+      const batch = remapped.ops;
+      for (let index = 0; index < batch.length; index++) {
         const snapshot = lenient ? clone(draft) : undefined;
         try {
-          const error = schemaError(OpSchema, ops[index]);
+          const error = schemaError(OpSchema, batch[index]);
           if (error) throw new Error(error);
-          const change = perform(draft, ops[index], origin, options);
+          const change = perform(draft, batch[index], origin, options);
           if (origin !== 'user' && result.created.length + change.created.length > LIMITS.maxBatch)
             throw new Error(
               `An agent batch may create at most ${LIMITS.maxBatch} items, including nested children.`,
@@ -714,10 +721,7 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
               draft,
               options,
               origin,
-              new Set([
-                ...mediaIds(),
-                ...(change.op.op === 'media.set' ? [change.op.id] : []),
-              ]),
+              new Set([...mediaIds(), ...(change.op.op === 'media.set' ? [change.op.id] : [])]),
             );
           concrete.push(change.op);
           inverse.unshift(...change.inverse);
@@ -728,7 +732,7 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
           failures.push({
             index,
             code: 'INVALID_OP',
-            message: `${ops[index]?.op ?? 'operation'} #${index + 1}: ${error instanceof Error ? error.message : String(error)}`,
+            message: `${batch[index]?.op ?? 'operation'} #${index + 1}: ${error instanceof Error ? error.message : String(error)}`,
           });
         }
       }
@@ -746,6 +750,7 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
       if (!lenient && failures.length) {
         result.errors = failures;
         result.created = [];
+        result.warnings = [];
         return result;
       }
       if (lenient && !concrete.length) {

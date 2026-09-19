@@ -29,7 +29,7 @@ const board = createBoard(host, {
   exposeGlobal: true, // default on; window.__anniedrawing is an array
   agentName: 'Alex', // cursor label when apply omits agentName
   agentHistory: 'shared', // 'hidden' skips agent: origins on default undo
-  agentReveal: 'none', // 'fit' pans to off-screen agent creates
+  agentReveal: 'fit', // 'none' skips the post-arrival camera fit
   agentPlaceGap: 32, // default place.gap for agent: origins
   agentPresence: true, // or { maxStops, durationScale }
   allowedImageOrigins: ['https://images.example.com'],
@@ -109,7 +109,7 @@ const result = board.apply(ops, {
   dryRun: false,
   merge: false, // fold into the previous history entry when origin and label match
   agentName: 'planner', // optional visiting-cursor label
-  reveal: 'none', // 'fit' pans to created ids after a browser apply
+  reveal: 'fit', // default for agent: origins; 'none' leaves the camera still
   lenient: false, // skip invalid ops; default is all-or-nothing
 });
 // { ok, created: string[], errors: [...], warnings: [...], skipped?: [...] }
@@ -121,7 +121,14 @@ Supported operations: `add`, `set`, `remove`, `order`, `reparent`, `page.add`, `
 
 `place` requires exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`. Default `gap` is 32 (`agentPlaceGap` when origin starts with `agent:` and `gap` is omitted). Default `align` is `middle`. `inside` requires a `group` and finds a free slot; it fails if the group is full. `near` searches rings around the reference. Omitted `w` and `h` use the built-in default size for that kind.
 
-Successful creates can add an `OVERLAPS_EXISTING` warning. The batch still commits. `merge: true` appends to the last history entry when that entry has the same `origin` and `label`. Each committed apply still increments `revision` once. History keeps at most 100 entries. The session log keeps 500 slices.
+`result.created` is the stored ids for that batch. Warnings do not roll back:
+
+| Code                | Meaning                                                                                                                                                          |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OVERLAPS_EXISTING` | A new item intersects another item.                                                                                                                              |
+| `ID_REMAPPED`       | An `agent:` create reused an id. Stored as `id_1`, then `_2`. Same-batch refs follow it. `get` with the id you sent returns the older item. User/API origins still fail. |
+
+`merge: true` appends to the last history entry when that entry has the same `origin` and `label`. Each committed apply still increments `revision` once. History keeps at most 100 entries. The session log keeps 500 slices.
 
 ```ts
 board.undo(); // returns whether anything changed
@@ -168,9 +175,9 @@ A browser text item with `autoWidth: true` measures its plain text when it is ad
 
 ## Agent origin presentation
 
-A successful `board.apply` with an `agent:` origin gives newly created items a short visual arrival. A lilac cursor enters from outside the board, visits the first on-screen shapes one after another, then reveals the rest together, including connectors and items outside the viewport. Each visited item fades in with a small scale change, then the cursor leaves. It has no name unless `apply` passes `agentName` or `createBoard` set `agentName`. Groups reveal their children together. Connectors fade without scaling their page-space paths. After eight visible non-connector stops (`agentPresence.maxStops`), or when no further on-screen shapes remain, the rest of the batch appears together. Consecutive additions share one cursor. `reveal: 'fit'` or `agentReveal: 'fit'` pans to created ids on the current page when they are outside the viewport.
+A successful `board.apply` with an `agent:` origin gives newly created items a short visual arrival. A lilac cursor enters from outside the board, visits the first on-screen shapes one after another, then reveals the rest together, including connectors and items outside the viewport. Each visited item fades in with a small scale change, then the cursor leaves. It has no name unless `apply` passes `agentName` or `createBoard` set `agentName`. Groups reveal their children together. Connectors fade without scaling their page-space paths. After eight visible non-connector stops (`agentPresence.maxStops`), or when no further on-screen shapes remain, the rest of the batch appears together. Consecutive additions share one cursor. When the arrival finishes, `reveal: 'fit'` (the default for `agent:` origins) frames created ids on the current page if any sit outside the viewport. Pass `reveal: 'none'` or `agentReveal: 'none'` to leave the camera still.
 
-The operation is synchronous and atomic. `get`, `read`, exports, and history contain the complete result immediately. Temporary presentation state is not written to the document. Failed batches, dry runs, ordinary user or API edits, existing-item updates, and headless operations do not animate. A batch that is entirely outside the viewport, or on another page, does not summon a cursor or move the camera. Off-screen items in a mixed batch stay hidden until the remaining items appear together. An immediate `board.view.fit()` after `apply` uses the new viewport for the arrival.
+The operation is synchronous and atomic. `get`, `read`, exports, and history contain the complete result immediately. Temporary presentation state is not written to the document. Failed batches, dry runs, ordinary user or API edits, existing-item updates, and headless operations do not animate. A batch that is entirely outside the viewport, or on another page, does not summon a cursor. Off-screen items in a mixed batch stay hidden until the remaining items appear together. After that arrival the camera fits those created ids unless reveal is `none`. An immediate `board.view.fit()` after `apply` uses the new viewport for the arrival.
 
 The cursor ignores pointer events. Selection, focus, and the person's native cursor stay intact. Clicks, pans, zoom, and edits continue while the walk is running; pending items are not hittable. The camera is sampled each frame so the cursor stays on the placements. Removing those items, changing page, replacing the document, and destroying the board drop the presentation. Reduced-motion preferences and background tabs show the committed items immediately. Pass `agentPresence: false` to `createBoard` to opt out.
 

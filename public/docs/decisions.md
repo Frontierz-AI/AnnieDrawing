@@ -1,5 +1,9 @@
 # Design decisions
 
+## 2026-09-20: Agent duplicate create ids
+
+An `agent:` `apply` that creates an item id already in the document, or repeated in the same batch, stores `id_1` then `_2` instead of failing the batch. Same-batch `place`, parent, and connector refs follow the stored ids. `ID_REMAPPED` is a warning. `result.created` is the stored ids; `get` with the id you sent returns the older item. User and API origins still reject duplicates so a host that supplies ids gets a hard error.
+
 ## 2026-09-20: Session revision, not catalog version
 
 `revision` counts committed session transactions (`apply`, `undo`, `redo`). It is not `CATALOG_VERSION`, not a history index, and not a field in compact `.annie` JSON. `changesSince(since)` reads a 500-slice session log so hosts can poll without re-reading the scene. `kindsSince` still answers “what can I create that I did not know about.” `load()` and `clear()` reset the session counter, stamps, and log.
@@ -72,7 +76,7 @@ Locking protects interactive editing while leaving selection and unlocking acces
 
 Show browser agent additions through one lilac cursor that enters from the nearest edge, curves to each placement, and leaves after the reveal. Reuse the native cursor silhouette, keep the overlay below controls, and ignore pointer events. The cursor has no name by default. `apply` may pass `agentName` to show one. A 220 ms opacity and 97-100% scale reveal adds a small settling motion. Connectors use opacity alone to preserve path geometry.
 
-Keep the document authoritative and synchronous. The arrival is an optional renderer presentation after a successful agent-origin `apply`, with no new history entries, schema fields, or delays for agents. Group descendants arrive together. The cursor visits the first eight on-screen non-connector placements, then the remaining batch arrives together, including connectors and off-screen items held back until that dump. Never pan on behalf of the animation; sample the camera each frame so a person's pan and zoom stay in sync. Pending items are not hittable, so a person can keep selecting and editing visible work. Reduced motion, hidden tabs, document replacement, page changes, and destruction clear pending effects. Removing a pending item drops it from the walk without revealing the rest.
+Keep the document authoritative and synchronous. The arrival is an optional renderer presentation after a successful agent-origin `apply`, with no new history entries, schema fields, or delays for agents. Group descendants arrive together. The cursor visits the first eight on-screen non-connector placements, then the remaining batch arrives together, including connectors and off-screen items held back until that dump. Never pan on behalf of the animation; sample the camera each frame so a person's pan and zoom stay in sync. After the cursor leaves, fit created ids on the current page when any sit outside the viewport. Consecutive batches share one cursor and one recen­ter. Pending items are not hittable, so a person can keep selecting and editing visible work. Reduced motion, hidden tabs, document replacement, page changes, and destruction clear pending effects. Removing a pending item drops it from the walk without revealing the rest.
 
 ## 2026-09-19: Pasted videos and link cards
 

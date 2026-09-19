@@ -864,6 +864,76 @@ describe('warnings and placement', () => {
         .message,
     ).toContain('does not exist');
   });
+  it('remaps colliding agent create ids and rewires the same batch', () => {
+    const doc = createDoc();
+    const first = [
+      { op: 'add' as const, item: { ...rect('api'), text: { value: 'API' } } },
+      {
+        op: 'add' as const,
+        item: { ...rect('cache'), w: 100, h: 80, text: { value: 'Cache' } },
+        place: { rightOf: 'api', gap: 40 },
+      },
+      {
+        op: 'add' as const,
+        item: {
+          id: 'link',
+          kind: 'connector' as const,
+          from: { item: 'api' },
+          to: { item: 'cache' },
+        },
+      },
+    ];
+    expect(doc.apply(first, { origin: 'agent:planner' }).ok).toBe(true);
+    const retry = doc.apply(first, { origin: 'agent:planner' });
+    expect(retry.ok).toBe(true);
+    expect(retry.created).toEqual(['api_1', 'cache_1', 'link_1']);
+    expect(
+      retry.warnings
+        .filter((warning) => warning.code === 'ID_REMAPPED')
+        .map((warning) => warning.message),
+    ).toEqual([
+      'Item id api was already in use; stored as api_1.',
+      'Item id cache was already in use; stored as cache_1.',
+      'Item id link was already in use; stored as link_1.',
+    ]);
+    expect(doc.get('api')?.text?.value).toBe('API');
+    expect(doc.get('api_1')?.text?.value).toBe('API');
+    expect(doc.get('cache_1')!.x).toBeGreaterThan(doc.get('api_1')!.x);
+    expect(doc.get('link_1')).toMatchObject({
+      from: { item: 'api_1' },
+      to: { item: 'cache_1' },
+    });
+    expect(doc.apply([{ op: 'add', item: rect('api') }]).ok).toBe(false);
+  });
+  it('assigns _2 when _1 is already taken and remaps group children', () => {
+    const doc = createDoc();
+    doc.apply([
+      { op: 'add', item: rect('note') },
+      { op: 'add', item: rect('note_1') },
+    ]);
+    const result = doc.apply(
+      [
+        {
+          op: 'add',
+          item: {
+            id: 'box',
+            kind: 'group',
+            x: 0,
+            y: 0,
+            w: 400,
+            h: 200,
+            children: [rect('note'), rect('other', 120)],
+          },
+        },
+      ],
+      { origin: 'agent:planner' },
+    );
+    expect(result.ok).toBe(true);
+    expect(result.created).toEqual(['box', 'note_2', 'other']);
+    expect(doc.get('note_2')?.kind).toBe('rect');
+    expect(doc.get('note')).toBeTruthy();
+    expect(doc.get('note_1')).toBeTruthy();
+  });
   it('rejects inside placement on a non-group', () => {
     const doc = createDoc();
     doc.apply([{ op: 'add', item: rect('a') }]);
