@@ -74,8 +74,11 @@ export class Stage {
     this.root.append(this.grid, this.world, this.overlay);
     host.append(this.root);
     this.lens = new Lens(this.root);
-    this.lens.onChange(() => {
-      this.presence?.viewChanged();
+    let camera = this.lens.state;
+    this.lens.onChange((state) => {
+      if (state.x !== camera.x || state.y !== camera.y || state.zoom !== camera.zoom)
+        this.presence?.viewChanged();
+      camera = state;
       if (!this.cameraFrame)
         this.cameraFrame = requestAnimationFrame(() => {
           this.cameraFrame = 0;

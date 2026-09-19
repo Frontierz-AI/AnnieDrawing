@@ -48,16 +48,18 @@ test('pasted video, image and website URLs create card items', async ({ page }) 
       (!board.query({ kind: 'image' }).length ||
         !board.stage.world.querySelector('iframe') ||
         !board.stage.world.querySelector('.ad-link-open')) &&
-      Date.now() - started < 2000
+      Date.now() - started < 4000
     )
       await new Promise((resolve) => setTimeout(resolve, 20));
     const video = board.query({ kind: 'video' })[0];
     const image = board.query({ kind: 'image' })[0];
     const link = board.query({ kind: 'link' })[0];
-    const videoEl = board.stage.world.querySelector<HTMLElement>(`[data-ad-id="${video.id}"]`);
+    const videoEl = video
+      ? board.stage.world.querySelector<HTMLElement>(`[data-ad-id="${video.id}"]`)
+      : null;
     return {
-      video: { href: video.href, src: videoEl?.querySelector('iframe')?.getAttribute('src') },
-      image: !!image.media,
+      video: { href: video?.href, src: videoEl?.querySelector('iframe')?.getAttribute('src') },
+      image: !!image?.media,
       link: {
         href: link.href,
         title: link.text?.value,

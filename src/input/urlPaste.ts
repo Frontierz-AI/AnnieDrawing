@@ -91,26 +91,40 @@ async function enrich(host: PasteHost, id: string, href: string) {
   }
 }
 
+function readImageSize(src: string): Promise<[number, number]> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const done = (ok: boolean) => {
+      clearTimeout(timer);
+      image.onload = image.onerror = null;
+      if (ok && image.naturalWidth) resolve([image.naturalWidth, image.naturalHeight]);
+      else reject(new Error('image'));
+    };
+    const timer = setTimeout(() => done(!!image.naturalWidth), 2500);
+    image.onload = () => done(true);
+    image.onerror = () => done(false);
+    image.src = src;
+  });
+}
+
 async function addRemoteImage(host: PasteHost, src: string, point?: Point) {
   try {
-    const image = new Image();
-    image.src = src;
-    await image.decode();
-    const scale = Math.min(1, 480 / image.width, 360 / image.height),
+    const [width, height] = await readImageSize(src);
+    const scale = Math.min(1, 480 / width, 360 / height),
       id = mediaId();
     const result = host.apply(
       [
         {
           op: 'media.set',
           id,
-          media: { src, mime: imageMime(src), w: image.width, h: image.height },
+          media: { src, mime: imageMime(src), w: width, h: height },
         },
         {
           op: 'add',
           page: host.pageId,
           item: {
             kind: 'image',
-            ...place(host, 'image', point, [image.width * scale, image.height * scale]),
+            ...place(host, 'image', point, [width * scale, height * scale]),
             media: id,
             name: hostnameOf(src),
           },
