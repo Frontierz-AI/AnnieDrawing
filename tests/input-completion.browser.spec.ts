@@ -27,6 +27,7 @@ test('two-dimensional line and imported freehand points resize and undo', async 
     await page.evaluate((kind) => {
       const b = window.__anniedrawing![0];
       b.clear();
+      b.stage.lens.set({ x: 0, y: 0, zoom: 1 });
       b.apply([
         {
           op: 'add',
