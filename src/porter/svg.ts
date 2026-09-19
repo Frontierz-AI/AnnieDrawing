@@ -1,7 +1,16 @@
 import type { AnnieDoc, Box, ExportOptions, Item } from '../core/types';
 import { boundsOf, flattenItems, routeConnector } from '../geo/index';
 import { createKindRegistry, type KindDef } from '../kinds/registry';
-import { color, esc, fonts, fontSize, headsMarkup, shapeMarkup, labelColor } from '../stage/paint';
+import {
+  color,
+  esc,
+  fontFamily,
+  fonts,
+  fontSize,
+  headsMarkup,
+  shapeMarkup,
+  labelColor,
+} from '../stage/paint';
 
 export interface SVGExportOptions extends ExportOptions {
   theme?: 'light' | 'dark';
@@ -67,7 +76,7 @@ function textMarkup(
   const label = connectorPoint
     ? `<rect x="${x - longest / 2 - 7}" y="${connectorPoint.y - textHeight / 2 - 2}" width="${longest + 14}" height="${textHeight + 4}" rx="4" fill="${color('paper', theme)}"/>`
     : '';
-  return `${label}<text x="${x}" y="${y}" font-family="${esc(fonts[item.text.font ?? 'sans'])}" font-size="${size}" text-anchor="${connectorPoint ? 'middle' : anchor}" fill="${esc(labelColor(item, theme))}">${lines.map((line, index) => `<tspan x="${x}" dy="${index ? lineHeight : 0}">${esc(line) || '&#160;'}</tspan>`).join('')}</text>`;
+  return `${label}<text x="${x}" y="${y}" font-family="${esc(fontFamily(item.text.font))}" font-size="${size}" text-anchor="${connectorPoint ? 'middle' : anchor}" fill="${esc(labelColor(item, theme))}">${lines.map((line, index) => `<tspan x="${x}" dy="${index ? lineHeight : 0}">${esc(line) || '&#160;'}</tspan>`).join('')}</text>`;
 }
 
 /** Create a portable SVG without scripts, foreignObject, or a DOM dependency. */

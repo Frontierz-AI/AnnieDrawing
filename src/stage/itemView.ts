@@ -1,7 +1,16 @@
 import type { AnnieDoc, Box, Item, Point } from '../core/types';
 import type { KindDef, KindView } from '../kinds/registry';
 import { routeConnector, type OutlineResolver } from '../geo/index';
-import { color, esc, fonts, fontSize, headsMarkup, shapeMarkup, labelColor, SVG_NS } from './paint';
+import {
+  color,
+  esc,
+  fontFamily,
+  fontSize,
+  headsMarkup,
+  shapeMarkup,
+  labelColor,
+  SVG_NS,
+} from './paint';
 
 export class ItemView implements KindView {
   readonly element = document.createElement('div');
@@ -128,7 +137,7 @@ export class ItemView implements KindView {
       if (!custom) {
         if (!this.text.isContentEditable) this.text.textContent = item.text?.value ?? '';
         this.text.style.fontSize = `${fontSize(item.text)}px`;
-        this.text.style.fontFamily = fonts[item.text?.font ?? 'sans'];
+        this.text.style.fontFamily = fontFamily(item.text?.font);
         this.text.style.textAlign = item.text?.align ?? (item.kind === 'text' ? 'start' : 'center');
         this.text.style.justifyContent =
           item.text?.valign === 'top'

@@ -12,6 +12,10 @@ Page chips now live in the bottom bar with an overflow list and contextual renam
 
 The local demo opens on a blank Page 1 instead of the previous welcome drawing. `npm run dev` uses Vite's default port 5173 instead of assigning a random free port.
 
+Board text defaults to the handwritten Comic Sans-like font (`hand`) when no `font` is set. Friendly Nunito remains available as `sans`.
+
+The selection inspector is narrower. Text size, alignment, font, line weight and dash pattern each use their own row of buttons.
+
 The package declares the version intended for the first release. No publication is implied. Use the release checklist and verified test results before tagging or distributing it.
 
 Development now uses TypeScript 7, Vite 8 and Vitest 5, with nanoid 6 for IDs. Node.js 24 or newer is required.

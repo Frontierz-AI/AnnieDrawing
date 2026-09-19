@@ -67,6 +67,7 @@ describe('portable SVG export', () => {
     expect(svg).toContain('data-ad-id="i_box"');
     expect(svg).not.toContain('i_hidden');
     expect(svg).toContain('translate(30 40)');
+    expect(svg).toContain('Comic Sans MS');
     expect(svg).not.toContain('foreignObject');
   });
   it('resolves attached connectors against the complete document', () => {

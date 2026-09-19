@@ -98,6 +98,15 @@ test('selection inspector shows only relevant controls and opens colors on deman
   await expect(
     inspector.getByRole('button', { name: 'Font: Friendly', exact: true }),
   ).toBeVisible();
+  for (const name of ['Text', 'Align', 'Font', 'Line', 'Pattern']) {
+    await expect(inspector.getByRole('group', { name, exact: true })).toBeVisible();
+  }
+  await expect(
+    inspector.getByRole('group', { name: 'Text', exact: true }).getByRole('button'),
+  ).toHaveCount(4);
+  await expect(
+    inspector.getByRole('group', { name: 'Align', exact: true }).getByRole('button'),
+  ).toHaveCount(3);
   await expect(page.getByRole('button', { name: 'Fill: Soft green', exact: true })).toBeHidden();
   await inspector.getByRole('button', { name: 'Fill', exact: true }).click();
   await page.getByRole('button', { name: 'Fill: Soft green', exact: true }).click();
@@ -142,6 +151,9 @@ test('selection inspector shows only relevant controls and opens colors on deman
   await expect(
     inspector.getByRole('button', { name: 'Text size: Medium', exact: true }),
   ).toBeVisible();
+  await expect(inspector.getByRole('group', { name: 'Align', exact: true })).toBeVisible();
+  await expect(inspector.getByRole('group', { name: 'Line', exact: true })).toHaveCount(0);
+  await expect(inspector.getByRole('group', { name: 'Pattern', exact: true })).toHaveCount(0);
   await expect(
     inspector.getByRole('button', { name: 'Font: Friendly', exact: true }),
   ).toBeVisible();
@@ -154,7 +166,7 @@ test('selection inspector shows only relevant controls and opens colors on deman
   for (const name of ['Fill', 'Stroke', 'Color']) {
     await expect(inspector.getByRole('button', { name, exact: true })).toHaveCount(0);
   }
-  for (const name of ['Font', 'Text', 'Line']) {
+  for (const name of ['Font', 'Text', 'Align', 'Line', 'Pattern']) {
     await expect(inspector.getByRole('group', { name, exact: true })).toHaveCount(0);
   }
   await expect(inspector.getByRole('button', { name: 'Edit text', exact: true })).toHaveCount(0);

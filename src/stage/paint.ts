@@ -8,6 +8,10 @@ export const fonts = {
   mono: 'ui-monospace, SFMono-Regular, Menlo, monospace',
   hand: 'Comic Sans MS, Chalkboard SE, cursive',
 };
+export const DEFAULT_FONT = 'hand' satisfies keyof typeof fonts;
+export function fontFamily(font?: ItemText['font']): string {
+  return fonts[font ?? DEFAULT_FONT];
+}
 const light: Record<string, string> = {
   ink: '#103639',
   slate: '#606062',

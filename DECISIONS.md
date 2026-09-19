@@ -14,7 +14,7 @@ Use signals, pressure strokes, a spatial index, validation and short IDs. The sc
 
 ## 2026-09-19 — Frontierz color, friendly typography
 
-Use the Frontierz palette for a recognizable family identity. Use Nunito in the demo and rounded system fallbacks in the library; the project does not depend on the brand's commercial font. The font is self-hosted and attributed under OFL 1.1.
+Use the Frontierz palette for a recognizable family identity. Use Nunito in the demo chrome and rounded system fallbacks in the library; the project does not depend on the brand's commercial font. The font is self-hosted and attributed under OFL 1.1. Board text defaults to the handwritten Comic Sans-like stack (`hand`).
 
 ## 2026-09-19 — Local-first demonstration
 
