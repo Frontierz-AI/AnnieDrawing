@@ -46,7 +46,7 @@ test('pasted video, image and website URLs create card items', async ({ page }) 
     const started = Date.now();
     while (
       (!board.query({ kind: 'image' }).length ||
-        !board.stage.world.querySelector('iframe') ||
+        !board.stage.world.querySelector('[data-ad-kind="video"] iframe') ||
         !board.stage.world.querySelector('.ad-link-open')) &&
       Date.now() - started < 4000
     )
@@ -61,11 +61,11 @@ test('pasted video, image and website URLs create card items', async ({ page }) 
       video: { href: video?.href, src: videoEl?.querySelector('iframe')?.getAttribute('src') },
       image: !!image?.media,
       link: {
-        href: link.href,
-        title: link.text?.value,
+        href: link?.href,
+        title: link?.text?.value,
         url: board.stage.world.querySelector('.ad-link-url')?.textContent,
       },
-      radius: getComputedStyle(videoEl!.querySelector('.ad-auxiliary')!).borderRadius,
+      radius: videoEl ? getComputedStyle(videoEl.querySelector('.ad-auxiliary')!).borderRadius : '',
       open: !!board.stage.world.querySelector('.ad-link-open'),
     };
   });

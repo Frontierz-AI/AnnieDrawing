@@ -18,6 +18,8 @@ The selection inspector is narrower and no longer shows a kind title such as Rec
 
 The drawing toolbar puts eraser after hand, line and arrow inside Shapes, and image after sticky note. The More tools overflow is gone; on phones, including landscape, hand remains in the board menu. A short desktop window keeps the tool sidebar and inspector vertically centered, with smaller icons and tighter header, footer, and sidebar padding. The selection inspector is vertically centered like the tool sidebar.
 
+Freehand strokes keep the pointer's pressure, including when the browser reports no coalesced events. A click uses a custom kind's outline, not only its rectangular DOM box.
+
 Pasting a YouTube or Vimeo URL creates a `video` item with the official player; drag it like any shape, then double-click to use the play controls. Pasting a website URL creates a compact `link` card with the page title, a URL without a trailing slash, the Open Graph image when the page can be read, and an Open button. The card text shrinks instead of overlapping when you resize it. Image URLs become ordinary image items. Notes, images, videos and link cards share one 12px corner and the same soft shadow. User paste may fetch the pasted page for a preview; pass `unfurl: false` to skip that fetch.
 
 The default editor gzip budget is 100 KiB, including styles. `scripts/check-size.mjs` enforces that ceiling.

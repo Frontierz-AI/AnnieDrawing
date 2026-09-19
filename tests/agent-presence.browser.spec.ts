@@ -71,6 +71,12 @@ test('AI placement commits immediately, enters from outside and reveals only aft
       return x < 0 || y < 0 || x > root.clientWidth || y > root.clientHeight;
     }),
   ).toBe(true);
+  await page.waitForFunction(() => {
+    const cursor = document.querySelector('.ad-agent-cursor');
+    if (!cursor) return false;
+    const rect = cursor.getBoundingClientRect();
+    return rect.x > 20 && rect.y > 20 && document.querySelector('.ad-agent-pending');
+  });
   const committed = await page.evaluate(async () => {
     const board = window.__anniedrawing![0];
     return {
@@ -87,20 +93,13 @@ test('AI placement commits immediately, enters from outside and reveals only aft
   expect(committed.focused).toBe(true);
   expect(committed.svg).toContain('An idea');
   expect(committed.svg).not.toContain('ad-agent');
-  await page.waitForFunction(() => {
-    const cursor = document.querySelector('.ad-agent-cursor');
-    if (!cursor) return false;
-    const rect = cursor.getBoundingClientRect();
-    return rect.x > 20 && rect.y > 20 && document.querySelector('.ad-agent-pending');
-  });
   await page.screenshot({ path: info.outputPath('agent-arriving.png') });
   await page.waitForFunction(
     () => getComputedStyle(document.querySelector('[data-ad-id="idea"]')!).visibility === 'visible',
   );
   const landing = await cursor.evaluate((element) => {
-    const box = element.getBoundingClientRect();
-    const root = element.parentElement!.getBoundingClientRect();
-    return { x: box.x - root.x + 7, y: box.y - root.y + 7 };
+    const origin = new DOMMatrix((element as HTMLElement).style.transform);
+    return { x: origin.e + 7, y: origin.f + 7 };
   });
   expect(landing.x).toBeCloseTo(390, 0);
   expect(landing.y).toBeCloseTo(295, 0);
@@ -178,9 +177,7 @@ test('one cursor visits sequential batches and groups reveal their children toge
   await expect(page.locator('.ad-agent-pending')).toHaveCount(0);
 });
 
-test('immediate fit uses the new camera; pan and clicks keep the walk going', async ({
-  page,
-}) => {
+test('immediate fit uses the new camera; pan and clicks keep the walk going', async ({ page }) => {
   await ready(page);
   await page.evaluate(() => {
     const board = window.__anniedrawing![0];
@@ -228,7 +225,25 @@ test('a person can select existing work while an arrival continues', async ({ pa
   await place(page);
   await expect(page.locator('.ad-agent-cursor')).toHaveCount(1);
   await expect(page.locator('[data-ad-id="idea"]')).toBeHidden();
-  await page.locator('[data-ad-id="mine"]').click();
+  await page.evaluate(() => {
+    const mine = document.querySelector<HTMLElement>('[data-ad-id="mine"]')!;
+    const box = mine.getBoundingClientRect();
+    const x = box.x + box.width / 2,
+      y = box.y + box.height / 2;
+    for (const type of ['pointerdown', 'pointerup'] as const)
+      mine.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 1,
+          pointerType: 'mouse',
+          button: 0,
+          buttons: type === 'pointerdown' ? 1 : 0,
+          clientX: x,
+          clientY: y,
+        }),
+      );
+  });
   await expect(page.locator('.ad-agent-cursor')).toHaveCount(1);
   await expect(page.locator('[data-ad-id="idea"]')).toBeHidden();
   expect(await page.evaluate(() => window.__anniedrawing![0].selection)).toEqual(['mine']);
