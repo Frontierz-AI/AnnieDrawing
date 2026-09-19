@@ -5,13 +5,21 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+function packManifest(output) {
+  for (const match of [...output.matchAll(/^[[{]/gm)].reverse()) {
+    try {
+      return JSON.parse(output.slice(match.index));
+    } catch {}
+  }
+  throw new Error(`npm pack did not print JSON:\n${output}`);
+}
 const directory = await mkdtemp(join(tmpdir(), 'anniedrawing-consumer-'));
 try {
   const output = execFileSync('npm', ['pack', '--json', '--pack-destination', directory], {
     cwd: root,
     encoding: 'utf8',
   });
-  const packages = JSON.parse(output);
+  const packages = packManifest(output);
   const [{ filename }] = Array.isArray(packages) ? packages : Object.values(packages);
   await writeFile(
     join(directory, 'package.json'),
