@@ -72,11 +72,17 @@ test('AI placement commits immediately, enters from outside and reveals only aft
     }),
   ).toBe(true);
   await page.waitForFunction(() => {
-    const cursor = document.querySelector('.ad-agent-cursor');
-    if (!cursor) return false;
-    const rect = cursor.getBoundingClientRect();
-    return rect.x > 20 && rect.y > 20 && document.querySelector('.ad-agent-pending');
+    const cursor = document.querySelector<HTMLElement>('.ad-agent-cursor');
+    const at = cursor?.dataset.adAt?.split(',').map(Number);
+    return !!at && at[0] > 20 && at[1] > 20 && !!document.querySelector('.ad-agent-pending');
   });
+  await expect(cursor).toHaveAttribute('data-ad-landed');
+  const landing = await cursor.evaluate((element) => {
+    const [x, y] = (element as HTMLElement).dataset.adLanded!.split(',').map(Number);
+    return { x, y };
+  });
+  expect(landing.x).toBeCloseTo(390, 0);
+  expect(landing.y).toBeCloseTo(295, 0);
   const committed = await page.evaluate(async () => {
     const board = window.__anniedrawing![0];
     return {
@@ -97,12 +103,6 @@ test('AI placement commits immediately, enters from outside and reveals only aft
   await page.waitForFunction(
     () => getComputedStyle(document.querySelector('[data-ad-id="idea"]')!).visibility === 'visible',
   );
-  const landing = await cursor.evaluate((element) => {
-    const origin = new DOMMatrix((element as HTMLElement).style.transform);
-    return { x: origin.e + 7, y: origin.f + 7 };
-  });
-  expect(landing.x).toBeCloseTo(390, 0);
-  expect(landing.y).toBeCloseTo(295, 0);
   const settling = await item.boundingBox();
   expect(settling!.x + settling!.width / 2).toBeCloseTo(390, 0);
   expect(settling!.y + settling!.height / 2).toBeCloseTo(295, 0);
@@ -193,11 +193,11 @@ test('immediate fit uses the new camera; pan and clicks keep the walk going', as
   );
   const { landing, target } = await page.evaluate(() => {
     const board = window.__anniedrawing![0];
-    const cursor = document.querySelector('.ad-agent-cursor')!;
-    const box = cursor.getBoundingClientRect();
-    const root = board.stage.root.getBoundingClientRect();
+    const [x, y] = (document.querySelector('.ad-agent-cursor') as HTMLElement).dataset
+      .adLanded!.split(',')
+      .map(Number);
     return {
-      landing: { x: box.x - root.x + 7, y: box.y - root.y + 7 },
+      landing: { x, y },
       target: board.stage.lens.toScreen({ x: 12100, y: 9065 }),
     };
   });
