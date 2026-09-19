@@ -146,6 +146,12 @@ export class AgentPresence {
     return `translate(${point.x - 7}px,${point.y - 7}px)`;
   }
 
+  /** Screen-pixel hotspot. Some engines leave getBoundingClientRect at the start. */
+  private put(cursor: HTMLElement, point: Point) {
+    cursor.style.transform = this.transform(point);
+    cursor.dataset.adAt = `${point.x},${point.y}`;
+  }
+
   private center(box: Box): Point {
     return { x: box.x + box.w / 2, y: box.y + box.h / 2 };
   }
@@ -159,13 +165,12 @@ export class AgentPresence {
       const to = this.lens.toScreen(toPage);
       const bend = Math.min(36, Math.hypot(to.x - from.x, to.y - from.y) / 8);
       const s = 1 - t;
-      cursor.style.transform = this.transform({
+      this.put(cursor, {
         x: s * s * from.x + 2 * s * t * ((from.x + to.x) / 2 + bend) + t * t * to.x,
         y: s * s * from.y + 2 * s * t * ((from.y + to.y) / 2 - bend) + t * t * to.y,
       });
     });
-    if (generation === this.generation)
-      cursor.style.transform = this.transform(this.lens.toScreen(toPage));
+    if (generation === this.generation) this.put(cursor, this.lens.toScreen(toPage));
   }
 
   private connector(placement: Placement) {
@@ -252,13 +257,15 @@ export class AgentPresence {
         this.cursor.innerHTML = `<svg width="36" height="36" viewBox="0 0 36 36"><path d="${cursorArrow}"/></svg>${this.name ? `<span>${esc(this.name)}</span>` : ''}`;
         const edge = this.edge(this.lens.toScreen(target));
         position = this.lens.toPage(edge);
-        this.cursor.style.transform = this.transform(edge);
+        this.put(this.cursor, edge);
         this.cursor.dataset.adFrom = `${edge.x},${edge.y}`;
         this.root.append(this.cursor);
       }
       const cursor = this.cursor;
       await this.move(generation, cursor, position!, target);
       if (generation !== this.generation) return;
+      const landed = this.lens.toScreen(target);
+      cursor.dataset.adLanded = `${landed.x},${landed.y}`;
       position = target;
       for (const element of placement.elements) this.show(generation, element);
       const svg = cursor.querySelector('svg');

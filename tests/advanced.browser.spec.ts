@@ -29,7 +29,7 @@ test('plain text paste creates medium text', async ({ page }) => {
 
 test('pasted video, image and website URLs create card items', async ({ page }) => {
   await setup(page);
-  const result = await page.evaluate(async () => {
+  await page.evaluate(() => {
     const board = window.__anniedrawing![0];
     const send = (text: string) => {
       const clipboard = new DataTransfer();
@@ -43,14 +43,17 @@ test('pasted video, image and website URLs create card items', async ({ page }) 
       'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgvBn6PwAE+QKJBZFmAAAAAElFTkSuQmCC',
     );
     send('https://example.com/notes');
-    const started = Date.now();
-    while (
-      (!board.query({ kind: 'image' }).length ||
-        !board.stage.world.querySelector('[data-ad-kind="video"] iframe') ||
-        !board.stage.world.querySelector('.ad-link-open')) &&
-      Date.now() - started < 4000
-    )
-      await new Promise((resolve) => setTimeout(resolve, 20));
+  });
+  await page.waitForFunction(() => {
+    const board = window.__anniedrawing![0];
+    return !!(
+      board.query({ kind: 'image' }).length &&
+      document.querySelector('[data-ad-kind="video"] iframe')?.getAttribute('src') &&
+      document.querySelector('.ad-link-open')
+    );
+  });
+  const result = await page.evaluate(() => {
+    const board = window.__anniedrawing![0];
     const video = board.query({ kind: 'video' })[0];
     const image = board.query({ kind: 'image' })[0];
     const link = board.query({ kind: 'link' })[0];
