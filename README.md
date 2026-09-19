@@ -141,3 +141,7 @@ Repository files: [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md), [D
 Contributor commits require a [Developer Certificate of Origin](https://developercertificate.org/) sign-off (`git commit -s`). Implement from the documented behavior and original work. Do not copy another editor's implementation.
 
 The local build does not create a remote repository, publish a package, or deploy hosting.
+
+---
+
+\* Pau, a member of the Frontierz core team, developed AnnieDrawing after a bet with Annie, who was also at Frontierz: he said he could spend one weekend building an editor that Frontierz and the AI Fellows could use, and that he would name it AnnieDrawing. He wrote that editor over the weekend.

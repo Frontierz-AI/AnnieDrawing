@@ -1,10 +1,17 @@
 {
   "name": "anniedrawing",
-  "version": "1.0.0",
+  "version": "0.2.8",
   "description": "A small, joyful HTML and SVG drawing board for people and AI agents. By Frontierz.",
   "type": "module",
   "license": "MIT",
   "author": "Frontierz",
+  "contributors": [
+    {
+      "name": "Pau Garcia-Mila",
+      "email": "pau@frontierz.com",
+      "url": "https://github.com/paugm"
+    }
+  ],
   "keywords": [
     "drawing",
     "whiteboard",

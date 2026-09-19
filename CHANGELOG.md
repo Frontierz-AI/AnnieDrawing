@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0 (unreleased)
+## 0.2.8 (unreleased)
 
 Initial independent AnnieDrawing implementation: a framework-free HTML/SVG board, JSON document operations, headless and agent APIs, browser editing, exports, custom-kind and sanitized-HTML integrations, local demo, and a separate local MCP example.
 
@@ -21,8 +21,6 @@ The drawing toolbar puts eraser after hand, line and arrow inside Shapes, and im
 Pasting a YouTube or Vimeo URL creates a `video` item with the official player; drag it like any shape, then double-click to use the play controls. Pasting a website URL creates a compact `link` card with the page title, a URL without a trailing slash, the Open Graph image when the page can be read, and an Open button. The card text shrinks instead of overlapping when you resize it. Image URLs become ordinary image items. Notes, images, videos and link cards share one 12px corner and the same soft shadow. User paste may fetch the pasted page for a preview; pass `unfurl: false` to skip that fetch.
 
 The default editor gzip budget is 100 KiB, including styles. `scripts/check-size.mjs` enforces that ceiling.
-
-The package declares the version intended for the first release. No publication is implied. Use the release checklist and verified test results before tagging or distributing it.
 
 Library CSS no longer sets host `html`/`body` layout. Import `anniedrawing/style.css` for editor chrome; hosts size their own page. Shared item helpers cover drafts, copies, translation, connector detach, and clipboard URI lists. `registerKind` is exported from `anniedrawing`. The UI entry exports `mountUI`; unused `title`/`branding` options and leftover icon glyphs are gone.
 
