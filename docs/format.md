@@ -66,7 +66,7 @@ HTML is an optional application integration. Plain text is safe by construction.
 
 ## Versions
 
-The integer `version` belongs to the document format. It is independent of the package version. Version 2 is the current format and uses `pages`. New examples, saves, and exports use this form.
+The integer `version` belongs to the document format. It is independent of the package version and of the built-in kind catalog (`CATALOG_VERSION` / `kindsSince`). Version 2 is the current format and uses `pages`. New examples, saves, and exports use this form.
 
 The loader accepts version 1 drawings with `sheets` and migrates them to version 2 `pages` before validation. It keeps page and item IDs, item trees, coordinates, connector references, media, and custom page names. Default names such as `Sheet 1` become `Page 1`. Existing `.annie` files and browser autosaves remain readable. The next save writes version 2. Migration reads the original object without mutating it.
 

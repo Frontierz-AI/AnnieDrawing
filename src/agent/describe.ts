@@ -1,11 +1,12 @@
 import type { AnnieDoc, DescribeOptions, Item } from '../core/types';
+import { allItems } from '../core/item';
 import { boundsOf, flattenItems, itemBounds } from '../geo/box';
 const number = (n: number) => Math.round(n * 10) / 10;
 const title = (i: Item) => i.name ?? i.text?.value;
 const quote = (s: string) => JSON.stringify(s.length > 160 ? `${s.slice(0, 157)}…` : s);
 export function describeDoc(doc: AnnieDoc, options: DescribeOptions = {}): string {
-  const pages = doc.pages.filter((s, index) =>
-      options.page ? s.id === options.page : options.scope === 'page' ? index === 0 : true,
+  const pages = doc.pages.filter((page, index) =>
+      options.page ? page.id === options.page : options.scope === 'page' ? index === 0 : true,
     ),
     detail = options.detail ?? 'normal',
     limit = options.maxItems ?? 100,
@@ -13,7 +14,7 @@ export function describeDoc(doc: AnnieDoc, options: DescribeOptions = {}): strin
     selected = new Set(options.selection ?? []);
   let shown = 0;
   const emitted = new Set<string>();
-  const all = flattenItems(doc.pages.flatMap((s) => s.items)),
+  const all = allItems(doc),
     lookup = new Map(all.map((i) => [i.id, i]));
   for (const page of pages) {
     const items = flattenItems(page.items).filter(

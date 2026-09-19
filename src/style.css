@@ -1,54 +1,30 @@
 @import './stage/style.css';
-:root {
-  font-family: 'Nunito Variable', 'Nunito', 'Trebuchet MS', sans-serif;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  color: #103639;
-  background: #f8faf8;
+.ad-root * {
+  box-sizing: inherit;
 }
-* {
-  box-sizing: border-box;
-}
-html,
-body,
-#app {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  overflow: hidden;
-}
-button,
-input,
-select,
-textarea {
+.ad-root :is(button, input, select, textarea) {
   font: inherit;
 }
-button {
+.ad-root button {
   cursor: pointer;
 }
-button:disabled,
-.ad-ui input:disabled,
-.ad-ui select:disabled {
+.ad-root button:disabled,
+.ad-root :is(input, select):disabled {
   opacity: 0.38;
   cursor: not-allowed;
 }
-button,
-select,
-input,
-textarea,
-a,
-summary {
+.ad-root :is(button, input, select, textarea, a, summary) {
   -webkit-tap-highlight-color: transparent;
 }
-:focus-visible {
+.ad-root :focus-visible {
   outline: 3px solid #05b48f;
   outline-offset: 3px;
 }
-button:focus:not(:focus-visible) {
+.ad-root button:focus:not(:focus-visible) {
   outline: none;
 }
 .ad-root {
+  box-sizing: border-box;
   --ad-font-sans: 'Nunito Variable', 'Nunito', 'Trebuchet MS', sans-serif;
   --ad-font-hand: 'Comic Sans MS', 'Chalkboard SE', cursive;
   --ad-ui-bg: #fff;
@@ -71,9 +47,6 @@ button:focus:not(:focus-visible) {
   --ad-ui-muted: #bacfc7;
   --ad-shadow: none;
   background: #10282b !important;
-}
-.ad-no-grid .ad-grid {
-  display: none;
 }
 .ad-ui {
   position: absolute;
@@ -104,6 +77,9 @@ button:focus:not(:focus-visible) {
 }
 .ad-header > * {
   pointer-events: auto;
+}
+.ad-header-end {
+  justify-content: flex-end;
 }
 .ad-brand {
   display: flex;
@@ -701,20 +677,6 @@ button:focus:not(:focus-visible) {
   line-height: 1.2;
   margin: 2px 0 8px;
 }
-.ad-dialog p {
-  margin: 0;
-}
-.ad-muted {
-  font-size: 12px;
-  color: var(--ad-ui-muted);
-  line-height: 1.7;
-}
-.ad-dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin: 14px 0;
-}
 .ad-action-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -725,60 +687,6 @@ button:focus:not(:focus-visible) {
   justify-content: flex-start;
   white-space: normal;
   text-align: left;
-}
-.ad-agent-dialog {
-  width: 720px;
-}
-.ad-dialog-tabs {
-  display: flex;
-  gap: 3px;
-  border-bottom: 1px solid var(--ad-ui-border);
-  margin-bottom: 18px;
-}
-.ad-tab-button {
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  padding: 10px 12px;
-  font-size: 12px;
-  color: var(--ad-ui-muted);
-  font-weight: 700;
-}
-.ad-tab-button[aria-pressed='true'] {
-  border-bottom-color: #05d9ab;
-  color: var(--ad-ui-text);
-}
-.ad-code {
-  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: 11px;
-  line-height: 1.8;
-  background: var(--ad-ui-surface);
-  border: 1px solid var(--ad-ui-border);
-  color: var(--ad-ui-text);
-  padding: 18px;
-  border-radius: 12px;
-  max-height: 44vh;
-  overflow: auto;
-  margin: 0 0 15px;
-}
-.ad-ops-editor {
-  width: 100%;
-  resize: vertical;
-  max-height: 45vh;
-}
-.ad-result {
-  font-family: ui-monospace, monospace;
-  font-size: 11px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  max-height: 140px;
-  overflow: auto;
-  color: var(--ad-ui-text);
-}
-.ad-agent-content > p {
-  margin-top: 15px;
 }
 .ad-text {
   font-family: var(--ad-font-hand);
@@ -791,7 +699,7 @@ button:focus:not(:focus-visible) {
   min-width: 30px;
   min-height: 1em;
 }
-[hidden] {
+.ad-root [hidden] {
   display: none !important;
 }
 
@@ -956,9 +864,6 @@ button:focus:not(:focus-visible) {
   .ad-dialog h2 {
     font-size: 22px;
   }
-  .ad-dialog .ad-muted {
-    font-size: 15px;
-  }
   .ad-dialog .ad-button {
     min-height: 48px;
     height: auto;
@@ -971,14 +876,6 @@ button:focus:not(:focus-visible) {
   }
   .ad-action-grid {
     grid-template-columns: 1fr;
-  }
-  .ad-tab-button {
-    font-size: 13px;
-    padding: 12px 9px;
-  }
-  .ad-code {
-    font-size: 12px;
-    padding: 12px;
   }
 }
 @media (max-width: 350px) {
@@ -1005,9 +902,8 @@ button:focus:not(:focus-visible) {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  .ad-root,
+  .ad-root * {
     animation: none !important;
     transition: none !important;
     scroll-behavior: auto !important;

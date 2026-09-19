@@ -143,21 +143,8 @@ test('connectors attach to shapes, follow drafts and survive target deletion', a
   ).toMatchObject({ x: expect.any(Number), y: expect.any(Number) });
 });
 
-test('agent playground validates then applies and readonly boards reject all writes', async ({
-  page,
-}) => {
+test('readonly boards reject writes', async ({ page }) => {
   await ready(page);
-  await page.getByRole('button', { name: 'Board menu', exact: true }).click();
-  await page.getByRole('button', { name: 'For agents', exact: true }).click();
-  await page.getByRole('button', { name: 'Try an operation' }).click();
-  await page.getByRole('button', { name: 'Validate first' }).click();
-  await expect(page.locator('.ad-result')).toContainText('"ok": true');
-  expect(await count(page, 'note')).toBe(0);
-  await page.getByRole('button', { name: 'Apply to board' }).click();
-  expect(await count(page, 'note')).toBe(1);
-  await expect(page.locator('.ad-agent-cursor span')).toHaveText(/^(Julia|Samuel|Anita)$/);
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Board menu', exact: true })).toBeFocused();
   const result = await page.evaluate(async () => {
     const { createBoard } = await import('/src/board.ts' as string);
     const host = document.createElement('div');

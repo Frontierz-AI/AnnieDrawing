@@ -1,4 +1,5 @@
 import type { ReadonlySignal } from '@preact/signals-core';
+import type { KindCatalogSnapshot } from './catalog';
 export type Point = {
   x: number;
   y: number;
@@ -8,6 +9,10 @@ export type Box = Point & {
   h: number;
 };
 export type Color = string;
+export type Outline = {
+  points: Point[];
+  closed: boolean;
+};
 export type ItemKind =
   | 'rect'
   | 'ellipse'
@@ -46,6 +51,7 @@ export type Endpoint =
       anchor?: [number, number];
     }
   | Point;
+/** Custom kinds may store extra fields; mutating a copy returned by get/query/read does not edit the document. */
 export interface Item {
   id: string;
   kind: ItemKind;
@@ -178,6 +184,7 @@ export type Op =
       id: string;
     };
 export interface ApplyOptions {
+  /** Provenance, not auth. Default in createDoc is `api`. Non-`user` origins sanitize HTML and use LIMITS.maxBatch. */
   origin?: string;
   label?: string;
   dryRun?: boolean;
@@ -210,6 +217,7 @@ export interface Query {
   within?: Box;
   connectedTo?: string;
   direction?: 'in' | 'out' | 'both';
+  /** Descendants of this group, excluding the group itself. */
   inside?: string;
   data?: Record<string, unknown>;
   hidden?: boolean;
@@ -242,23 +250,25 @@ export interface DocOptions {
     kind: string;
     schema?: unknown;
     defaults?: Partial<Item>;
-    outline?: (
-      item: Item,
-    ) => { points: Point[]; closed: boolean } | { points: Point[]; closed: boolean }[];
+    outline?: (item: Item) => Outline | Outline[];
   }[];
 }
 export interface DocModel {
   itemSignal(id: string): ReadonlySignal<Item | undefined>;
   fieldSignal<K extends keyof Item>(id: string, key: K): ReadonlySignal<Item[K] | undefined>;
+  /** Immediate child IDs of a page or group. */
   childrenSignal(id: string): ReadonlySignal<readonly string[]>;
   apply(ops: Op[], options?: ApplyOptions): ApplyResult;
   get(id: string): Item | undefined;
   query(selector?: Query): Item[];
   describe(options?: DescribeOptions): string;
+  /** Built-in kinds added or last changed after `since`. Omit or pass 0 for the full catalog. */
+  kindsSince(since?: number): KindCatalogSnapshot;
   toJSON(options?: { compact?: boolean }): AnnieDoc;
   undo(options?: { origin?: string }): boolean;
   redo(): boolean;
   load(doc: AnnieDoc): void;
+  /** Only `'change'` is emitted; the argument exists so subscribers are typed. */
   on(type: 'change', callback: (event: ChangeEvent) => void): () => void;
   readonly canUndo: boolean;
   readonly canRedo: boolean;

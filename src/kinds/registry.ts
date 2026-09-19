@@ -1,9 +1,7 @@
-import type { AnnieDoc, Item, Point } from '../core/types';
+import { KIND_CATALOG } from '../core/catalog';
+import type { AnnieDoc, Item, Outline, Point } from '../core/types';
 
-export interface Outline {
-  points: Point[];
-  closed: boolean;
-}
+export type { Outline };
 export interface KindView {
   element: HTMLDivElement;
   shape: SVGSVGElement;
@@ -37,22 +35,7 @@ export interface KindDef {
   summarize?: (item: Item) => string;
 }
 const registry = new Map<string, KindDef>();
-const builtins = [
-  'rect',
-  'ellipse',
-  'diamond',
-  'line',
-  'connector',
-  'path',
-  'text',
-  'note',
-  'image',
-  'video',
-  'link',
-  'group',
-  'html',
-];
-for (const kind of builtins) registry.set(kind, { kind });
+for (const { kind } of KIND_CATALOG) registry.set(kind, { kind });
 
 /** Declare a reusable kind; registration is scoped to each board's options. */
 export function defineKind<T extends KindDef>(definition: T): T {

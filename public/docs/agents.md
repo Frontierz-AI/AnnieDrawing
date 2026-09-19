@@ -2,7 +2,7 @@
 
 AnnieDrawing exposes the document as JSON, as a deterministic text description, and as an optional labeled PNG. Saved edits use the same operations as the editor.
 
-In the demo, open Board menu, then For agents, to inspect the scene, validate an operation, or run the API examples. The browser API works without that panel.
+The demo registers live boards on `window.__anniedrawing`. Use that hook, or the board reference a host supplies, to inspect the scene and apply operations.
 
 ## Locate a board
 
@@ -12,8 +12,11 @@ In the demo, run this in the page's JavaScript context:
 const boards = window.__anniedrawing;
 const board = Array.isArray(boards) ? boards[0] : Object.values(boards)[0];
 board.describe({ detail: 'normal', relations: true, freeSpace: true });
+board.kindsSince();
 board.read();
 ```
+
+`kindsSince(since?)` lists built-in kinds added or last changed after that catalog version. Omit `since` or pass `0` for the full catalog. Remember the returned `version` if you later want only what is new. The current board is always `describe()`, `read()`, `get(id)`, or `query()`.
 
 If several boards exist, compare titles and pick the board the user named. A host can set `exposeGlobal: false`, in which case use the board reference that application supplies.
 
@@ -79,7 +82,6 @@ if (!preview.ok) throw new Error(JSON.stringify(preview.errors));
 const result = board.apply(ops, {
   origin: 'agent:planner',
   label: 'Add cache flow',
-  agentName: 'Samuel',
 });
 if (!result.ok) throw new Error(JSON.stringify(result.errors));
 board.view.fit(['i_api', 'i_cache']);
@@ -93,8 +95,6 @@ The IDs in this example are readable placeholders. Check existing IDs or generat
 In the browser, a successful `apply` with an `agent:` origin shows a lilac cursor entering from outside the viewport, then reveals the new items. Pass `agentName` to label the cursor. Without it the cursor has no name. Put related items in one batch. The editor sequences the presentation, including groups and large batches.
 
 The returned result, JSON, exports, and history are complete while that presentation runs. Do not sleep or split an atomic batch to time the animation. Updates to existing items stay immediate. The presentation does not move the camera. Call `view.fit` immediately after `apply` only when that camera change is wanted. Human input and reduced motion reveal pending items immediately. Set `agentPresence: false` on `createBoard` to skip the presentation.
-
-In the demo, For agents, then Try an operation, then Apply to board, closes the dialog after a successful edit so the arrival is visible. The cursor label is one of Julia, Samuel, or Anita. Validation errors stay in the dialog.
 
 ## Patch
 

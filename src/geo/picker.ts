@@ -1,5 +1,5 @@
 import RBush from 'rbush';
-import type { Box, Item, Point } from '../core/types';
+import type { Box, Item, Outline, Point } from '../core/types';
 import { contains, containsPoint, flattenItems, itemBounds, type ItemLookup } from './box';
 import { pointInPolygon, rotatePoint, segmentDistance } from './vec';
 import { routeConnector, type OutlineResolver } from './router';
@@ -12,22 +12,18 @@ interface Entry {
   order: number;
   parents: Item[];
 }
-export interface PickOutline {
-  points: Point[];
-  closed: boolean;
-}
 export interface PickOptions {
   tolerance?: number;
   enteredGroup?: string;
   includeLocked?: boolean;
-  outline?: (item: Item) => PickOutline | PickOutline[] | undefined;
+  outline?: OutlineResolver;
 }
 export function hitTest(
   item: Item,
   point: Point,
   tolerance = 4,
   lookup?: ItemLookup,
-  outline?: PickOutline | PickOutline[] | OutlineResolver,
+  outline?: Outline | Outline[] | OutlineResolver,
 ): boolean {
   const resolveOutline = typeof outline === 'function' ? outline : undefined;
   if (item.kind === 'group') return containsPoint(itemBounds(item, lookup, resolveOutline), point);
@@ -211,7 +207,4 @@ export class SpatialIndex {
     }
     return undefined;
   }
-}
-export function pick(point: Point, items: Item[], options: PickOptions = {}): Item | undefined {
-  return new SpatialIndex(items, options.outline).pick(point, options);
 }

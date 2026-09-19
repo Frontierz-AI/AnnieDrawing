@@ -203,7 +203,7 @@ export class ItemView implements KindView {
             if (this.previous.get('auxiliary') === stamp) paintCard(this.auxiliary, item, this.doc);
           });
         } else if (item.kind === 'html') {
-          this.auxiliary.classList.add('ad-html-content', 'ad-html');
+          this.auxiliary.classList.add('ad-html-content');
           if (sanitizeHTML) this.auxiliary.innerHTML = sanitizeHTML(item.html ?? '');
           else this.auxiliary.textContent = item.html ?? 'HTML content';
         } else if (!definition) this.placeholder(`Unknown kind: ${item.kind}`);

@@ -44,7 +44,7 @@ describe('atomic document operations', () => {
     ]);
     expect(result.ok).toBe(false);
     expect(result.errors[0].index).toBe(1);
-    expect(result.errors[0].message).toContain('Closest ids: a');
+    expect(result.errors[0].message).toContain('Known ids: a');
     expect(result.created).toEqual([]);
     expect(doc.toJSON()).toEqual(before);
     expect(doc.canUndo).toBe(false);
@@ -822,4 +822,88 @@ it('imports retired frames as ordinary groups without dropping contents, labels 
   expect(doc.get('link')).toMatchObject({ from: { item: 'old' }, to: { item: 'child' } });
   expect(createDoc(doc.toJSON()).toJSON()).toEqual(doc.toJSON());
   expect(legacy).toEqual(before);
+});
+
+describe('warnings and placement', () => {
+  it('warns when a new item overlaps without rolling back', () => {
+    const doc = createDoc();
+    const result = doc.apply([
+      { op: 'add', item: rect('a') },
+      { op: 'add', item: rect('b', 20, 20) },
+    ]);
+    expect(result.ok).toBe(true);
+    expect(result.warnings.some((warning) => warning.code === 'OVERLAPS_EXISTING')).toBe(true);
+    expect(doc.get('b')).toBeTruthy();
+  });
+  it('commits an empty batch without history', () => {
+    const doc = createDoc();
+    expect(doc.apply([])).toMatchObject({ ok: true, created: [] });
+    expect(doc.canUndo).toBe(false);
+  });
+  it('places left, above, below and near, and rejects two relations', () => {
+    const doc = createDoc();
+    doc.apply([{ op: 'add', item: { ...rect('a'), x: 200, y: 200 } }]);
+    expect(doc.apply([{ op: 'add', item: rect('left'), place: { leftOf: 'a', gap: 20 } }]).ok).toBe(
+      true,
+    );
+    expect(doc.get('left')!.x + doc.get('left')!.w).toBe(180);
+    expect(doc.apply([{ op: 'add', item: rect('up'), place: { above: 'a', gap: 10 } }]).ok).toBe(
+      true,
+    );
+    expect(doc.get('up')!.y + doc.get('up')!.h).toBe(190);
+    expect(doc.apply([{ op: 'add', item: rect('down'), place: { below: 'a' } }]).ok).toBe(true);
+    expect(doc.get('down')!.y).toBe(312);
+    expect(doc.apply([{ op: 'add', item: rect('n'), place: { near: 'a', gap: 16 } }]).ok).toBe(
+      true,
+    );
+    expect(
+      doc.apply([{ op: 'add', item: rect('bad'), place: { leftOf: 'a', rightOf: 'a' } }]).ok,
+    ).toBe(false);
+    expect(
+      doc.apply([{ op: 'add', item: rect('missing'), place: { rightOf: 'nope' } }]).errors[0]
+        .message,
+    ).toContain('does not exist');
+  });
+  it('rejects inside placement on a non-group', () => {
+    const doc = createDoc();
+    doc.apply([{ op: 'add', item: rect('a') }]);
+    expect(
+      doc.apply([{ op: 'add', item: rect('b'), place: { inside: 'a' } }]).errors[0].message,
+    ).toContain('group');
+  });
+});
+
+describe('query and signals', () => {
+  it('filters hidden, locked, kind arrays, nested inside, and sticky RegExp', () => {
+    const doc = createDoc();
+    doc.apply([
+      { op: 'add', item: { kind: 'group', id: 'g', x: 0, y: 0, w: 400, h: 300, children: [] } },
+      {
+        op: 'add',
+        item: { ...rect('child'), text: { value: 'Hello' }, hidden: true },
+        place: { inside: 'g' },
+      },
+      { op: 'add', item: { ...rect('lock', 500), locked: true } },
+    ]);
+    expect(doc.query({ hidden: true }).map((item) => item.id)).toEqual(['child']);
+    expect(doc.query({ locked: true }).map((item) => item.id)).toEqual(['lock']);
+    expect(
+      doc
+        .query({ kind: ['rect'] })
+        .map((item) => item.id)
+        .sort(),
+    ).toEqual(['child', 'lock']);
+    expect(doc.query({ inside: 'g' }).map((item) => item.id)).toEqual(['child']);
+    const sticky = /hello/gi;
+    sticky.lastIndex = 4;
+    expect(doc.query({ text: sticky }).map((item) => item.id)).toEqual(['child']);
+    expect(doc.query({ text: sticky }).map((item) => item.id)).toEqual(['child']);
+  });
+  it('notifies itemSignal after a missing id is created', () => {
+    const doc = createDoc();
+    const seen: (string | undefined)[] = [];
+    doc.itemSignal('later').subscribe((item) => seen.push(item?.id));
+    doc.apply([{ op: 'add', item: rect('later') }]);
+    expect(seen).toEqual([undefined, 'later']);
+  });
 });

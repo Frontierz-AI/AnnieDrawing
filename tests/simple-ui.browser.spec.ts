@@ -15,6 +15,32 @@ async function selectItem(page: Page, id: string) {
   await page.evaluate((id) => window.__anniedrawing![0].select([id]), id);
 }
 
+test('demo host fills the viewport without library CSS on html or body', async ({ page }) => {
+  await page.goto('/?blank');
+  await page.waitForFunction(() => !!window.__anniedrawing?.[0]);
+  const metrics = await page.evaluate(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const app = document.getElementById('app')!;
+    const root = document.querySelector('.ad-root') as HTMLElement;
+    return {
+      innerHeight: window.innerHeight,
+      appHeight: app.getBoundingClientRect().height,
+      rootHeight: root.getBoundingClientRect().height,
+      htmlOverflow: getComputedStyle(html).overflow,
+      bodyOverflow: getComputedStyle(body).overflow,
+      htmlBoxSizing: getComputedStyle(html).boxSizing,
+      rootBoxSizing: getComputedStyle(root).boxSizing,
+    };
+  });
+  expect(metrics.appHeight).toBe(metrics.innerHeight);
+  expect(metrics.rootHeight).toBe(metrics.innerHeight);
+  expect(metrics.htmlOverflow).toBe('hidden');
+  expect(metrics.bodyOverflow).toBe('hidden');
+  expect(metrics.htmlBoxSizing).not.toBe('border-box');
+  expect(metrics.rootBoxSizing).toBe('border-box');
+});
+
 test('board menu stays focused and image upload remains available in the sidebar', async ({
   page,
 }) => {
@@ -24,6 +50,8 @@ test('board menu stays focused and image upload remains available in the sidebar
   await expect(menu.getByLabel('Drawing title')).toHaveCount(0);
   await expect(menu.getByRole('button', { name: 'Open a drawing' })).toBeVisible();
   await expect(menu.getByRole('button', { name: 'Hide grid' })).toBeVisible();
+  await expect(menu.getByRole('button', { name: 'For agents', exact: true })).toHaveCount(0);
+  await expect(menu.getByRole('button', { name: 'Documentation', exact: true })).toBeVisible();
   await expect(
     menu.getByRole('button', {
       name: /snapping|overview|keyboard shortcuts|sketchy lines|add an image|layers|auto-arrange|start a fresh/i,

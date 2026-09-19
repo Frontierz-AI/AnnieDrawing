@@ -7,6 +7,8 @@ export const LIMITS = {
   maxDepth: 32,
   maxPoints: 100000,
   maxMediaLength: 20000000,
+  maxHistory: 100,
+  maxJsonDepth: 104,
 } as const;
 const finite = v.pipe(v.number(), v.finite());
 const coordinate = v.pipe(
@@ -187,6 +189,7 @@ export const OpSchema = v.variant('op', [
 export const OpsSchema = v.pipe(v.array(OpSchema), v.maxLength(LIMITS.maxBatch));
 export const QuerySchema = v.object({
   kind: v.optional(v.union([v.string(), v.array(v.string())])),
+  /** JSON tools send a string; the JavaScript Query type also accepts RegExp. */
   text: v.optional(v.string()),
   within: v.optional(BoxSchema),
   connectedTo: v.optional(id),

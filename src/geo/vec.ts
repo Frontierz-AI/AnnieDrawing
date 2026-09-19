@@ -54,3 +54,35 @@ export function simplifyPoints<T extends [number, number, number?]>(
   }
   return [...keep].sort((a, b) => a - b).map((i) => points[i]);
 }
+/** Recursive simplification that also keeps pressure inflections. Used for freehand strokes. */
+export function simplifyStroke<T extends [number, number, number?]>(
+  points: T[],
+  epsilon: number,
+): T[] {
+  if (points.length < 3) return points;
+  let max = 0,
+    index = 0;
+  for (let i = 1; i < points.length - 1; i++) {
+    const distance = segmentDistance(
+      { x: points[i][0], y: points[i][1] },
+      { x: points[0][0], y: points[0][1] },
+      { x: points.at(-1)![0], y: points.at(-1)![1] },
+    );
+    const ratio = i / (points.length - 1),
+      pressure = (points[0][2] ?? 0.5) * (1 - ratio) + (points.at(-1)![2] ?? 0.5) * ratio;
+    const error = Math.max(
+      distance,
+      Math.abs((points[i][2] ?? 0.5) - pressure) > 0.08 ? epsilon * 2 : 0,
+    );
+    if (error > max) {
+      max = error;
+      index = i;
+    }
+  }
+  return max > epsilon
+    ? [
+        ...simplifyStroke(points.slice(0, index + 1), epsilon).slice(0, -1),
+        ...simplifyStroke(points.slice(index), epsilon),
+      ]
+    : [points[0], points.at(-1)!];
+}

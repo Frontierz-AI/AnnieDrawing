@@ -1,4 +1,11 @@
-import { hostnameOf, normalizeHref, parseVideo, type LinkPreview, type VideoRef } from './links';
+import {
+  hostnameOf,
+  IMAGE_DATA_URL,
+  normalizeHref,
+  parseVideo,
+  type LinkPreview,
+  type VideoRef,
+} from './links';
 
 export function imageMime(href: string): string {
   const ext = href.match(/image\/([a-z]+)|[.](png|jpe?g|gif|webp|avif)(?:$|[?#])/i);
@@ -13,7 +20,6 @@ export type PastedContent =
   | { kind: 'text'; value: string };
 
 const IMAGE = /\.(png|jpe?g|gif|webp|avif)$/i;
-const DATA = /^data:image\/(png|jpeg|gif|webp|avif);base64,[a-z0-9+/=\s]+$/i;
 const SITE = /^[\w-]+(\.[\w-]+)+([/:?#]|$)/;
 const NAMED: Record<string, string> = {
   nbsp: ' ',
@@ -39,26 +45,19 @@ export function classifyPaste(value: string): PastedContent {
   if (/^<.*>$/.test(text)) text = text.slice(1, -1).trim();
   const found = text.match(/https?:\/\/[^\s<>"']+/i)?.[0];
   if (found) text = found.replace(/&amp;/g, '&');
-  else if (DATA.test(text)) text = text.replace(/\s+/g, '');
+  else if (IMAGE_DATA_URL.test(text)) text = text.replace(/\s+/g, '');
   else if (SITE.test(text) && !/\s/.test(text)) text = `https://${text}`;
   const href = /\s/.test(text) && !text.startsWith('data:') ? undefined : normalizeHref(text);
   if (!href) return { kind: 'text', value };
   const video = parseVideo(href);
   if (video) return { kind: 'video', href, video };
   try {
-    if (DATA.test(href) || IMAGE.test(new URL(href).pathname)) return { kind: 'image', href };
+    if (IMAGE_DATA_URL.test(href) || IMAGE.test(new URL(href).pathname))
+      return { kind: 'image', href };
   } catch {
-    /* Not an image URL. */
+    /* Invalid URL is treated as a link or plain text above. */
   }
   return { kind: 'link', href };
-}
-
-export function clipboardText(data: DataTransfer | null | undefined): string {
-  const line = data
-    ?.getData('text/uri-list')
-    ?.split(/\r?\n/)
-    .find((entry) => entry && !entry.startsWith('#'));
-  return line?.trim() || data?.getData('text/plain') || '';
 }
 
 function meta(html: string, name: string): string | undefined {
@@ -107,7 +106,7 @@ export function displayUrl(href: string): string {
   try {
     const url = new URL(href);
     const path = decodeURIComponent(url.pathname).replace(/\/$/, '');
-    return `${url.hostname.replace(/^www\./, '')}${path}`;
+    return `${hostnameOf(href)}${path}`;
   } catch {
     return href.replace(/^https?:\/\//, '').replace(/\/$/, '');
   }

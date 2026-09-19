@@ -7,6 +7,7 @@ import {
   routeConnector,
   SpatialIndex,
   simplifyPoints,
+  simplifyStroke,
 } from '../src/core';
 const shape = (id: string, kind = 'rect', x = 0, y = 0) =>
   normalizeItem({ id, kind, x, y, w: 100, h: 80, style: { fill: 'sky' } });
@@ -106,6 +107,20 @@ describe('headless geometry', () => {
     ).toEqual([
       [0, 0, 0.5],
       [20, 0, 0.5],
+    ]);
+    expect(
+      simplifyStroke(
+        [
+          [0, 0, 0.2],
+          [10, 0, 0.9],
+          [20, 0, 0.2],
+        ],
+        0.5,
+      ),
+    ).toEqual([
+      [0, 0, 0.2],
+      [10, 0, 0.9],
+      [20, 0, 0.2],
     ]);
   });
 });

@@ -1,5 +1,9 @@
 # Design decisions
 
+## 2026-09-19: Kind catalog version, not per-item revisions
+
+When a built-in kind is added or its create/read contract changes, increment `CATALOG_VERSION` and set that kind's `since` to the new number. `kindsSince(since?)` returns those entries. Omit `since` or pass `0` to list every built-in kind. This is the check for "what can I create that I did not know about." It does not stamp a version on every item in a drawing. The current board is `describe`, `read`, `get`, and `query`. The `.annie` format version stays a document-schema number.
+
 ## 2026-09-19: Independent DOM and SVG editor
 
 Build from AnnieDrawing's own requirements with standard TypeScript, DOM, SVG, and Pointer Events. The document is a readable tree. The renderer derives its output from that tree. No other drawing editor's implementation is used.
@@ -11,6 +15,10 @@ All item positions use page coordinates, including nested children. Array order 
 ## 2026-09-19: Five direct runtime dependencies
 
 Use signals, pressure strokes, a spatial index, validation, and short IDs. The schema converter is installed during development and bundled into the separate agent entry point. HTML sanitization is supplied by the application. CI checks dependency licenses and the main bundle budget.
+
+## 2026-09-19: 100 KiB gzipped default bundle
+
+The default `anniedrawing` editor plus its CSS stays under 100 KiB gzipped. Optional entry points, async chunks, and peer sanitizers stay outside that total. The check is `scripts/check-size.mjs`.
 
 ## 2026-09-19: Frontierz color and typography
 
@@ -30,7 +38,7 @@ Version 2 uses pages in the document, scopes, and editing API. Version 1 documen
 
 ## 2026-09-19: Toolbar and inspector layout
 
-Keep primary drawing tools on the sidebar: eraser after hand, image after sticky note, and line and arrow inside Shapes. Do not hide those tools behind a More overflow. On phones, hand stays in the board menu so the bottom bar remains tappable. The selection inspector is vertically centered like the tool sidebar. Export is a format menu that always downloads the current page. The AnnieDrawing control opens the same kind of menu for document, appearance, and agent actions. Show item-specific style controls only when something is selected, with palettes opened on demand and compact line and text controls visible beside the selection. The inspector does not repeat the selected kind as a title. Page management and agent tools remain available through their dedicated controls and the board menu. Positioning and rotation follow the user's pointer. Shift constrains the move axis or resize proportions.
+Keep primary drawing tools on the sidebar: eraser after hand, image after sticky note, and line and arrow inside Shapes. Do not hide those tools behind a More overflow. On phones, hand stays in the board menu so the bottom bar remains tappable, unless a host hides that menu. The selection inspector is vertically centered like the tool sidebar. Export downloads the current page. An imported board offers PNG and SVG; AnnieDoc is opt-in through `ui.export`. The local demo offers all three. The AnnieDrawing control opens the same kind of menu for document, appearance, and documentation, and hosts may hide it. Show item-specific style controls only when something is selected, with palettes opened on demand and compact line and text controls visible beside the selection. The inspector does not repeat the selected kind as a title. Page management remains in the bottom bar. Positioning and rotation follow the user's pointer. Shift constrains the move axis or resize proportions.
 
 ## 2026-09-19: OSS preparation without speculative publication
 
@@ -57,3 +65,7 @@ Paste classifies a single URL locally. YouTube and Vimeo become a `video` item w
 A pasted link card appears immediately from the URL. The browser may then fetch that same URL, without credentials, to fill title, description, and image. That fetch is a user-initiated paste. Hosts can pass `unfurl: false` or their own function. Do not send pasted URLs to a third-party metadata service. Agents do not unfurl.
 
 Notes, images, videos, and link cards share one 12px corner and one soft shadow so media on the board reads as one family. Video players keep pointer events off until a double-click, matching HTML items, so a clip can be moved without hitting play.
+
+## 2026-09-19: Publish-facing library surface
+
+Package entry points export the documented API, not every helper in a folder. Host page chrome (`html`, `body`, `#app`) belongs in the demo stylesheet; `anniedrawing/style.css` styles the editor host only. Draft merges, copies, translation, and connector detach share one implementation. Comments mark non-obvious contracts. Tests cover invariants, not restated implementation.

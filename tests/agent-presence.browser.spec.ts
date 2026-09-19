@@ -120,9 +120,9 @@ test('an apply can label the visiting cursor, and markup in the name stays text'
   page,
 }) => {
   await ready(page);
-  await place(page, 'named', 'Anita');
+  await place(page, 'named', 'planner');
   const cursor = page.locator('.ad-agent-cursor');
-  await expect(cursor.locator('span')).toHaveText('Anita');
+  await expect(cursor.locator('span')).toHaveText('planner');
   await expect(cursor).toHaveCount(0);
   await page.evaluate(() =>
     window.__anniedrawing![0].apply(

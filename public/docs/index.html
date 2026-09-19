@@ -553,6 +553,7 @@
           ><a href="#editor">Editor</a><a href="#api">API</a><a href="#agents">Agents</a
           ><a href="#format">Format and export</a><a href="#extensions">Extensions</a
           ><a href="#contribute">Contributing</a
+          ><a class="external" href="board-js.md">Board JavaScript</a
           ><a class="external" href="llms-full.txt">Full AI reference</a>
         </nav>
       </aside>
@@ -611,6 +612,10 @@ import 'anniedrawing/style.css'
 
 const board = createBoard(document.querySelector('#board'), {
   theme: 'auto',
+  ui: {
+    menu: true,
+    export: ['png', 'svg'],
+  },
   autosaveKey: 'my-drawing',
 })
 
@@ -649,7 +654,7 @@ board.apply([{ op: 'add', item: {
             to open its inspector. Fill, Line, and Color choose colors. Line also sets thickness and
             pattern. Text-capable shapes show size, alignment, and font. More arrangement options
             opens align, distribute, group, and stacking. Pages lists pages. The board menu holds
-            appearance and For agents.
+            appearance and documentation.
           </p>
           <div class="shortcut-grid">
             <div class="shortcut"><span>Select / move</span><kbd>V</kbd></div>
@@ -689,6 +694,10 @@ board.apply([{ op: 'add', item: {
               <tr>
                 <td><code>board.describe()</code></td>
                 <td>Deterministic text with IDs</td>
+              </tr>
+              <tr>
+                <td><code>board.kindsSince(since?)</code></td>
+                <td>Built-in kinds added or changed after that catalog version</td>
               </tr>
             </tbody>
           </table>
@@ -781,6 +790,7 @@ console.log(board.describe())</code></pre>
           </p>
           <div class="link-row">
             <a class="pill" href="agents.md">Agent operations</a
+            ><a class="pill" href="board-js.md">Board JavaScript</a
             ><a class="pill" href="llms-full.txt">Full AI reference</a
             ><a class="pill" href="mcp.md">MCP example</a>
           </div>
@@ -802,7 +812,8 @@ console.log(board.describe())</code></pre>
             <div>
               <h3>SVG and PNG</h3>
               <p>
-                The Export menu downloads the current page. SVG is vector. PNG defaults to 2×
+                The Export control downloads the current page. An imported board offers PNG and SVG;
+                pass <code>json</code> to add AnnieDoc. SVG is vector. PNG defaults to 2×
                 resolution. Pass <code>labels: true</code> when a vision model needs item IDs in the
                 image.
               </p>
@@ -868,6 +879,7 @@ npm run test:perf</code></pre>
           </p>
           <div class="link-row">
             <a class="pill" href="contributing.md">Contributing</a
+            ><a class="pill" href="decisions.md">Design decisions</a
             ><a class="pill" href="releasing.md">Release checklist</a
             ><a class="pill" href="security.md">Security</a
             ><a class="pill" href="notice.txt">Licenses and credits</a>

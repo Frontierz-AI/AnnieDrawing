@@ -1,4 +1,5 @@
 import { CARD_CORNER } from '../core/defaults';
+import { allItems } from '../core/item';
 import type { AnnieDoc, Box, ExportOptions, Item } from '../core/types';
 import { boundsOf, flattenItems, routeConnector } from '../geo/index';
 import { createKindRegistry, type KindDef } from '../kinds/registry';
@@ -101,7 +102,7 @@ function cardExport(item: Item, theme: 'light' | 'dark', doc: AnnieDoc): string 
 /** Create a portable SVG without scripts, foreignObject, or a DOM dependency. */
 export function exportSVG(doc: AnnieDoc, items: Item[], options: SVGExportOptions = {}): string {
   const theme = options.theme ?? 'light';
-  const all = flattenItems(doc.pages.flatMap((page) => page.items));
+  const all = allItems(doc);
   const lookup = new Map(all.map((item) => [item.id, item]));
   const kinds = createKindRegistry(options.kinds);
   const resolveOutline = (item: Item) => kinds.get(item.kind)?.outline?.(item);

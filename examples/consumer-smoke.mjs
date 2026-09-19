@@ -25,14 +25,18 @@ try {
   await writeFile(
     join(directory, 'consumer.ts'),
     `
-    import { createBoard, type Op } from 'anniedrawing';
-    import { createDoc } from 'anniedrawing/core';
+    import { createBoard, defineKind, registerKind, kindsSince, type Op } from 'anniedrawing';
+    import { createDoc, CATALOG_VERSION, LIMITS } from 'anniedrawing/core';
     import { runTool, toolDefs } from 'anniedrawing/agent';
     const ops: Op[] = [
       {op:'page.add',page:{id:'p_consumer',name:'Consumer'}},
       {op:'add',page:'p_consumer',item:{kind:'rect'}},
     ];
     createDoc().apply(ops);
+    void LIMITS.maxHistory;
+    void CATALOG_VERSION;
+    void kindsSince().kinds;
+    void registerKind(defineKind({ kind: 'consumer-badge' }));
     const board = createBoard(document.createElement('div'));
     board.apply(ops);
     board.setPage('p_consumer');

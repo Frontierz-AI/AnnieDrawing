@@ -1,4 +1,4 @@
-import type { Box, Endpoint, Item, Point } from '../core/types';
+import type { Box, Endpoint, Item, Outline, Point } from '../core/types';
 import {
   boxFromPoints,
   boundsOf,
@@ -8,11 +8,7 @@ import {
   type ItemLookup,
 } from './box';
 import { distance, rotatePoint } from './vec';
-export interface EndpointOutline {
-  points: Point[];
-  closed: boolean;
-}
-export type OutlineResolver = (item: Item) => EndpointOutline | EndpointOutline[] | undefined;
+export type OutlineResolver = (item: Item) => Outline | Outline[] | undefined;
 
 function endpointItem(
   id: string,
@@ -130,9 +126,7 @@ export function resolveEndpoint(
 export interface ConnectorGeometry {
   points: Point[];
   d: string;
-  path: string;
   midpoint: Point;
-  label: Point;
   bounds: Box;
 }
 export function routeConnector(
@@ -193,5 +187,5 @@ export function routeConnector(
     }
     remaining -= lengths[i];
   }
-  return { points, d, path: d, midpoint, label: midpoint, bounds: boxFromPoints(points) };
+  return { points, d, midpoint, bounds: boxFromPoints(points) };
 }

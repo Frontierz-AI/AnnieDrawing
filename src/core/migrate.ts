@@ -80,6 +80,8 @@ export const migrations: Record<number, (doc: Record<string, unknown>) => Record
       };
     },
   };
+
+/** Load any supported version. Retired `frame` items become groups on every import. */
 export function migrate(
   input: unknown,
   kindDefaults: Record<string, Partial<Item>> = {},

@@ -1,11 +1,14 @@
 import type { AnnieDoc, Item, Query } from '../core/types';
 import { clone } from '../core/defaults';
+import { allItems } from '../core/item';
 import { contains, flattenItems, itemBounds } from '../geo/box';
+/** Filters combine with AND. A `RegExp` `g`/`y` flag is stripped so lastIndex cannot skip matches. */
 export function queryDoc(doc: AnnieDoc, selector: Query = {}): Item[] {
-  const items = flattenItems(
-      doc.pages.filter((s) => !selector.page || s.id === selector.page).flatMap((s) => s.items),
-    ),
-    lookup = new Map(flattenItems(doc.pages.flatMap((s) => s.items)).map((i) => [i.id, i]));
+  const all = allItems(doc),
+    lookup = new Map(all.map((item) => [item.id, item]));
+  const items = selector.page
+    ? flattenItems(doc.pages.find((page) => page.id === selector.page)?.items ?? [])
+    : all;
   const inside = selector.inside
     ? new Set(flattenItems(lookup.get(selector.inside)?.children ?? []).map((i) => i.id))
     : undefined;

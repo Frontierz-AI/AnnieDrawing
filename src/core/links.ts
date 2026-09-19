@@ -11,12 +11,16 @@ export interface LinkPreview {
 }
 
 const YT = /^[\w-]{11}$/;
-const DATA = /^data:image\/(png|jpeg|gif|webp|avif);base64,[a-z0-9+/=\s]+$/i;
+/** Raster image data URLs accepted as image items. */
+export const IMAGE_DATA_URL = /^data:image\/(png|jpeg|gif|webp|avif);base64,[a-z0-9+/=\s]+$/i;
+/** Image media table sources, including SVG. */
+export const MEDIA_DATA_URL =
+  /^data:image\/(png|jpeg|gif|webp|avif|svg\+xml);base64,[a-z0-9+/=\s]+$/i;
 
 export function normalizeHref(value?: string): string | undefined {
   if (typeof value !== 'string') return;
   const text = value.trim();
-  if (DATA.test(text)) return text.replace(/\s+/g, '');
+  if (IMAGE_DATA_URL.test(text)) return text.replace(/\s+/g, '');
   try {
     const url = new URL(text);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return;

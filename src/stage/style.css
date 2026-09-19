@@ -231,16 +231,9 @@
   stroke: #00876c;
   stroke-width: 1;
 }
-@media (prefers-reduced-motion: reduce) {
-  .ad-root * {
-    scroll-behavior: auto !important;
-  }
-}
-
 .ad-no-grid .ad-grid {
   display: none;
 }
-
 .ad-custom-handle {
   fill: #05d9ab;
   stroke: #103639;

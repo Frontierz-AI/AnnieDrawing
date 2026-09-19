@@ -8,7 +8,7 @@ Use Node.js 24 or newer and `npm ci`. `npm run dev` starts the demo on port 5173
 
 Write original code from AnnieDrawing's requirements and public platform documentation. Do not copy, port, translate, or paraphrase another drawing editor's source, even if you believe its license permits it. Do not keep another editor's source open while implementing equivalent functionality here. Tell reviewers where any third-party material came from and add its notice before submission.
 
-Dependencies must have a reviewed, compatible license. The default library is limited to five runtime dependencies and 60 KiB gzipped, including CSS. Optional integrations belong in separate entry points. Development tools should not leak into the runtime. Fonts, fixtures, and icons need compatible provenance too.
+Dependencies must have a reviewed, compatible license. The default library is limited to five runtime dependencies and 100 KiB gzipped, including CSS. Optional integrations belong in separate entry points. Development tools should not leak into the runtime. Fonts, fixtures, and icons need compatible provenance too.
 
 ## Developer Certificate of Origin
 
@@ -29,5 +29,7 @@ Never add someone else's sign-off or invent a contributor identity. CI checks fo
 ## Review expectations
 
 Preserve the JSON format and the atomic operations contract. Keep the headless model free of DOM access. Test rollback, undo, and connector bindings when changing document operations. Test keyboard, cancellation, and focus when changing input. Check light and dark themes and narrow screens for visible UI work. Explain new public APIs in `docs/api.md` and keep AI-facing documentation current.
+
+Comment only when a name does not make the contract obvious. Keep comments short. Prefer a regression test for an invariant (atomic apply, undo, connector detach, locks, input cancellation) over a test that restates the implementation.
 
 Follow the [code of conduct](code-of-conduct.md). Share minimal reproductions without secrets or private drawings. Report security concerns using [SECURITY.md](security.md). Do not post an exploit and sensitive data in public.

@@ -1,32 +1,31 @@
 import type { AnnieDoc, Item, NewItem, Style } from './types';
+import { KIND_CATALOG } from './catalog';
 import { itemId } from './ids';
+export const CARD_CORNER = 12;
 export const DEFAULT_STYLE: Required<Style> = {
   stroke: 'ink',
   strokeWidth: 2,
   dash: 'solid',
   fill: 'none',
   fillMode: 'solid',
-  corner: 12,
+  corner: CARD_CORNER,
   opacity: 1,
 };
-export const CARD_CORNER = 12;
-export const DEFAULT_SIZES: Record<string, [number, number]> = {
-  rect: [180, 110],
-  ellipse: [180, 110],
-  diamond: [160, 140],
-  line: [180, 0],
-  connector: [0, 0],
-  path: [0, 0],
-  text: [200, 48],
-  note: [200, 180],
-  image: [240, 180],
-  video: [480, 270],
-  link: [220, 200],
-  group: [0, 0],
-  html: [240, 160],
-};
+export const DEFAULT_SIZES: Record<string, [number, number]> = Object.fromEntries(
+  KIND_CATALOG.map((entry) => [entry.kind, [entry.w, entry.h]]),
+);
 export function clone<T>(value: T): T {
   return structuredClone(value);
+}
+export function sizeOf(kind: string): [number, number] {
+  return DEFAULT_SIZES[kind] ?? [180, 110];
+}
+export function kindDefaultsFrom(
+  kinds?: { kind: string; defaults?: Partial<Item> }[],
+): Record<string, Partial<Item>> {
+  return Object.fromEntries(
+    (kinds ?? []).filter((kind) => kind.defaults).map((kind) => [kind.kind, kind.defaults!]),
+  );
 }
 export function defaultDoc(): AnnieDoc {
   return {
@@ -48,7 +47,7 @@ export function normalizeItem(
       ...input,
       ...(custom.style ? { style: { ...clone(custom.style), ...input.style } } : {}),
     };
-  const size = DEFAULT_SIZES[input.kind] ?? [180, 110];
+  const size = sizeOf(input.kind);
   const result = {
     ...clone(input),
     id: input.id ?? itemId(),

@@ -24,6 +24,15 @@ export function flattenItems(items: Item[]): Item[] {
   return out;
 }
 export const centerOf = (b: Box): Point => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
+export function boxCorners(box: Box, rotation = 0, origin = centerOf(box)): Point[] {
+  const points = [
+    { x: box.x, y: box.y },
+    { x: box.x + box.w, y: box.y },
+    { x: box.x + box.w, y: box.y + box.h },
+    { x: box.x, y: box.y + box.h },
+  ];
+  return rotation ? points.map((point) => rotatePoint(point, origin, rotation)) : points;
+}
 export function boxFromPoints(points: Point[]): Box {
   if (!points.length) return { x: 0, y: 0, w: 0, h: 0 };
   let x = Infinity,
@@ -50,15 +59,7 @@ export function itemBounds(item: Item, lookup?: ItemLookup, outline?: OutlineRes
   if ((item.kind === 'path' || item.kind === 'line') && item.points?.length)
     box = boxFromPoints(item.points.map((p) => ({ x: item.x + p[0], y: item.y + p[1] })));
   if (!item.rotation) return box;
-  const c = centerOf(item);
-  return boxFromPoints(
-    [
-      { x: box.x, y: box.y },
-      { x: box.x + box.w, y: box.y },
-      { x: box.x + box.w, y: box.y + box.h },
-      { x: box.x, y: box.y + box.h },
-    ].map((p) => rotatePoint(p, c, item.rotation!)),
-  );
+  return boxFromPoints(boxCorners(box, item.rotation, centerOf(item)));
 }
 export function boundsOf(items: Item[], lookup?: ItemLookup, outline?: OutlineResolver): Box {
   const map = lookup ?? new Map(flattenItems(items).map((i) => [i.id, i]));
