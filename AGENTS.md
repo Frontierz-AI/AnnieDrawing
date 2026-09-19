@@ -21,7 +21,7 @@ AnnieDrawing is a TypeScript library and a local demo. Keep the library small an
 - `src/agent`: descriptions, tool schemas, and dispatch.
 - `src/porter`: JSON, SVG, and PNG export.
 - `src/ui`: reusable editor controls.
-- `demo`: local playground and persistence.
+- `demo`: local playground and persistence. The demo Export control offers PNG, SVG, and AnnieDoc.
 - `examples/mcp`: stdio MCP plus an opt-in local WebSocket browser bridge.
 
 ## Invariants

@@ -7,7 +7,7 @@ import { createBoard } from '../src/index';
 const board = createBoard(document.querySelector<HTMLElement>('#app')!, {
   autosaveKey: 'annie-playground-v2',
   theme: 'light',
-  ui: { export: ['png', 'svg', 'json'] },
+  ui: { export: ['png', 'svg', 'json'] }, // demo offers AnnieDoc; library default is PNG and SVG
   unfurl: async (url) => {
     try {
       const response = await fetch(`/__ad-unfurl?url=${encodeURIComponent(url)}`);

@@ -4,9 +4,16 @@ import { button, icon } from './icons';
 import { color as resolveColor, DEFAULT_FONT, fonts, fontSize, styleFor } from '../stage/paint';
 import { pageId } from '../core/ids';
 import { ANNIE_MIME } from '../porter/json';
+/** PNG, SVG, or AnnieDoc (`json`, saved as `.annie`). */
 export type UiExportFormat = 'png' | 'svg' | 'json';
+/** Header controls. Pass `ui: false` to `createBoard` to omit all editor chrome. */
 export interface UiOptions {
+  /** AnnieDrawing control. Default `true`. */
   menu?: boolean;
+  /**
+   * Export control. Default `['png', 'svg']`. `false` hides it. Include `'json'` for AnnieDoc.
+   * One format downloads on click; two or more open a menu.
+   */
   export?: boolean | UiExportFormat[];
 }
 const defaultExportFormats: UiExportFormat[] = ['png', 'svg'];

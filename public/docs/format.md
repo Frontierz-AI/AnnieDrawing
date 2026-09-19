@@ -73,3 +73,7 @@ The loader accepts version 1 drawings with `sheets` and migrates them to version
 The editing API uses `page.add`, `page.set`, `page.remove`, the `page` operation property, and the `page` read and export scope. Legacy field names belong only to imported version 1 data. Unsupported future versions are rejected.
 
 Older drawings that contain `frame` items load as ordinary groups. The loader keeps the container ID, children, metadata, and connector bindings, adds a rectangle for the background and text for the heading, and drops clipping. Content that sat outside a container becomes visible. New drawings use groups for nesting and rectangles for visible boxes.
+
+## Export
+
+`board.export` writes JSON (AnnieDoc), SVG, or PNG. The editor Export control downloads the current page. An imported board lists PNG and SVG unless the host sets `ui.export`. Include `'json'` to offer a `.annie` file. The repository demo lists all three. Programmatic export is not limited by that menu. See [API reference](api.md#export).

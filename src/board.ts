@@ -50,7 +50,9 @@ export interface BoardOptions {
   doc?: AnnieDoc;
   agentPresence?: boolean;
   readonly?: boolean;
+  /** `'light'` when omitted, `'dark'`, or `'auto'` for `prefers-color-scheme`. */
   theme?: 'light' | 'dark' | 'auto';
+  /** `false` omits chrome. An object keeps the tools and sets the header. Default `true`. */
   ui?: boolean | UiOptions;
   kinds?: KindDef[];
   autosaveKey?: string;
@@ -1817,6 +1819,7 @@ export class Board {
     if (e.dataTransfer) void this.pasteFrom(e.dataTransfer, p);
   };
 }
+/** Mount a board in `host`. See `BoardOptions` for theme, chrome, and export. */
 export function createBoard(host: HTMLElement, options?: BoardOptions) {
   return new Board(host, options);
 }

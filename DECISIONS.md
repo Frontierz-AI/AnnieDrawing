@@ -36,6 +36,10 @@ Readable summaries, precise JSON, labeled snapshots, and small operation batches
 
 Version 2 uses pages in the document, scopes, and editing API. Version 1 documents migrate at load time, preserving content and IDs. New saves use the current format. Page creation and switching live in bottom tabs, with overflow and contextual rename and delete actions. Manual alignment and distribution remain ordinary undoable editing actions.
 
+## 2026-09-19: Host chrome options
+
+`createBoard` appearance is `'light'`, `'dark'`, or `'auto'` for the system. The AnnieDrawing header menu and the Export control are independent `ui` flags. An imported board shows the menu and offers PNG and SVG. AnnieDoc (`json`) is opt-in. The repository demo passes all three formats. Programmatic `board.export` is not limited by the Export menu.
+
 ## 2026-09-19: Toolbar and inspector layout
 
 Keep primary drawing tools on the sidebar: eraser after hand, image after sticky note, and line and arrow inside Shapes. Do not hide those tools behind a More overflow. On phones, hand stays in the board menu so the bottom bar remains tappable, unless a host hides that menu. The selection inspector is vertically centered like the tool sidebar. Export downloads the current page. An imported board offers PNG and SVG; AnnieDoc is opt-in through `ui.export`. The local demo offers all three. The AnnieDrawing control opens the same kind of menu for document, appearance, and documentation, and hosts may hide it. Show item-specific style controls only when something is selected, with palettes opened on demand and compact line and text controls visible beside the selection. The inspector does not repeat the selected kind as a title. Page management remains in the bottom bar. Positioning and rotation follow the user's pointer. Shift constrains the move axis or resize proportions.

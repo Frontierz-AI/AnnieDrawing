@@ -6,7 +6,7 @@ Initial independent AnnieDrawing implementation: a framework-free HTML/SVG board
 
 Tool menus open beside their desktop buttons and close when pressed again. Zoom options align with the fit-view button.
 
-Documents use format version 2 with pages. Version 1 drawings migrate on load while preserving their content. The compact inspector exposes relevant line and text controls directly. Export is a format menu that downloads the current page as PNG, SVG or an Annie document; PNG uses 2× resolution.
+Documents use format version 2 with pages. Version 1 drawings migrate on load while preserving their content. The compact inspector exposes relevant line and text controls directly. Export downloads the current page; PNG uses 2× resolution. An imported board offers PNG and SVG. AnnieDoc is opt-in. The local demo offers PNG, SVG, and AnnieDoc.
 
 Page chips now live in the bottom-left bar with an overflow list and contextual rename/delete actions. Undo and redo sit beside Fit drawing in the bottom-right zoom cluster. Element actions use a compact anchored right-click menu. The inspector adds more colors, visible opacity and an icon for locking; the extra style section and text-edit button are removed. Board menu title editing and frame tooling are removed. Older frames import as groups, preserving their contents, backgrounds and labels without clipping.
 
@@ -26,7 +26,7 @@ The package declares the version intended for the first release. No publication 
 
 Library CSS no longer sets host `html`/`body` layout. Import `anniedrawing/style.css` for editor chrome; hosts size their own page. Shared item helpers cover drafts, copies, translation, connector detach, and clipboard URI lists. `registerKind` is exported from `anniedrawing`. The UI entry exports `mountUI`; unused `title`/`branding` options and leftover icon glyphs are gone.
 
-The docs site, README, API, format, agent, extension, MCP, and repository guides were rewritten as a developer manual. Those pages match the current board: 12px card corners, `apply.merge`, query kind arrays, placement rules, image import limits, `runTool` origin rewriting, and the six agent tools.
+The docs site, README, API, format, agent, extension, MCP, and repository guides were rewritten as a developer manual. Those pages match the current board: 12px card corners, `apply.merge`, query kind arrays, placement rules, image import limits, `runTool` origin rewriting, and the six agent tools. The documentation page stays within a 320px phone viewport.
 
 `llms.txt` and `llms-full.txt` are board-JavaScript guides: kinds, `apply`, and how to read what is on the board. They no longer concatenate install or repository instructions. Built-in kinds carry a catalog `since` version. `kindsSince(since?)` (also `board.kindsSince` / `doc.kindsSince`) lists kinds added or last changed after that number; omit `since` or pass `0` for the full catalog.
 
