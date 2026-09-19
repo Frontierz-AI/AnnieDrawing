@@ -462,9 +462,9 @@ test('connectors wait while the first shapes appear one after another', async ({
       item: {
         id: `c-${i}`,
         kind: 'connector',
-        from: { item: `n-${i}`, side: 'right' },
-        to: { item: `n-${i + 1}`, side: 'left' },
-        route: 'elbow',
+        from: { item: `n-${i}`, side: 'right' as const },
+        to: { item: `n-${i + 1}`, side: 'left' as const },
+        route: 'elbow' as const,
       },
     }));
     board.apply([...links, ...rects], { origin: 'agent:planner' });
