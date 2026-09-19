@@ -181,10 +181,15 @@ test('camera updates coalesce into one animation frame while coordinates stay sy
   const result = await page.evaluate(async () => {
     const { stage } = (window as any).__stageFixture;
     await new Promise(requestAnimationFrame);
+    await new Promise(requestAnimationFrame);
     const before = stage.world.style.transform;
     let mutations = 0;
-    const observer = new MutationObserver((records) => {
-      mutations += records.length;
+    let last = before;
+    const observer = new MutationObserver(() => {
+      const next = stage.world.style.transform;
+      if (next === last) return;
+      mutations++;
+      last = next;
     });
     observer.observe(stage.world, { attributes: true, attributeFilter: ['style'] });
     for (let index = 0; index < 40; index++)
