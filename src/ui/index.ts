@@ -56,6 +56,10 @@ const palette = [
   ['rose', 'Rose'],
   ['none', 'No fill'],
 ];
+/** Narrow hosts, or a short tablet / phone-landscape host. */
+function phoneChrome(width: number, height: number) {
+  return width <= 700 || (width <= 1023 && height <= 640);
+}
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text?: string) {
   const node = document.createElement(tag);
   node.className = className;
@@ -211,7 +215,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     panel.showPopover();
     const anchor = alignTo.getBoundingClientRect(),
       bounds = board.stage.root.getBoundingClientRect();
-    const mobile = bounds.width <= 700,
+    const mobile = phoneChrome(bounds.width, bounds.height),
       width = Math.min(228, bounds.width - 24);
     panel.style.width = `${width}px`;
     const height = panel.getBoundingClientRect().height;
@@ -1066,7 +1070,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       panel.append(option);
     };
     add('Open a drawing', 'upload', () => drawingInput?.click(), board.readonly);
-    if (board.stage.root.clientWidth <= 700) {
+    if (phoneChrome(board.stage.root.clientWidth, board.stage.root.clientHeight)) {
       add('Hand', 'hand', () => {
         board.setTool('hand');
         board.focus();

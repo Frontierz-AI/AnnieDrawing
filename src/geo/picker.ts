@@ -17,6 +17,7 @@ export interface PickOptions {
   enteredGroup?: string;
   includeLocked?: boolean;
   outline?: OutlineResolver;
+  ignore?: (item: Item) => boolean;
 }
 export function hitTest(
   item: Item,
@@ -146,7 +147,7 @@ export class SpatialIndex {
       .sort((a, b) => a.order - b.order)
       .map((e) => e.item);
   }
-  enclosed(box: Box, options: { enteredGroup?: string } = {}): Item[] {
+  enclosed(box: Box, options: { enteredGroup?: string; ignore?: (item: Item) => boolean } = {}): Item[] {
     const selected = new Map<string, Entry>();
     const candidates = this.tree.search({
       minX: box.x,
@@ -158,7 +159,8 @@ export class SpatialIndex {
       if (
         entry.item.hidden ||
         entry.item.locked ||
-        entry.parents.some((parent) => parent.hidden || parent.locked)
+        options.ignore?.(entry.item) ||
+        entry.parents.some((parent) => parent.hidden || parent.locked || options.ignore?.(parent))
       )
         return;
       return {
@@ -194,8 +196,11 @@ export class SpatialIndex {
     for (const e of found) {
       if (
         e.item.hidden ||
+        options.ignore?.(e.item) ||
         (!options.includeLocked && e.item.locked) ||
-        e.parents.some((p) => p.hidden || (!options.includeLocked && p.locked))
+        e.parents.some(
+          (p) => p.hidden || options.ignore?.(p) || (!options.includeLocked && p.locked),
+        )
       )
         continue;
       if (!hitTest(e.item, point, tolerance, this.lookup, options.outline ?? this.outline))

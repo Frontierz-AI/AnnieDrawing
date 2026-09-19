@@ -178,7 +178,7 @@ test('one cursor visits sequential batches and groups reveal their children toge
   await expect(page.locator('.ad-agent-pending')).toHaveCount(0);
 });
 
-test('immediate fit uses the new camera; a later pan cancels presentation without hiding items', async ({
+test('immediate fit uses the new camera; pan and clicks keep the walk going', async ({
   page,
 }) => {
   await ready(page);
@@ -207,20 +207,45 @@ test('immediate fit uses the new camera; a later pan cancels presentation withou
   expect(landing.x).toBeCloseTo(target.x, 0);
   expect(landing.y).toBeCloseTo(target.y, 0);
   await page.evaluate(() => window.__anniedrawing![0].stage.lens.set({ x: 0, y: 0, zoom: 1 }));
-  await expect(page.locator('.ad-agent-cursor')).toHaveCount(0);
   await place(page);
   await expect(page.locator('.ad-agent-cursor')).toHaveCount(1);
+  await expect(page.locator('[data-ad-id="idea"]')).toBeHidden();
   await page.mouse.wheel(0, 40);
-  await expect(page.locator('.ad-agent-cursor')).toHaveCount(0);
+  await expect(page.locator('.ad-agent-cursor')).toHaveCount(1);
+  await expect(page.locator('[data-ad-id="idea"]')).toBeHidden();
   await expect(page.locator('[data-ad-id="idea"]')).toBeVisible();
 });
 
-test('human input, undo, removal and page changes clear every pending visual', async ({ page }) => {
+test('a person can select existing work while an arrival continues', async ({ page }) => {
   await ready(page);
-  await place(page, 'click');
-  await page.mouse.click(700, 470);
-  await expect(page.locator('.ad-agent-cursor,.ad-agent-pending')).toHaveCount(0);
-  await expect(page.locator('[data-ad-id="click"]')).toBeVisible();
+  await page.evaluate(() => {
+    const board = window.__anniedrawing![0];
+    board.apply([
+      { op: 'add', item: { id: 'mine', kind: 'ellipse', x: 580, y: 340, w: 90, h: 90 } },
+    ]);
+    board.select(['mine']);
+  });
+  await place(page);
+  await expect(page.locator('.ad-agent-cursor')).toHaveCount(1);
+  await expect(page.locator('[data-ad-id="idea"]')).toBeHidden();
+  await page.locator('[data-ad-id="mine"]').click();
+  await expect(page.locator('.ad-agent-cursor')).toHaveCount(1);
+  await expect(page.locator('[data-ad-id="idea"]')).toBeHidden();
+  expect(await page.evaluate(() => window.__anniedrawing![0].selection)).toEqual(['mine']);
+  await page.evaluate(() =>
+    window.__anniedrawing![0].apply(
+      [{ op: 'add', item: { id: 'note', kind: 'note', x: 80, y: 80, w: 160, h: 120 } }],
+      { origin: 'user', label: 'Add a note' },
+    ),
+  );
+  await expect(page.locator('[data-ad-id="note"]')).toBeVisible();
+  await expect(page.locator('.ad-agent-cursor')).toHaveCount(1);
+  await expect(page.locator('[data-ad-id="idea"]')).toBeHidden();
+  await expect(page.locator('[data-ad-id="idea"]')).toBeVisible();
+});
+
+test('undo, removal and page changes clear pending visuals for gone items', async ({ page }) => {
+  await ready(page);
   await place(page, 'undo');
   await page.evaluate(() => window.__anniedrawing![0].undo());
   await expect(page.locator('[data-ad-id="undo"],.ad-agent-pending,.ad-agent-cursor')).toHaveCount(
@@ -355,7 +380,7 @@ test('mobile and dark mode keep a small distinct cursor inside the board without
   await expect(page.locator('.ad-agent-cursor')).toHaveCount(0);
 });
 
-test('large batches stay brief, skip offscreen stops and preserve connector geometry', async ({
+test('large batches stay brief, hold offscreen items and preserve connector geometry', async ({
   page,
 }) => {
   await ready(page);
@@ -404,11 +429,50 @@ test('large batches stay brief, skip offscreen stops and preserve connector geom
   await expect(cursor).toHaveCount(1);
   await expect(page.locator('[data-ad-id="batch-0"]')).toBeVisible();
   await expect(page.locator('[data-ad-id="batch-39"]')).toBeHidden();
+  await expect(page.locator('[data-ad-id="outside-0"]')).toBeHidden();
+  await expect(page.locator('[data-ad-id="link"]')).toBeHidden();
   const geometry = await page.locator('[data-ad-id="link"] .ad-shape').innerHTML();
   await expect(page.locator('[data-ad-id="batch-39"]')).toBeVisible({ timeout: 8000 });
   await expect(cursor).toHaveCount(0);
+  await expect(page.locator('[data-ad-id="outside-0"]')).not.toHaveClass(/ad-agent-pending/);
+  await expect(page.locator('[data-ad-id="outside-0"]')).toHaveCSS('visibility', 'visible');
   await expect(page.locator('[data-ad-id="link"]')).toHaveCSS('transform', 'none');
   await expect(page.locator('[data-ad-id="link"]')).toHaveCSS('opacity', '0.6');
   expect(await page.locator('[data-ad-id="link"] .ad-shape').innerHTML()).toBe(geometry);
   await expect(page.locator('.ad-agent-pending')).toHaveCount(0);
+});
+
+test('connectors wait while the first shapes appear one after another', async ({ page }) => {
+  await ready(page);
+  await page.evaluate(() => {
+    const board = window.__anniedrawing![0];
+    const rects = Array.from({ length: 12 }, (_, i) => ({
+      op: 'add' as const,
+      item: {
+        id: `n-${i}`,
+        kind: 'rect',
+        x: 180 + (i % 4) * 130,
+        y: 170 + Math.floor(i / 4) * 110,
+        w: 100,
+        h: 80,
+      },
+    }));
+    const links = Array.from({ length: 11 }, (_, i) => ({
+      op: 'add' as const,
+      item: {
+        id: `c-${i}`,
+        kind: 'connector',
+        from: { item: `n-${i}`, side: 'right' },
+        to: { item: `n-${i + 1}`, side: 'left' },
+        route: 'elbow',
+      },
+    }));
+    board.apply([...links, ...rects], { origin: 'agent:planner' });
+  });
+  await expect(page.locator('[data-ad-id="n-0"]')).toBeVisible();
+  await expect(page.locator('[data-ad-id="n-11"]')).toBeHidden();
+  await expect(page.locator('[data-ad-id="c-0"]')).toBeHidden();
+  await expect(page.locator('[data-ad-id="n-11"]')).toBeVisible({ timeout: 8000 });
+  await expect(page.locator('[data-ad-id="c-0"]')).toBeVisible();
+  await expect(page.locator('.ad-agent-cursor,.ad-agent-pending')).toHaveCount(0);
 });

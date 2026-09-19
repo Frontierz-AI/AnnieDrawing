@@ -25,6 +25,8 @@
 }
 .ad-root {
   box-sizing: border-box;
+  container-type: size;
+  container-name: board;
   --ad-font-sans: 'Nunito Variable', 'Nunito', 'Trebuchet MS', sans-serif;
   --ad-font-hand: 'Comic Sans MS', 'Chalkboard SE', cursive;
   --ad-ui-bg: #fff;
@@ -55,6 +57,16 @@
   pointer-events: none;
   font-size: 13px;
   line-height: 1.4;
+  --ad-inset: 24px;
+  --ad-edge: 20px;
+  --ad-tool: 44px;
+  --ad-tool-pad: 7px;
+  --ad-tool-gap: 4px;
+  --ad-tool-icon: 24px;
+  --ad-ctrl: 38px;
+  --ad-ctrl-icon: 20px;
+  --ad-panel-pad: 14px;
+  --ad-dock-clearance: 174px;
 }
 .ad-ui > * {
   pointer-events: auto;
@@ -66,13 +78,14 @@
 }
 .ad-header {
   position: absolute;
-  left: 24px;
-  right: 24px;
-  top: 20px;
+  left: max(var(--ad-inset), env(safe-area-inset-left, 0px));
+  right: max(var(--ad-inset), env(safe-area-inset-right, 0px));
+  top: max(var(--ad-edge), env(safe-area-inset-top, 0px));
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+  min-width: 0;
   pointer-events: none;
 }
 .ad-header > * {
@@ -181,8 +194,8 @@
   background: none;
   border: 0;
   border-radius: 11px;
-  width: 38px;
-  height: 38px;
+  width: var(--ad-ctrl);
+  height: var(--ad-ctrl);
   display: inline-flex;
   justify-content: center;
   align-items: center;
@@ -201,23 +214,28 @@
 }
 .ad-toolbar {
   position: absolute;
-  left: 24px;
+  left: max(var(--ad-inset), env(safe-area-inset-left, 0px));
   top: 50%;
   transform: translateY(-50%);
-  padding: 7px;
+  padding: var(--ad-tool-pad);
   background: var(--ad-ui-bg);
   border: 1px solid var(--ad-ui-border);
   border-radius: 19px;
   box-shadow: var(--ad-shadow);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--ad-tool-gap);
   align-items: center;
+  max-height: calc(100% - var(--ad-dock-clearance));
 }
 .ad-toolbar .ad-icon-button {
-  width: 44px;
-  height: 44px;
+  width: var(--ad-tool);
+  height: var(--ad-tool);
   border-radius: 12px;
+}
+.ad-toolbar svg {
+  width: var(--ad-tool-icon);
+  height: var(--ad-tool-icon);
 }
 .ad-toolbar .ad-icon-button[aria-pressed='true'] {
   background: #05d9ab30;
@@ -304,7 +322,7 @@
   right: 0;
   top: 50%;
   transform: translateY(-50%);
-  max-height: calc(100% - 174px);
+  max-height: calc(100cqb - var(--ad-dock-clearance));
   display: flex;
   flex-direction: row-reverse;
   align-items: center;
@@ -315,14 +333,14 @@
 }
 .ad-style-panel {
   width: 248px;
-  max-width: calc(100vw - 48px);
-  max-height: 100%;
+  max-width: calc(100cqi - 48px);
+  max-height: calc(100cqb - var(--ad-dock-clearance));
   overflow: auto;
   scrollbar-width: thin;
   background: var(--ad-ui-bg);
   border: 1px solid var(--ad-ui-border);
   border-radius: 18px;
-  padding: 14px;
+  padding: var(--ad-panel-pad);
   box-shadow: var(--ad-shadow);
 }
 .ad-style-dismiss {
@@ -495,13 +513,14 @@
 }
 .ad-footer {
   position: absolute;
-  left: 24px;
-  right: 24px;
-  bottom: 20px;
+  left: max(var(--ad-inset), env(safe-area-inset-left, 0px));
+  right: max(var(--ad-inset), env(safe-area-inset-right, 0px));
+  bottom: max(var(--ad-edge), env(safe-area-inset-bottom, 0px));
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  min-width: 0;
   pointer-events: none;
 }
 .ad-footer > * {
@@ -516,10 +535,11 @@
   border-radius: 15px;
   background: var(--ad-ui-bg);
   box-shadow: var(--ad-shadow);
+  flex-shrink: 0;
 }
 .ad-zoom svg {
-  width: 20px;
-  height: 20px;
+  width: var(--ad-ctrl-icon);
+  height: var(--ad-ctrl-icon);
 }
 .ad-footer-right {
   display: flex;
@@ -532,7 +552,7 @@
   color: var(--ad-ui-text);
   font-size: 12px;
   font-weight: 700;
-  height: 38px;
+  height: var(--ad-ctrl);
   width: 56px;
   border-radius: 10px;
   font-variant-numeric: tabular-nums;
@@ -570,7 +590,7 @@
   flex: 0 0 auto;
   min-width: 40px;
   max-width: 140px;
-  height: 38px;
+  height: var(--ad-ctrl);
   padding: 8px 14px;
   border: 0;
   border-radius: 11px;
@@ -605,8 +625,8 @@
   max-height: min(360px, calc(100dvh - 24px));
 }
 .ad-pages svg {
-  width: 20px;
-  height: 20px;
+  width: var(--ad-ctrl-icon);
+  height: var(--ad-ctrl-icon);
 }
 .ad-context-menu .ad-tool-option {
   font-size: 13px;
@@ -703,26 +723,96 @@
   display: none !important;
 }
 
-@media (max-height: 600px) and (min-width: 701px) {
-  .ad-toolbar {
-    top: 82px;
-    transform: none;
-    gap: 1px;
+@container board ((max-height: 640px) and (min-width: 1024px)) {
+  .ad-ui {
+    --ad-inset: 12px;
+    --ad-edge: 10px;
+    --ad-tool: 34px;
+    --ad-tool-pad: 4px;
+    --ad-tool-gap: 1px;
+    --ad-tool-icon: 18px;
+    --ad-ctrl: 32px;
+    --ad-ctrl-icon: 16px;
+    --ad-panel-pad: 10px;
+    --ad-dock-clearance: 120px;
+  }
+  .ad-header {
+    gap: 10px;
+  }
+  .ad-brand {
+    padding: 4px 8px 4px 4px;
+    gap: 6px;
+  }
+  .ad-brand-mark {
+    width: 26px;
+    height: 26px;
+    border-radius: 9px;
+  }
+  .ad-brand-mark svg {
+    width: 22px;
+    height: 22px;
+  }
+  .ad-brand-name {
+    font-size: 15px;
+  }
+  .ad-header-actions .ad-button {
+    height: var(--ad-ctrl);
+    padding: 0 10px;
+  }
+  .ad-button svg {
+    width: var(--ad-ctrl-icon);
+    height: var(--ad-ctrl-icon);
+  }
+  .ad-icon-button {
+    width: var(--ad-ctrl);
+    height: var(--ad-ctrl);
+    padding: 4px;
   }
   .ad-toolbar .ad-icon-button {
-    width: 38px;
-    height: 38px;
+    width: var(--ad-tool);
+    height: var(--ad-tool);
   }
-  .ad-ui > .ad-style-dock {
-    top: 82px;
-    transform: none;
+  .ad-zoom,
+  .ad-pages {
+    padding: 3px;
+  }
+  .ad-toolbar-divider {
+    width: 18px;
+    margin: 1px 0;
+  }
+  .ad-tool-corner {
+    right: 5px;
+    bottom: 5px;
   }
 }
-@media (max-width: 700px) {
+@container board ((max-height: 480px) and (min-width: 1024px)) {
+  .ad-ui {
+    --ad-inset: 8px;
+    --ad-edge: 8px;
+    --ad-tool: 30px;
+    --ad-tool-pad: 3px;
+    --ad-tool-gap: 0px;
+    --ad-tool-icon: 16px;
+    --ad-ctrl: 28px;
+    --ad-ctrl-icon: 15px;
+    --ad-panel-pad: 8px;
+    --ad-dock-clearance: 96px;
+  }
+}
+@container board ((max-width: 700px) or ((max-width: 1023px) and (max-height: 640px))) {
+  .ad-ui {
+    --ad-inset: 12px;
+    --ad-edge: 12px;
+    --ad-tool: 48px;
+    --ad-tool-pad: 5px;
+    --ad-tool-gap: 0px;
+    --ad-tool-icon: 24px;
+    --ad-ctrl: 44px;
+    --ad-ctrl-icon: 20px;
+    --ad-panel-pad: 12px;
+    --ad-dock-clearance: 220px;
+  }
   .ad-header {
-    top: 12px;
-    left: 12px;
-    right: 12px;
     gap: 8px;
   }
   .ad-brand {
@@ -745,37 +835,36 @@
   }
   .ad-toolbar {
     top: auto;
-    bottom: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom, 0px));
     left: 50%;
     right: auto;
     width: max-content;
     max-width: calc(100% - 16px);
+    max-height: none;
     transform: translateX(-50%);
     flex-direction: row;
-    gap: 0;
-    padding: 5px;
+    overflow-x: auto;
     border-radius: 18px;
   }
   .ad-toolbar .ad-icon-button {
-    width: 48px;
-    height: 48px;
     border-radius: 12px;
-  }
-  @media (max-width: 360px) {
-    .ad-toolbar .ad-icon-button {
-      width: 42px;
-      height: 42px;
-    }
   }
   .ad-toolbar .ad-desktop-tool,
   .ad-toolbar-divider,
   .ad-tooltip {
     display: none;
   }
+  .ad-ui > .ad-style-dock {
+    top: calc(var(--ad-edge) + 56px);
+    bottom: calc(72px + var(--ad-ctrl) + 8px + env(safe-area-inset-bottom, 0px));
+    transform: none;
+    max-height: none;
+  }
+  .ad-style-panel {
+    max-height: 100%;
+  }
   .ad-footer {
-    left: 12px;
-    right: 12px;
-    bottom: 84px;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
     gap: 8px;
     flex-wrap: wrap;
   }
@@ -783,47 +872,18 @@
     padding: 3px;
     border-radius: 14px;
   }
-  .ad-zoom .ad-icon-button {
-    width: 44px;
-    height: 44px;
-  }
   .ad-zoom-value {
     width: 52px;
-    height: 44px;
     font-size: 13px;
   }
   .ad-pages {
-    order: -1;
-    flex-basis: 100%;
-    max-width: none;
+    flex: 0 1 auto;
+    min-width: 7.5rem;
+    max-width: 100%;
     padding: 3px;
-  }
-  .ad-pages .ad-icon-button,
-  .ad-page-tab {
-    height: 44px;
-  }
-  .ad-pages .ad-icon-button {
-    width: 44px;
   }
   .ad-page-tab {
     font-size: 14px;
-  }
-  .ad-ui > .ad-style-dock {
-    top: 50%;
-    transform: translateY(-50%);
-    max-height: calc(100% - 278px);
-  }
-  .ad-style-panel {
-    width: 248px;
-    max-height: 100%;
-    padding: 12px;
-  }
-  .ad-style-dismiss {
-    height: 48px;
-  }
-  .ad-style-row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
   }
   .ad-style-label {
     font-size: 13px;
@@ -850,6 +910,9 @@
   .ad-style-panel .ad-button {
     height: 44px;
     font-size: 14px;
+  }
+  .ad-style-dismiss {
+    height: 48px;
   }
   .ad-tool-option {
     min-height: 48px;
@@ -878,7 +941,43 @@
     grid-template-columns: 1fr;
   }
 }
-@media (max-width: 350px) {
+@container board ((max-width: 1023px) and (max-height: 620px)) {
+  .ad-ui {
+    --ad-inset: 8px;
+    --ad-edge: 8px;
+    --ad-tool: 40px;
+    --ad-tool-pad: 4px;
+    --ad-tool-icon: 20px;
+    --ad-ctrl: 36px;
+    --ad-ctrl-icon: 18px;
+    --ad-panel-pad: 10px;
+    --ad-dock-clearance: 170px;
+  }
+  .ad-brand,
+  .ad-header-actions .ad-button {
+    height: 40px;
+  }
+  .ad-footer {
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    flex-wrap: nowrap;
+  }
+  .ad-zoom-value {
+    width: 44px;
+  }
+  .ad-ui > .ad-style-dock {
+    top: calc(var(--ad-edge) + 48px);
+    bottom: calc(60px + var(--ad-ctrl) + 8px + env(safe-area-inset-bottom, 0px));
+  }
+  .ad-segment {
+    height: 36px;
+  }
+}
+@container board (max-width: 360px) {
+  .ad-ui {
+    --ad-tool: 42px;
+  }
+}
+@container board (max-width: 350px) {
   .ad-brand-name {
     font-size: 14px;
   }
@@ -895,10 +994,44 @@
     padding: 0 10px;
   }
 }
-@media (pointer: coarse) and (min-width: 701px) {
-  .ad-toolbar .ad-icon-button {
-    width: 48px;
-    height: 48px;
+@media (max-width: 1023px) {
+  .ad-popover,
+  .ad-tool-option {
+    font-size: 16px;
+  }
+  .ad-tool-option {
+    min-height: 48px;
+  }
+  .ad-dialog {
+    font-size: 16px;
+  }
+  .ad-field input:not([type='range']),
+  .ad-field select,
+  .ad-dialog input:not([type='file']) {
+    font-size: 16px;
+    min-height: 44px;
+  }
+}
+@media (pointer: coarse) {
+  .ad-toolbar .ad-icon-button::after,
+  .ad-zoom .ad-icon-button::after,
+  .ad-pages .ad-icon-button::after,
+  .ad-selection-actions .ad-icon-button::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 3rem);
+    height: max(100%, 3rem);
+    transform: translate(-50%, -50%);
+  }
+}
+@media (pointer: coarse) {
+  @container board ((min-width: 1024px) and (min-height: 641px)) {
+    .ad-toolbar .ad-icon-button {
+      width: 48px;
+      height: 48px;
+    }
   }
 }
 @media (prefers-reduced-motion: reduce) {
