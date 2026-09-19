@@ -178,6 +178,7 @@ export interface ApplyOptions {
   label?: string;
   dryRun?: boolean;
   merge?: boolean;
+  agentName?: string;
 }
 export interface ApplyResult {
   ok: boolean;

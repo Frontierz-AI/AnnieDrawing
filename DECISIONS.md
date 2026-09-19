@@ -30,7 +30,7 @@ Version 2 uses pages in the document, scopes and editing API. Version 1 document
 
 ## 2026-09-19 — A small visible surface
 
-Keep primary drawing tools within reach and group secondary tools behind Shapes and More tools. Export is a format menu that always downloads the current page. Show item-specific style controls only when something is selected, with palettes opened on demand and compact line and text controls visible beside the selection. Page management and agent tools remain available through their dedicated controls and the board menu. Positioning and rotation follow the user's pointer directly; Shift constrains the move axis or resize proportions.
+Keep primary drawing tools on the sidebar: eraser after hand, image after sticky note, and line inside Shapes. Do not hide those tools behind a More overflow. On phones, hand and arrow stay in the board menu so the bottom bar remains tappable. Export is a format menu that always downloads the current page. The AnnieDrawing control opens the same kind of menu for document, appearance and agent actions. Show item-specific style controls only when something is selected, with palettes opened on demand and compact line and text controls visible beside the selection. The inspector does not repeat the selected kind as a title. Page management and agent tools remain available through their dedicated controls and the board menu. Positioning and rotation follow the user's pointer directly; Shift constrains the move axis or resize proportions.
 
 ## 2026-09-19 — OSS preparation without speculative publication
 
@@ -46,6 +46,6 @@ Locking protects interactive editing while leaving selection and unlocking acces
 
 ## 2026-09-19 — A visiting AI cursor
 
-Show browser agent additions through one lilac cursor that enters from the nearest edge, gently curves to each placement and leaves after the reveal. Reuse the native cursor silhouette, distinguish it with an AI label, keep the overlay below controls and ignore pointer events. A 220 ms opacity and 97–100% scale reveal adds a small settling motion; connectors use opacity alone to preserve path geometry.
+Show browser agent additions through one lilac cursor that enters from the nearest edge, gently curves to each placement and leaves after the reveal. Reuse the native cursor silhouette, keep the overlay below controls and ignore pointer events. The cursor has no name by default; `apply` may pass `agentName` to show one. A 220 ms opacity and 97–100% scale reveal adds a small settling motion; connectors use opacity alone to preserve path geometry.
 
 Keep the document authoritative and synchronous. The arrival is an optional renderer presentation after a successful agent-origin `apply`, with no new history entries, schema fields or delays for agents. Group descendants arrive together; after eight visible stops, the remaining batch arrives together. Never pan on behalf of the animation. Reduced motion, hidden tabs, human input, document replacement and navigation clear pending effects. This keeps ordinary editing usable even while an agent is adding content.

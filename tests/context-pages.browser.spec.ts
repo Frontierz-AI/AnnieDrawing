@@ -128,7 +128,7 @@ test('opacity stays open while adjusting and locking can be reversed through the
   await page.keyboard.press('Escape');
   await inspector.getByRole('button', { name: 'Unlock selection' }).click();
   expect(await page.evaluate(() => window.__anniedrawing![0].get('target')?.locked)).toBe(false);
-  for (const kind of ['Fill', 'Stroke']) {
+  for (const kind of ['Fill', 'Line']) {
     await inspector.getByRole('button', { name: kind, exact: true }).click();
     for (const color of ['Slate', 'Peach', 'Sky blue', 'Rose'])
       await expect(

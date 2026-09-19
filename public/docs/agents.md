@@ -77,6 +77,7 @@ if (!preview.ok) throw new Error(JSON.stringify(preview.errors));
 const result = board.apply(ops, {
   origin: 'agent:planner',
   label: 'Add cache flow',
+  agentName: 'Samuel',
 });
 if (!result.ok) throw new Error(JSON.stringify(result.errors));
 board.view.fit(['i_api', 'i_cache']);
@@ -85,9 +86,9 @@ board.describe({ detail: 'normal' });
 
 IDs here are readable examples. Check existing IDs or generate unique ones in your own integration. A dry run does not reserve identifiers or protect against edits occurring before the real call. `created` lists added IDs; `warnings` are advisory. Failed batches apply nothing.
 
-Browser additions with an `agent:` origin automatically show a lilac AI cursor arriving from outside the viewport, then reveal the new items. Keep related items in one atomic batch; the editor handles the visual sequence, including groups and large batches. The returned result, JSON, exports and history are already complete while that presentation runs, so no delay is needed before reading or editing the result. Existing-item updates remain immediate. The animation never moves the camera on its own; call `view.fit` immediately afterward only when that camera change is appropriate. Human input and reduced motion reveal pending items immediately. Embedders can set `agentPresence: false` to skip the animation.
+Browser additions with an `agent:` origin automatically show a lilac AI cursor arriving from outside the viewport, then reveal the new items. Pass `agentName` when the cursor should show a name; otherwise it stays unlabeled. Keep related items in one atomic batch; the editor handles the visual sequence, including groups and large batches. The returned result, JSON, exports and history are already complete while that presentation runs, so no delay is needed before reading or editing the result. Existing-item updates remain immediate. The animation never moves the camera on its own; call `view.fit` immediately afterward only when that camera change is appropriate. Human input and reduced motion reveal pending items immediately. Embedders can set `agentPresence: false` to skip the animation.
 
-The demo's **For agents → Try an operation → Apply to board** closes the dialog after a successful edit so the arrival is visible. Validation and errors remain in the dialog.
+The demo's **For agents → Try an operation → Apply to board** closes the dialog after a successful edit so the arrival is visible, and labels the cursor with a random name — Julia, Samuel or Anita. Validation and errors remain in the dialog.
 
 ## Change only the requested properties
 

@@ -74,6 +74,7 @@ type Drag = {
   alt?: boolean;
 };
 const clone = <T>(value: T): T => structuredClone(value);
+const TEXT_SIZE = 'm';
 export function flatten(items: Item[]): Item[] {
   return items.flatMap((item) => [item, ...flatten(item.children ?? [])]);
 }
@@ -442,7 +443,7 @@ export class Board {
       result.created.length
     ) {
       this.render();
-      this.stage.present(result.created);
+      this.stage.present(result.created, options.agentName);
     }
     return result;
   }
@@ -1813,7 +1814,14 @@ export class Board {
           {
             op: 'add',
             page: this.pageId,
-            item: { kind: 'text', x: p.x, y: p.y, w: 300, h: 100, text: { value, size: 'm' } },
+            item: {
+              kind: 'text',
+              x: p.x,
+              y: p.y,
+              w: 300,
+              h: 100,
+              text: { value, size: TEXT_SIZE },
+            },
           },
         ],
         { origin: 'user', label: 'Paste text' },

@@ -18,6 +18,7 @@ const ApplySchema = v.object({
   origin: v.optional(v.string()),
   label: v.optional(v.string()),
   dryRun: v.optional(v.boolean()),
+  agentName: v.optional(v.string()),
 });
 const SnapshotSchema = v.object({
   scope,
@@ -118,6 +119,7 @@ export async function runTool(
               : 'agent:tool',
           label: args.label,
           dryRun: args.dryRun,
+          agentName: args.agentName,
         } as ApplyOptions,
       );
     if (name === 'board_snapshot') {

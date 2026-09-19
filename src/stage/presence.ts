@@ -1,6 +1,7 @@
 import type { Box, Point } from '../core/types';
 import { cursorArrow } from '../input/cursors';
 import type { Lens } from './lens';
+import { esc } from './paint';
 
 interface Placement {
   box: Box;
@@ -13,6 +14,7 @@ export class AgentPresence {
   private pending = new Set<HTMLElement>();
   private animations = new Set<Animation>();
   private cursor?: HTMLElement;
+  private name?: string;
   private frame = 0;
   private generation = 0;
   private running = false;
@@ -29,8 +31,10 @@ export class AgentPresence {
     document.addEventListener('visibilitychange', this.preference);
   }
 
-  enqueue(placements: Placement[]) {
+  enqueue(placements: Placement[], name?: string) {
     if (this.motion.matches || document.hidden) return;
+    const label = name?.trim();
+    if (label && !this.name) this.name = label;
     for (const placement of placements) {
       placement.elements = placement.elements.filter((element) => !this.pending.has(element));
       if (!placement.elements.length) continue;
@@ -62,6 +66,7 @@ export class AgentPresence {
     this.queue = [];
     this.cursor?.remove();
     this.cursor = undefined;
+    this.name = undefined;
     this.running = false;
   }
 
@@ -152,7 +157,7 @@ export class AgentPresence {
         this.cursor = document.createElement('div');
         this.cursor.className = 'ad-agent-cursor';
         this.cursor.setAttribute('aria-hidden', 'true');
-        this.cursor.innerHTML = `<svg width="36" height="36" viewBox="0 0 36 36"><path d="${cursorArrow}"/></svg><span>AI</span>`;
+        this.cursor.innerHTML = `<svg width="36" height="36" viewBox="0 0 36 36"><path d="${cursorArrow}"/></svg>${this.name ? `<span>${esc(this.name)}</span>` : ''}`;
         position = this.edge(target);
         this.cursor.style.transform = this.transform(position);
         this.root.append(this.cursor);

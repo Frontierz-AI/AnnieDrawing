@@ -341,7 +341,7 @@ button:focus:not(:focus-visible) {
 .ad-panel-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -358,40 +358,38 @@ button:focus:not(:focus-visible) {
   width: 18px;
   height: 18px;
 }
-.ad-panel-label {
-  font-size: 13px;
-  font-weight: 750;
-}
 .ad-color-controls {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-wrap: nowrap;
+  gap: 6px;
   margin-bottom: 12px;
 }
 .ad-color-control {
   display: flex;
-  flex: 1 1 6.5rem;
+  flex: 1 1 0;
   min-width: 0;
   align-items: center;
-  gap: 9px;
-  padding: 8px;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 5px;
   height: 40px;
   border: 1px solid var(--ad-ui-border);
   background: transparent;
   color: var(--ad-ui-text);
   border-radius: 11px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
+  white-space: nowrap;
 }
 .ad-color-control:hover {
   background: var(--ad-ui-surface);
 }
 .ad-color-preview {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
   border: 1px solid #10363920;
-  border-radius: 7px;
+  border-radius: 6px;
   background: var(--swatch);
 }
 .ad-color-popover:popover-open {
@@ -643,12 +641,10 @@ button:focus:not(:focus-visible) {
 .ad-context-menu .ad-danger:hover {
   background: #c1474510;
 }
-.ad-color-control {
-  gap: 6px;
-}
 .ad-color-control > svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 .ad-opacity-popover {
   padding: 16px;
@@ -720,23 +716,6 @@ button:focus:not(:focus-visible) {
   white-space: normal;
   text-align: left;
 }
-.ad-about {
-  margin-top: 25px;
-  border-top: 1px solid var(--ad-ui-border);
-  padding-top: 20px;
-  font-size: 12px;
-}
-.ad-about p {
-  color: var(--ad-ui-muted);
-  margin: 8px 0 12px;
-  line-height: 1.7;
-}
-.ad-about a {
-  color: var(--ad-ui-text);
-  font-weight: 750;
-  text-decoration-color: #05d9ab;
-  text-underline-offset: 4px;
-}
 .ad-agent-dialog {
   width: 720px;
 }
@@ -790,30 +769,6 @@ button:focus:not(:focus-visible) {
 }
 .ad-agent-content > p {
   margin-top: 15px;
-}
-.ad-toast {
-  position: absolute;
-  left: 50%;
-  bottom: 82px;
-  transform: translate(-50%, 10px);
-  padding: 12px 20px;
-  border-radius: 12px;
-  background: #103639;
-  color: #fff;
-  box-shadow: var(--ad-shadow);
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    opacity 0.2s,
-    transform 0.2s;
-  max-width: calc(100% - 40px);
-  font-size: 12px;
-  text-align: center;
-  z-index: 20;
-}
-.ad-toast.is-visible {
-  opacity: 1;
-  transform: translate(-50%, 0);
 }
 .ad-text {
   font-family: var(--ad-font-hand);
@@ -886,6 +841,12 @@ button:focus:not(:focus-visible) {
     width: 48px;
     height: 48px;
     border-radius: 12px;
+  }
+  @media (max-width: 360px) {
+    .ad-toolbar .ad-icon-button {
+      width: 42px;
+      height: 42px;
+    }
   }
   .ad-toolbar .ad-desktop-tool,
   .ad-toolbar-divider,
@@ -984,8 +945,7 @@ button:focus:not(:focus-visible) {
   .ad-dialog h2 {
     font-size: 22px;
   }
-  .ad-dialog .ad-muted,
-  .ad-about {
+  .ad-dialog .ad-muted {
     font-size: 15px;
   }
   .ad-dialog .ad-button {
@@ -1008,9 +968,6 @@ button:focus:not(:focus-visible) {
   .ad-code {
     font-size: 12px;
     padding: 12px;
-  }
-  .ad-toast {
-    bottom: 204px;
   }
 }
 @media (max-width: 350px) {
