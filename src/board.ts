@@ -1014,7 +1014,8 @@ export class Board {
     if (this.tool === 'select') {
       const targetId = (e.target as Element).closest<HTMLElement>('[data-ad-id]')?.dataset.adId;
       const fromDom = targetId && !this.stage.isPending(targetId) ? this.get(targetId) : undefined;
-      const item = this.hit(start, true) ?? fromDom;
+      const item =
+        this.hit(start, true) ?? (fromDom && !this.outline(fromDom) ? fromDom : undefined);
       if (item) {
         if (e.shiftKey) {
           this.select(
@@ -1338,7 +1339,8 @@ export class Board {
     if (drag.item) {
       const item = drag.item;
       if (item.kind === 'path') {
-        const events = e.getCoalescedEvents?.() ?? [e];
+        const coalesced = e.getCoalescedEvents?.();
+        const events = coalesced?.length ? coalesced : [e];
         for (const point of events) {
           const p = this.stage.lens.toPage(this.point(point));
           drag.points!.push([p.x - drag.start.x, p.y - drag.start.y, point.pressure || 0.5]);
@@ -1405,10 +1407,12 @@ export class Board {
         };
       this.select([
         ...drag.ids,
-        ...this.spatial.enclosed(b, {
-          enteredGroup: this.enteredGroup,
-          ignore: (candidate) => this.stage.isPending(candidate.id),
-        }).map((i) => i.id),
+        ...this.spatial
+          .enclosed(b, {
+            enteredGroup: this.enteredGroup,
+            ignore: (candidate) => this.stage.isPending(candidate.id),
+          })
+          .map((i) => i.id),
       ]);
     }
     if (drag.kind === 'erase') ops.push(...drag.ids.map((id) => ({ op: 'remove' as const, id })));

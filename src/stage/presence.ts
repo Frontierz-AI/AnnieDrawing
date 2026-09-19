@@ -109,7 +109,7 @@ export class AgentPresence {
       frame(1);
       return;
     }
-    const started = performance.now();
+    let started = 0;
     await new Promise<void>((resolve) => {
       const step = (now: number) => {
         if (generation !== this.generation) {
@@ -117,6 +117,7 @@ export class AgentPresence {
           resolve();
           return;
         }
+        if (!started) started = now;
         const t = Math.min(1, (now - started) / duration);
         frame(1 - (1 - t) ** 3);
         if (t < 1) this.tick = requestAnimationFrame(step);
