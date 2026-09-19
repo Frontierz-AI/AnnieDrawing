@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0 — Unreleased
+## 1.0.0 (unreleased)
 
 Initial independent AnnieDrawing implementation: a framework-free HTML/SVG board, JSON document operations, headless and agent APIs, browser editing, exports, custom-kind and sanitized-HTML integrations, local demo, and a separate local MCP example.
 
@@ -8,7 +8,7 @@ Tool menus open beside their desktop buttons and close when pressed again. Zoom 
 
 Documents use format version 2 with pages. Version 1 drawings migrate on load while preserving their content. The compact inspector exposes relevant line and text controls directly. Export is a format menu that downloads the current page as PNG, SVG or an Annie document; PNG uses 2× resolution.
 
-Page chips now live in the bottom bar with an overflow list and contextual rename/delete actions. Element actions use a compact anchored right-click menu. The inspector adds more colors, visible opacity and an icon for locking; the extra style section and text-edit button are removed. Board menu title editing and frame tooling are removed. Older frames import as groups, preserving their contents, backgrounds and labels without clipping.
+Page chips now live in the bottom-left bar with an overflow list and contextual rename/delete actions. Undo and redo sit beside Fit drawing in the bottom-right zoom cluster. Element actions use a compact anchored right-click menu. The inspector adds more colors, visible opacity and an icon for locking; the extra style section and text-edit button are removed. Board menu title editing and frame tooling are removed. Older frames import as groups, preserving their contents, backgrounds and labels without clipping.
 
 The local demo opens on a blank Page 1 instead of the previous welcome drawing. `npm run dev` uses Vite's default port 5173 instead of assigning a random free port.
 
@@ -18,9 +18,11 @@ The selection inspector is narrower and no longer shows a kind title such as Rec
 
 The drawing toolbar puts eraser after hand, line and arrow inside Shapes, and image after sticky note. The More tools overflow is gone; on phones, hand remains in the board menu. The selection inspector is vertically centered like the tool sidebar.
 
-Pasting a YouTube or Vimeo URL creates a `video` item with the official player; drag it like any shape, then double-click to use the play controls. Pasting a website URL creates a `link` card with title, description, preview image when the page can be read, and an Open button. Image URLs become ordinary image items. Notes, images, videos and link cards share one 16px corner and the same soft shadow. User paste may fetch the pasted page for a preview; pass `unfurl: false` to skip that fetch.
+Pasting a YouTube or Vimeo URL creates a `video` item with the official player; drag it like any shape, then double-click to use the play controls. Pasting a website URL creates a compact `link` card with the page title, a URL without a trailing slash, the Open Graph image when the page can be read, and an Open button. The card text shrinks instead of overlapping when you resize it. Image URLs become ordinary image items. Notes, images, videos and link cards share one 12px corner and the same soft shadow. User paste may fetch the pasted page for a preview; pass `unfurl: false` to skip that fetch.
 
 The package declares the version intended for the first release. No publication is implied. Use the release checklist and verified test results before tagging or distributing it.
+
+The docs site, README, API, format, agent, extension, MCP, and repository guides were rewritten as a developer manual. Those pages and `llms.txt` now match the current board: 12px card corners, `apply.merge`, query kind arrays, placement rules, image import limits, `runTool` origin rewriting, and the six agent tools.
 
 Development now uses TypeScript 7, Vite 8 and Vitest 5, with nanoid 6 for IDs. Node.js 24 or newer is required.
 

@@ -531,7 +531,6 @@ button:focus:not(:focus-visible) {
 .ad-footer > * {
   pointer-events: auto;
 }
-.ad-history,
 .ad-zoom {
   display: flex;
   align-items: center;
@@ -542,7 +541,6 @@ button:focus:not(:focus-visible) {
   background: var(--ad-ui-bg);
   box-shadow: var(--ad-shadow);
 }
-.ad-history svg,
 .ad-zoom svg {
   width: 20px;
   height: 20px;
@@ -550,6 +548,7 @@ button:focus:not(:focus-visible) {
 .ad-footer-right {
   display: flex;
   align-items: center;
+  margin-left: auto;
 }
 .ad-zoom-value {
   background: transparent;
@@ -573,13 +572,12 @@ button:focus:not(:focus-visible) {
 }
 .ad-pages {
   display: flex;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
-  max-width: 520px;
+  max-width: min(520px, calc(100% - 17rem));
   align-items: center;
   gap: 4px;
   padding: 5px;
-  margin-inline: auto;
   background: var(--ad-ui-bg);
   border: 1px solid var(--ad-ui-border);
   border-radius: 15px;
@@ -873,12 +871,10 @@ button:focus:not(:focus-visible) {
     gap: 8px;
     flex-wrap: wrap;
   }
-  .ad-history,
   .ad-zoom {
     padding: 3px;
     border-radius: 14px;
   }
-  .ad-history .ad-icon-button,
   .ad-zoom .ad-icon-button {
     width: 44px;
     height: 44px;

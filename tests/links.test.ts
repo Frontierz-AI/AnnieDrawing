@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { hostnameOf, normalizeHref, parseVideo, videoEmbed } from '../src/core/links';
-import { classifyPaste, decodeEntities, imageMime, parseLinkPreview } from '../src/core/paste';
+import {
+  classifyPaste,
+  decodeEntities,
+  displayUrl,
+  imageMime,
+  linkFallback,
+  parseLinkPreview,
+  prettyTitle,
+} from '../src/core/paste';
 import { CARD_CORNER, createDoc } from '../src/core';
 import { shapePath } from '../src/stage/paint';
 
@@ -84,6 +92,13 @@ describe('link preview parsing', () => {
     expect(decodeEntities('&#39;')).toBe("'");
     expect(hostnameOf('https://www.example.com/a')).toBe('example.com');
     expect(imageMime('https://cdn.example.com/a.webp')).toBe('image/webp');
+    expect(prettyTitle('https://www.founderz.com/')).toBe('Founderz');
+    expect(displayUrl('https://founderz.com/')).toBe('founderz.com');
+    expect(displayUrl('https://founderz.com/notes/')).toBe('founderz.com/notes');
+    expect(linkFallback('https://founderz.com/')).toMatchObject({
+      title: 'Founderz',
+      description: 'founderz.com',
+    });
   });
 });
 
@@ -133,7 +148,7 @@ describe('video and link documents', () => {
       w: 100,
       h: 80,
     });
-    expect(CARD_CORNER).toBe(16);
+    expect(CARD_CORNER).toBe(12);
     expect(path.startsWith(`M${CARD_CORNER},0`)).toBe(true);
   });
 });

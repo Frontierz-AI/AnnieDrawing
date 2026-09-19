@@ -75,7 +75,6 @@ async function enrich(host: PasteHost, id: string, href: string) {
     const ops: Op[] = [];
     const patch: Partial<Item> = {};
     if (preview.title) patch.text = { value: preview.title, font: 'sans' };
-    if (preview.description) patch.description = preview.description;
     if (preview.image) {
       const mid = mediaId();
       ops.push({

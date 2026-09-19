@@ -354,12 +354,10 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   styleDock.append(deselect, stylePanel);
   ui.append(styleDock);
   const footer = el('footer', 'ad-footer');
-  const history = el('div', 'ad-history');
   const undo = button('Undo', 'undo', () => board.undo()),
     redo = button('Redo', 'redo', () => board.redo());
   undo.setAttribute('aria-keyshortcuts', 'Meta+Z Control+Z');
   redo.setAttribute('aria-keyshortcuts', 'Meta+Shift+Z Control+Shift+Z');
-  history.append(undo, redo);
   const pagesBar = el('nav', 'ad-pages');
   pagesBar.setAttribute('aria-label', 'Pages');
   const pageTabs = el('div', 'ad-page-tabs');
@@ -465,8 +463,14 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     });
     overflow.hidden = true;
     const widths = tabs.map((tab) => tab.getBoundingClientRect().width);
-    const available = pagesBar.clientWidth - newPage.offsetWidth - 14;
-    if (widths.reduce((sum, width) => sum + width + 4, 0) <= available) return;
+    const needed = widths.reduce((sum, width) => sum + width + 4, 0) + newPage.offsetWidth + 14;
+    const room =
+      pagesBar.offsetTop === footerRight.offsetTop
+        ? footer.clientWidth - footerRight.offsetWidth - 16
+        : pagesBar.clientWidth;
+    const cap = Math.min(room, 520);
+    if (needed <= cap) return;
+    const available = cap - newPage.offsetWidth - 14;
     overflow.hidden = false;
     let remaining = Math.max(40, available - overflow.offsetWidth - 4);
     const selected = tabs.findIndex((tab) => tab.getAttribute('aria-selected') === 'true');
@@ -547,9 +551,9 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   percentage.setAttribute('aria-haspopup', 'true');
   percentage.setAttribute('aria-expanded', 'false');
   const fitButton = button('Fit drawing', 'fit', () => board.view.fit());
-  zoom.append(percentage, fitButton);
+  zoom.append(percentage, fitButton, undo, redo);
   footerRight.append(zoom);
-  footer.append(history, pagesBar, footerRight);
+  footer.append(pagesBar, footerRight);
   ui.append(footer);
   function renamePage(id: string, name: string) {
     if (board.readonly) return;
