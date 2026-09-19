@@ -69,6 +69,7 @@
     "check:size": "node scripts/check-size.mjs",
     "check:licenses": "node scripts/check-licenses.mjs",
     "check": "npm run typecheck && npm test && npm run build && npm run check:size && npm run check:licenses",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run check",
     "test:consumer": "node examples/consumer-smoke.mjs",
     "format": "prettier --write .",

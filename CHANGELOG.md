@@ -14,6 +14,8 @@ The document is format version 2 with `pages`. Version 1 drawings with `sheets` 
 
 `ui.pages: false` hides page chips. Library chrome sizes in CSS pixels. `anniedrawing/fellow` is `createFellowBoard` with embed defaults (`agentHistory: 'hidden'`, `agentReveal: 'fit'`, `agentPlaceGap: 120`, a short visiting cursor, no global hook, no unfurl, no menu/export/pages).
 
+`prepare` runs `npm run build` so a git checkout or `git+ssh` install produces `dist/`. `prepublishOnly` still runs the full `check`.
+
 Operation input accepts kind aliases `rectangle` → `rect` and `arrow` → `connector`, color name aliases such as `black` → `ink`, and string connector endpoints. The document stores AnnieDrawing kinds, tokens, and `{ item, side }` endpoints. `query({ kind: 'rectangle' | 'arrow' })` matches those stored kinds.
 
 The default editor gzip budget is 100 KiB, including styles. Optional entries stay outside that total.
