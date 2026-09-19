@@ -36,7 +36,7 @@ Common item fields are `id`, `kind`, `x`, `y`, `w`, `h`, `rotation`, `style`, `t
 
 Built-in kinds are `rect`, `ellipse`, `diamond`, `line`, `connector`, `path`, `text`, `note`, `image`, `group` and `html`. Unknown kinds are retained with a visible placeholder, so loading and saving do not silently destroy custom content.
 
-`text` contains a plain `value`, horizontal `align`, vertical `valign`, `size` (`s`, `m`, `l`, `xl` or a number), and `font` (`sans`, `serif`, `mono`, `hand`). Style fields include `stroke`, `strokeWidth`, `dash`, `fill`, `fillMode`, `corner` and `opacity`.
+`text` contains a plain `value`, horizontal `align`, vertical `valign`, `size` (`s`, `m`, `l`, `xl` or a number), and `font` (`sans`, `serif`, `mono`, `hand`). Omitted `font` is `hand`, the handwritten Comic Sans-like stack. Style fields include `stroke`, `strokeWidth`, `dash`, `fill`, `fillMode`, `corner` and `opacity`.
 
 The named colors are `ink`, `slate`, `coral`, `amber`, `moss`, `teal`, `sky`, `violet`, `rose` and `paper`. These map to Frontierz colors and theme-aware foreground/background values. Ordinary CSS colors are also accepted. `fill: 'none'` creates a hollow shape.
 

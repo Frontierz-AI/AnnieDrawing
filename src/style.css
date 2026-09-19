@@ -50,6 +50,7 @@ button:focus:not(:focus-visible) {
 }
 .ad-root {
   --ad-font-sans: 'Nunito Variable', 'Nunito', 'Trebuchet MS', sans-serif;
+  --ad-font-hand: 'Comic Sans MS', 'Chalkboard SE', cursive;
   --ad-ui-bg: #fff;
   --ad-ui-surface: #f3f8f5;
   --ad-ui-border: #10363912;
@@ -326,7 +327,7 @@ button:focus:not(:focus-visible) {
   position: absolute;
   right: 24px;
   top: 88px;
-  width: 320px;
+  width: 248px;
   max-width: calc(100% - 24px);
   max-height: calc(100% - 174px);
   overflow: auto;
@@ -363,12 +364,13 @@ button:focus:not(:focus-visible) {
 }
 .ad-color-controls {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
 }
 .ad-color-control {
   display: flex;
-  flex: 1;
+  flex: 1 1 6.5rem;
   min-width: 0;
   align-items: center;
   gap: 9px;
@@ -445,7 +447,7 @@ button:focus:not(:focus-visible) {
 }
 .ad-style-row {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
+  grid-template-columns: 3.6rem minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
@@ -454,6 +456,7 @@ button:focus:not(:focus-visible) {
   color: var(--ad-ui-muted);
   font-size: 12px;
   font-weight: 650;
+  white-space: nowrap;
 }
 .ad-segments {
   display: flex;
@@ -493,13 +496,6 @@ button:focus:not(:focus-visible) {
 .ad-segment svg {
   width: 20px;
   height: 20px;
-}
-.ad-segment-divider {
-  flex: 0 0 1px;
-  width: 1px;
-  height: 18px;
-  margin: 0 2px;
-  background: var(--ad-ui-border);
 }
 .ad-selection-actions {
   display: flex;
@@ -820,7 +816,7 @@ button:focus:not(:focus-visible) {
   transform: translate(-50%, 0);
 }
 .ad-text {
-  font-family: var(--ad-font-sans);
+  font-family: var(--ad-font-hand);
 }
 .ad-editing {
   outline: 2px solid #05d9ab !important;
@@ -937,7 +933,7 @@ button:focus:not(:focus-visible) {
   .ad-style-panel {
     top: 76px;
     right: 12px;
-    width: 320px;
+    width: 248px;
     max-height: calc(100% - 278px);
     padding: 12px;
   }

@@ -1,7 +1,7 @@
 import type { Board } from '../board';
 import type { Item, Op, Point } from '../core/types';
 import { button, icon } from './icons';
-import { color as resolveColor, fonts, fontSize, styleFor } from '../stage/paint';
+import { color as resolveColor, DEFAULT_FONT, fonts, fontSize, styleFor } from '../stage/paint';
 import { pageId } from '../core/ids';
 export interface UiOptions {
   title?: string;
@@ -781,10 +781,46 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     function lineIcon(width: number, dash = '') {
       return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h18" fill="none" stroke="currentColor" stroke-width="${width}" stroke-linecap="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/></svg>`;
     }
-    if (stroked) {
-      const line = styleRow('Line');
+    if (hasText) {
       choices(
-        line,
+        styleRow('Text'),
+        [
+          ['s', 'Text size: Small', 'S'],
+          ['m', 'Text size: Medium', 'M'],
+          ['l', 'Text size: Large', 'L'],
+          ['xl', 'Text size: Extra large', 'XL'],
+        ],
+        (item) => ({ 14: 's', 18: 'm', 26: 'l', 36: 'xl' })[fontSize(item.text)] ?? '',
+        (value) => updateText({ size: value as 'm' }),
+      );
+      choices(
+        styleRow('Align'),
+        [
+          ['start', 'Align text left', icon('alignLeft')],
+          ['center', 'Align text center', icon('alignCenter')],
+          ['end', 'Align text right', icon('alignRight')],
+        ],
+        (item) => item.text?.align ?? (item.kind === 'text' ? 'start' : 'center'),
+        (value) => updateText({ align: value as 'start' }),
+      );
+      const fontChoices: [keyof typeof fonts, string, string][] = [
+        ['sans', 'Font: Friendly', 'Aa'],
+        ['serif', 'Font: Serif', 'Aa'],
+        ['mono', 'Font: Mono', 'Aa'],
+        ['hand', 'Font: Handwritten', 'Aa'],
+      ];
+      choices(
+        styleRow('Font'),
+        fontChoices,
+        (item) => item.text?.font ?? DEFAULT_FONT,
+        (value) => updateText({ font: value as 'sans' }),
+      ).forEach((button, index) => {
+        button.style.fontFamily = fonts[fontChoices[index][0]];
+      });
+    }
+    if (stroked) {
+      choices(
+        styleRow('Line'),
         [
           ['1', 'Line: Fine', lineIcon(1)],
           ['2', 'Line: Regular', lineIcon(2)],
@@ -795,9 +831,8 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
         (value) => board.updateSelection({ style: { strokeWidth: Number(value) } }),
       );
       if (items.every((item) => item.kind !== 'path' || item.closed)) {
-        line.append(el('span', 'ad-segment-divider'));
         choices(
-          line,
+          styleRow('Pattern'),
           [
             ['solid', 'Pattern: Solid', lineIcon(2)],
             ['dashed', 'Pattern: Dashed', lineIcon(2, '5 4')],
@@ -807,46 +842,6 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
           (value) => board.updateSelection({ style: { dash: value as 'solid' } }),
         );
       }
-    }
-    if (hasText) {
-      const text = styleRow('Text');
-      choices(
-        text,
-        [
-          ['s', 'Text size: Small', 'S'],
-          ['m', 'Text size: Medium', 'M'],
-          ['l', 'Text size: Large', 'L'],
-          ['xl', 'Text size: Extra large', 'XL'],
-        ],
-        (item) => ({ 14: 's', 18: 'm', 26: 'l', 36: 'xl' })[fontSize(item.text)] ?? '',
-        (value) => updateText({ size: value as 'm' }),
-      );
-      text.append(el('span', 'ad-segment-divider'));
-      choices(
-        text,
-        [
-          ['start', 'Align text left', icon('alignLeft')],
-          ['center', 'Align text center', icon('alignCenter')],
-          ['end', 'Align text right', icon('alignRight')],
-        ],
-        (item) => item.text?.align ?? (item.kind === 'text' ? 'start' : 'center'),
-        (value) => updateText({ align: value as 'start' }),
-      );
-      const font = styleRow('Font');
-      const fontChoices: [keyof typeof fonts, string, string][] = [
-        ['sans', 'Font: Friendly', 'Aa'],
-        ['serif', 'Font: Serif', 'Aa'],
-        ['mono', 'Font: Mono', 'Aa'],
-        ['hand', 'Font: Handwritten', 'Aa'],
-      ];
-      choices(
-        font,
-        fontChoices,
-        (item) => item.text?.font ?? 'sans',
-        (value) => updateText({ font: value as 'sans' }),
-      ).forEach((button, index) => {
-        button.style.fontFamily = fonts[fontChoices[index][0]];
-      });
     }
     if (single && item.kind === 'connector')
       stylePanel.append(

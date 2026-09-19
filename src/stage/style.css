@@ -114,6 +114,10 @@
   overflow-wrap: anywhere;
   word-break: normal;
   pointer-events: none;
+  font-family:
+    Comic Sans MS,
+    Chalkboard SE,
+    cursive;
 }
 .ad-item[data-ad-kind='diamond'] .ad-text {
   padding: 20%;
