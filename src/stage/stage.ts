@@ -1,5 +1,5 @@
 import RBush from 'rbush';
-import type { AnnieDoc, Box, Item, Point } from '../core/types';
+import type { AgentPresenceOptions, AnnieDoc, Box, Item, Point } from '../core/types';
 import { applyDraft } from '../core/item';
 import { lockedItems } from '../core/locks';
 import { boundsOf, boxCorners, flattenItems, itemBounds, type OutlineResolver } from '../geo/index';
@@ -10,7 +10,7 @@ import { AgentPresence } from './presence';
 import { color, esc, pathFromPoints, SVG_NS } from './paint';
 
 export interface StageOptions {
-  agentPresence?: boolean;
+  agentPresence?: boolean | AgentPresenceOptions;
   theme?: 'light' | 'dark' | 'auto';
   kinds?: KindDef[];
   sanitizeHTML?: (html: string) => string;
@@ -120,7 +120,11 @@ export class Stage {
         ];
       });
     if (placements.length) {
-      this.presence ??= new AgentPresence(this.root, this.lens);
+      this.presence ??= new AgentPresence(
+        this.root,
+        this.lens,
+        typeof this.options.agentPresence === 'object' ? this.options.agentPresence : undefined,
+      );
       this.presence.enqueue(placements, name);
     }
   }

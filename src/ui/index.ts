@@ -15,6 +15,8 @@ export interface UiOptions {
    * One format downloads on click; two or more open a menu.
    */
   export?: boolean | UiExportFormat[];
+  /** Page chips, add-page, and All pages. Default true. */
+  pages?: boolean;
 }
 const defaultExportFormats: UiExportFormat[] = ['png', 'svg'];
 function exportFormats(value: UiOptions['export']): UiExportFormat[] {
@@ -529,6 +531,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     }
   }
   function renderPages() {
+    if (options.pages === false) return;
     const pages = board.read().pages;
     const state = JSON.stringify([board.pageId, pages.map(({ id, name }) => [id, name])]);
     if (state === pageState) return;
@@ -537,8 +540,10 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     fitPageTabs();
   }
   const pagesObserver = new ResizeObserver(fitPageTabs);
-  pagesObserver.observe(pagesBar);
-  unsubs.push(() => pagesObserver.disconnect());
+  if (options.pages !== false) {
+    pagesObserver.observe(pagesBar);
+    unsubs.push(() => pagesObserver.disconnect());
+  }
   function addPage() {
     closePopover();
     const id = pageId();
@@ -592,7 +597,8 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   const fitButton = button('Fit drawing', 'fit', () => board.view.fit());
   zoom.append(percentage, fitButton, undo, redo);
   footerRight.append(zoom);
-  footer.append(pagesBar, footerRight);
+  if (options.pages === false) footer.append(footerRight);
+  else footer.append(pagesBar, footerRight);
   ui.append(footer);
   function renamePage(id: string, name: string) {
     if (board.readonly) return;

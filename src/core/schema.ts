@@ -8,6 +8,7 @@ export const LIMITS = {
   maxPoints: 100000,
   maxMediaLength: 20000000,
   maxHistory: 100,
+  maxSessionLog: 500,
   maxJsonDepth: 104,
 } as const;
 const finite = v.pipe(v.number(), v.finite());
@@ -41,6 +42,7 @@ export const TextSchema = v.object({
 });
 const record = v.record(v.string(), v.unknown());
 export const EndpointSchema = v.union([
+  id,
   v.object({
     item: id,
     side: v.optional(v.picklist(['auto', 'top', 'right', 'bottom', 'left'])),
@@ -108,6 +110,8 @@ export const PatchSchema = v.looseObject({
   href: v.optional(text),
   description: v.optional(text),
   data: v.optional(record),
+  from: v.optional(EndpointSchema),
+  to: v.optional(EndpointSchema),
 });
 export const PlacementSchema = v.object({
   rightOf: v.optional(id),
@@ -208,6 +212,7 @@ export const DescribeSchema = v.object({
   maxItems: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(10000))),
   selection: v.optional(v.array(id)),
   page: v.optional(id),
+  since: v.optional(v.pipe(v.number(), v.finite())),
 });
 export function schemaError(schema: v.GenericSchema, value: unknown): string | undefined {
   const result = v.safeParse(schema, value);

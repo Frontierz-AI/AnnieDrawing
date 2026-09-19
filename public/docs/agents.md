@@ -12,11 +12,13 @@ In the demo, run this in the page's JavaScript context:
 const boards = window.__anniedrawing;
 const board = Array.isArray(boards) ? boards[0] : Object.values(boards)[0];
 board.describe({ detail: 'normal', relations: true, freeSpace: true });
+board.describe({ since: board.revision });
+board.changesSince(0);
 board.kindsSince();
 board.read();
 ```
 
-`kindsSince(since?)` lists built-in kinds added or last changed after that catalog version. Omit `since` or pass `0` for the full catalog. Remember the returned `version` if you later want only what is new. The current board is always `describe()`, `read()`, `get(id)`, or `query()`.
+`kindsSince(since?)` lists built-in kinds added or last changed after that catalog version. Omit `since` or pass `0` for the full catalog. Remember the returned `version` if you later want only what is new. The current board is always `describe()`, `read()`, `get(id)`, `query()`, or `changesSince(since)`. `describe({ since })` lists items created, last written, or removed after that session revision.
 
 If several boards exist, compare titles and pick the board the user named. A host can set `exposeGlobal: false`, in which case use the board reference that application supplies.
 
@@ -88,13 +90,13 @@ board.view.fit(['i_api', 'i_cache']);
 board.describe({ detail: 'normal' });
 ```
 
-The IDs in this example are readable placeholders. Check existing IDs or generate unique ones. A dry run validates the batch. It does not reserve identifiers or block edits that happen before the real call. `created` lists added IDs. `warnings` are advisory. `OVERLAPS_EXISTING` means a new item intersects another item; the batch still committed. A failed batch applies nothing.
+The IDs in this example are readable placeholders. Check existing IDs or generate unique ones. A dry run validates the batch. It does not reserve identifiers or block edits that happen before the real call. `created` lists added IDs. `warnings` are advisory. `OVERLAPS_EXISTING` means a new item intersects another item; the batch still committed. A failed batch applies nothing. `lenient: true` on `apply` (not on `runTool`) skips invalid operations and commits the rest as one transaction.
 
-`place` requires exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`. Default `gap` is 32. Default `align` is `middle`. `inside` works only on a `group`. Omitted `w` and `h` use the kind's default size. Do not set `merge: true` on agent batches unless you intend to fold this commit into the previous history entry with the same origin and label.
+`place` requires exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`. Default `gap` is 32 (`agentPlaceGap` for `agent:` origins when `gap` is omitted). Default `align` is `middle`. `inside` works only on a `group`. Omitted `w` and `h` use the kind's default size. Do not set `merge: true` on agent batches unless you intend to fold this commit into the previous history entry with the same origin and label.
 
-In the browser, a successful `apply` with an `agent:` origin shows a lilac cursor entering from outside the viewport. It visits the first on-screen shapes one after another, then reveals the rest together, including connectors. Pass `agentName` to label the cursor. Without it the cursor has no name. Put related items in one batch. Do not split a batch to choreograph the walk.
+In the browser, a successful `apply` with an `agent:` origin shows a lilac cursor entering from outside the viewport. It visits the first on-screen shapes one after another, then reveals the rest together, including connectors. Pass `agentName` to label the cursor, or set `createBoard({ agentName })` so a tool call cannot pick the label. Without a name the cursor is unlabeled. Put related items in one batch. Do not split a batch to choreograph the walk.
 
-The returned result, JSON, exports, and history are complete while that presentation runs. Do not sleep or split an atomic batch to time the animation. Updates to existing items stay immediate. The presentation does not move the camera. Call `view.fit` immediately after `apply` only when that camera change is wanted. A person can keep editing; pending items are not hittable. Reduced motion and a hidden tab reveal pending items immediately. Set `agentPresence: false` on `createBoard` to skip the presentation.
+The returned result, JSON, exports, and history are complete while that presentation runs. Do not sleep or split an atomic batch to time the animation. Updates to existing items stay immediate. `reveal: 'fit'` (or `agentReveal: 'fit'`) pans to created ids on the current page when they sit outside the viewport. Call `view.fit` immediately after `apply` when a camera change is wanted and `reveal` is not set. A person can keep editing; pending items are not hittable. Reduced motion and a hidden tab reveal pending items immediately. Set `agentPresence: false` on `createBoard` to skip the presentation.
 
 ## Patch
 
@@ -116,7 +118,9 @@ board.apply(
 
 `style`, `text`, and `data` merge one level deep. Other fields are replaced. Positions are page coordinates, including children inside a group. Attached connector endpoints follow their items. Edit the box, not the connector's SVG path. Do not change `id` with `set`.
 
-Re-read affected IDs before deleting, moving, or renaming existing work if a person is also editing. If a mutation timed out, read the document before sending the same batch again. Global undo walks shared history. Use origin-specific undo only when the intent is to undo that origin's work.
+Re-read affected IDs before deleting, moving, or renaming existing work if a person is also editing. If a mutation timed out, read the document before sending the same batch again. Default undo walks shared history, or skips `agent:` origins when `agentHistory` is `'hidden'`. Use origin-specific undo only when the intent is to undo that origin's work.
+
+`add.item.kind` accepts `rectangle` and `arrow`. Those store as `rect` and `connector`. Connector `from` / `to` accept a string item id. Color names such as `black` store as palette tokens (`ink`). Compact JSON writes the stored form.
 
 ## Tool dispatch
 
@@ -133,7 +137,7 @@ The six tools are `board_describe`, `board_read`, `board_query`, `board_apply`, 
 
 `runTool` rewrites `board_apply` origins. If `origin` does not start with `agent:`, the call uses `agent:tool`. Pass `origin: 'agent:planner'` (or another `agent:` name) when you want a labeled origin.
 
-`board_describe` defaults to `detail: 'normal'` and `maxItems: 100`. Pass `relations` and `freeSpace` when you need layout hints. `board_read` on a headless document accepts only `scope: 'doc'`. Use `board_query` with `page` or `inside` to narrow. `board_snapshot` and `board_view_fit` require a browser board. `board_snapshot` defaults to `scope: 'viewport'`, `scale: 2`, and `labels: true`. For a vision model you can also call `board.export('png', { scope: 'viewport', labels: true })`. The labels match item IDs in the JSON.
+`board_describe` defaults to `detail: 'normal'` and `maxItems: 100`. Pass `since`, `relations`, and `freeSpace` when you need a delta or layout hints. `board_read` on a headless document accepts only `scope: 'doc'`. Use `board_query` with `page` or `inside` to narrow. `board_snapshot` and `board_view_fit` require a browser board. `board_snapshot` defaults to `scope: 'viewport'`, `scale: 2`, and `labels: true`. For a vision model you can also call `board.export('png' | 'jpeg', { scope: 'viewport', labels: true, maxBytes: 245760 })`. The labels match item IDs in the JSON. `board_apply` accepts optional `reveal`. It does not accept `lenient`. If `createBoard({ agentName })` is set, the tool does not need `agentName`.
 
 `LIMITS` from `anniedrawing/agent` is the live ceiling: 1,000 operations and 1,000 created items per agent batch, 50,000 items per document.
 

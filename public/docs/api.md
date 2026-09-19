@@ -8,6 +8,7 @@
 | `anniedrawing/core`      | Headless document, validation, history, geometry, and kind catalog                 |
 | `anniedrawing/agent`     | Tool definitions, dispatch, descriptions, queries, and kind catalog                |
 | `anniedrawing/ui`        | Optional plain-DOM editor controls (`mountUI`)                                     |
+| `anniedrawing/fellow`    | `createFellowBoard` embed preset                                                   |
 | `anniedrawing/style.css` | Editor styles                                                                      |
 
 Use Node.js 24 or newer for development and headless examples. Browser hosts need Pointer Events, SVG, ResizeObserver, and `structuredClone`. All JavaScript exports are ESM.
@@ -22,10 +23,15 @@ const board = createBoard(host, {
   ui: {
     menu: true, // AnnieDrawing control; false hides it
     export: ['png', 'svg'], // add 'json' for AnnieDoc; false hides Export
+    pages: true, // false hides page chips
   },
   autosaveKey: 'my-diagram', // opt-in browser persistence
   exposeGlobal: true, // default on; window.__anniedrawing is an array
-  agentPresence: true, // default on; visiting cursor for agent: additions
+  agentName: 'Alex', // cursor label when apply omits agentName
+  agentHistory: 'shared', // 'hidden' skips agent: origins on default undo
+  agentReveal: 'none', // 'fit' pans to off-screen agent creates
+  agentPlaceGap: 32, // default place.gap for agent: origins
+  agentPresence: true, // or { maxStops, durationScale }
   allowedImageOrigins: ['https://images.example.com'],
   // sanitizeHTML: (html) => DOMPurify.sanitize(html),
   // kinds: [customKind],
@@ -44,10 +50,13 @@ The host must have nonzero width and height. `destroy()` releases the board's li
 | `ui`        | `true`          | `false` omits editor chrome. An object keeps the tools and sets the header.                                 |
 | `ui.menu`   | `true`          | AnnieDrawing control: open a drawing, grid, appearance, documentation.                                      |
 | `ui.export` | `['png','svg']` | `false` hides Export. `'png'`, `'svg'`, and `'json'` (AnnieDoc `.annie`). One format downloads immediately. |
+| `ui.pages`  | `true`          | `false` hides page chips. `page.add` and `setPage` still work.                                              |
 
-`ui: true` is the same as `{ menu: true, export: ['png', 'svg'] }`. Two or more export formats open a menu. The local demo passes `export: ['png', 'svg', 'json']`. Programmatic `board.export()` still supports every format even when the Export control hides one.
+`ui: true` is the same as `{ menu: true, export: ['png', 'svg'], pages: true }`. Two or more export formats open a menu. The local demo passes `export: ['png', 'svg', 'json']`. Programmatic `board.export()` still supports every format even when the Export control hides one.
 
-`createDoc(initial?, { readonly?, allowedImageOrigins?, sanitizeHTML?, kinds? })` provides the model without creating DOM nodes. It returns `apply`, `get`, `query`, `describe`, `kindsSince`, `toJSON`, `undo`, `redo`, `load`, `on`, `canUndo`, `canRedo`, `itemSignal`, `fieldSignal`, and `childrenSignal`. `anniedrawing/core` also exports `applyDraft`, `translateItem`, `copyItems`, `detachMissingEndpoints`, `allItems`, and `clipboardText` for hosts that implement clipboard or preview layers. `applyDraft` merges nested `style`, `text`, and `data`. `clipboardText` reads the first non-comment `text/uri-list` line, then `text/plain`.
+`createFellowBoard(host, { fellowName, theme, ... })` from `anniedrawing/fellow` applies embed defaults. Explicit options override them.
+
+`createDoc(initial?, { readonly?, allowedImageOrigins?, sanitizeHTML?, kinds?, agentHistory?, agentPlaceGap? })` provides the model without creating DOM nodes. It returns `apply`, `get`, `query`, `describe`, `kindsSince`, `changesSince`, `toJSON`, `undo`, `redo`, `load`, `clear`, `on`, `revision`, `canUndo`, `canRedo`, `itemSignal`, `fieldSignal`, and `childrenSignal`. `anniedrawing/core` also exports `applyDraft`, `translateItem`, `copyItems`, `detachMissingEndpoints`, `allItems`, and `clipboardText` for hosts that implement clipboard or preview layers. `applyDraft` merges nested `style`, `text`, and `data`. `clipboardText` reads the first non-comment `text/uri-list` line, then `text/plain`.
 
 ## Signals
 
@@ -75,13 +84,17 @@ stop();
 | `board.get(id)`                              | Deep item copy, or `undefined`.                                             |
 | `board.query(selector)`                      | Matching item copies. Filters combine with AND.                             |
 | `board.describe(options?)`                   | Deterministic text with IDs, labels, and optional relations and free space. |
+| `board.changesSince(since, options?)`        | Committed session slices after that revision.                               |
+| `board.revision`                             | Session transaction counter. Starts at 0.                                   |
 | `board.kindsSince(since?)`                   | Built-in kinds added or last changed after that catalog version.            |
 | `board.boundsOf(ids?)`                       | Content bounds `{ x, y, w, h }`.                                            |
 | `board.selection`                            | Selected item IDs.                                                          |
 
 `query` accepts `kind` (string or string array), `text` (string or JavaScript `RegExp`), `within`, `inside`, `connectedTo`, `direction` (`in`, `out`, or `both`, default `both`), `data`, `hidden`, `locked`, and `page`. `text` matches `item.text.value` and `item.name`. A string is a case-insensitive substring. `kind` arrays match any listed kind.
 
-`describe` accepts `detail` (`brief`, `normal`, or `full`, default `normal`), `relations`, `freeSpace`, `maxItems` (default 100, maximum 10,000), `scope`, `page`, and `selection`. Empty pages include the line `An empty board, ready for your first idea.` A headless `board_read` tool supports whole-document scope only. Narrow a headless document with `query` and `page` or `inside`.
+`describe` accepts `detail` (`brief`, `normal`, or `full`, default `normal`), `relations`, `freeSpace`, `maxItems` (default 100, maximum 10,000), `scope`, `page`, `selection`, and `since`. Empty pages include the line `An empty board, ready for your first idea.` When `since` is set, only items created, last written, or removed after that session revision are listed. An empty delta is `No changes since revision <since>.` Removed items are `removed <id>` or `removed <id> <kind>`. Normal and full lines append `, by agent` when the last session writer origin starts with `agent:`. A headless `board_read` tool supports whole-document scope only. Narrow a headless document with `query` and `page` or `inside`.
+
+`changesSince(since)` returns `{ cursor, since, changes }`. Filter with `origin` for an exact match, or `'agent'` for any `agent:` origin. A `since` older than the retained 500 slices returns `{ changes: [], truncated: true }`. `cursor` is the current `revision`.
 
 `kindsSince(since?)` returns `{ version, since, kinds }`. Each kind is `{ kind, since, w, h, note }`. Omit `since` or pass `0` to list every built-in kind. Pass the last `version` you saw to get only kinds added or last changed after that number. `CATALOG_VERSION`, `KIND_CATALOG`, and `kindsSince` are also exported from `anniedrawing`, `anniedrawing/core`, and `anniedrawing/agent`. The catalog version is independent of the document format version. Custom host kinds are not listed.
 
@@ -96,22 +109,26 @@ const result = board.apply(ops, {
   dryRun: false,
   merge: false, // fold into the previous history entry when origin and label match
   agentName: 'planner', // optional visiting-cursor label
+  reveal: 'none', // 'fit' pans to created ids after a browser apply
+  lenient: false, // skip invalid ops; default is all-or-nothing
 });
-// { ok, created: string[], errors: [...], warnings: [...] }
+// { ok, created: string[], errors: [...], warnings: [...], skipped?: [...] }
 ```
 
-Supported operations: `add`, `set`, `remove`, `order`, `reparent`, `page.add`, `page.set`, `page.remove`, `meta.set`, `media.set`, and `media.remove`. A batch is all-or-nothing. `set` merges `style`, `text`, and `data` one level deep. Do not change an item's ID. Add operations may provide IDs so later operations in the same batch can reference the new items. `add` also accepts `page`, `parent`, and `index`. `page.add` accepts `index`. `order.to` is `front`, `back`, `forward`, `backward`, or a numeric index.
+Supported operations: `add`, `set`, `remove`, `order`, `reparent`, `page.add`, `page.set`, `page.remove`, `meta.set`, `media.set`, and `media.remove`. A batch is all-or-nothing unless `lenient: true`. Then failed operations go to `skipped` and the rest commit as one transaction. If nothing commits, `ok` is false and the document is unchanged. `set` merges `style`, `text`, and `data` one level deep. Do not change an item's ID. Add operations may provide IDs so later operations in the same batch can reference the new items. `add` also accepts `page`, `parent`, and `index`. `page.add` accepts `index`. `order.to` is `front`, `back`, `forward`, `backward`, or a numeric index.
 
-`place` requires exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`. Default `gap` is 32. Default `align` is `middle`. `inside` requires a `group` and finds a free slot; it fails if the group is full. `near` searches rings around the reference. Omitted `w` and `h` use the built-in default size for that kind.
+`add.item.kind` accepts `rectangle` (stored `rect`) and `arrow` (stored `connector` with an end arrow and elbow route when those fields are omitted). `query({ kind: 'rectangle' })` and `query({ kind: 'arrow' })` match those stored kinds. Color strings `black`, `grey`, `gray`, `blue`, `light-blue`, `green`, `light-green`, `red`, `light-red`, `orange`, `yellow`, `violet`, and `light-violet` store the matching palette token. Connector `from` and `to` accept `{ item, side }`, `{ x, y }`, or a string item id (`{ item, side: 'auto' }`). Compact JSON writes tokens and structured endpoints.
 
-Successful creates can add an `OVERLAPS_EXISTING` warning. The batch still commits. `merge: true` appends to the last history entry when that entry has the same `origin` and `label`. History keeps at most 100 entries.
+`place` requires exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`. Default `gap` is 32 (`agentPlaceGap` when origin starts with `agent:` and `gap` is omitted). Default `align` is `middle`. `inside` requires a `group` and finds a free slot; it fails if the group is full. `near` searches rings around the reference. Omitted `w` and `h` use the built-in default size for that kind.
+
+Successful creates can add an `OVERLAPS_EXISTING` warning. The batch still commits. `merge: true` appends to the last history entry when that entry has the same `origin` and `label`. Each committed apply still increments `revision` once. History keeps at most 100 entries. The session log keeps 500 slices.
 
 ```ts
 board.undo(); // returns whether anything changed
 board.undo({ origin: 'agent:planner' });
 board.redo();
-board.load(nextDocument); // replaces the document and resets history
-board.clear(); // removes the current page's items through operations
+board.load(nextDocument); // replaces the document and resets history and session revision
+board.clear(); // empty default document; resets history and session revision
 board.select(['i_one']);
 board.isLocked('i_one'); // includes locks on ancestors and descendants
 board.setTool('rect');
@@ -131,7 +148,7 @@ await board.addImage(file); // PNG, JPEG, GIF, WebP, or AVIF; under 10 MB
 
 `readonly` rejects saved mutations. Locks prevent interactive item edits, including keyboard commands, erasing, and context actions. `board.isLocked(id)` is true if the item, an ancestor, or a descendant is locked. A mixed selection stays protected until unlocked. `board.updateSelection({ locked: false })` clears the locks that affect that selection in one history entry.
 
-Browser `apply` batches with `origin: 'user'` reject protected item mutations atomically with `LOCKED`. Unlock-only patches are allowed. Other programmatic origins and the headless model may still edit locked items. Locks do not restrict page management or undo and redo. An `origin` label is provenance. It is not authentication. `load()` replaces the document. Use small operations for ordinary edits.
+Browser `apply` batches with `origin: 'user'` reject protected item mutations atomically with `LOCKED`. Unlock-only patches are allowed. Other programmatic origins and the headless model may still edit locked items. Locks do not restrict page management or undo and redo. An `origin` label is provenance. It is not authentication. `load()` and `clear()` replace the document and reset session revision. Use small operations for ordinary edits.
 
 `board.pageId` is the active page ID. `board.setPage(id)` switches pages. To create a page and add content to it in one batch:
 
@@ -151,7 +168,7 @@ A browser text item with `autoWidth: true` measures its plain text when it is ad
 
 ## Agent origin presentation
 
-A successful `board.apply` with an `agent:` origin gives newly created items a short visual arrival. A lilac cursor enters from outside the board, visits the first on-screen shapes one after another, then reveals the rest together, including connectors and items outside the viewport. Each visited item fades in with a small scale change, then the cursor leaves. It has no name unless `apply` passes `agentName`. Groups reveal their children together. Connectors fade without scaling their page-space paths. After eight visible non-connector stops, or when no further on-screen shapes remain, the rest of the batch appears together. Consecutive additions share one cursor.
+A successful `board.apply` with an `agent:` origin gives newly created items a short visual arrival. A lilac cursor enters from outside the board, visits the first on-screen shapes one after another, then reveals the rest together, including connectors and items outside the viewport. Each visited item fades in with a small scale change, then the cursor leaves. It has no name unless `apply` passes `agentName` or `createBoard` set `agentName`. Groups reveal their children together. Connectors fade without scaling their page-space paths. After eight visible non-connector stops (`agentPresence.maxStops`), or when no further on-screen shapes remain, the rest of the batch appears together. Consecutive additions share one cursor. `reveal: 'fit'` or `agentReveal: 'fit'` pans to created ids on the current page when they are outside the viewport.
 
 The operation is synchronous and atomic. `get`, `read`, exports, and history contain the complete result immediately. Temporary presentation state is not written to the document. Failed batches, dry runs, ordinary user or API edits, existing-item updates, and headless operations do not animate. A batch that is entirely outside the viewport, or on another page, does not summon a cursor or move the camera. Off-screen items in a mixed batch stay hidden until the remaining items appear together. An immediate `board.view.fit()` after `apply` uses the new viewport for the arrival.
 
@@ -200,8 +217,8 @@ board.view.flyTo({ x: 0, y: 0, w: 800, h: 600 });
 board.view.zoom = 1;
 board.view.center = { x: 300, y: 200 };
 
-const unsubscribe = board.on('change', ({ ops, inverse, origin, label }) => {
-  console.log(origin, label, ops);
+const unsubscribe = board.on('change', ({ ops, inverse, origin, label, revision }) => {
+  console.log(origin, label, revision, ops);
 });
 unsubscribe();
 ```
@@ -218,8 +235,13 @@ const png = await board.export('png', {
   scale: 2,
   labels: true,
 });
+const jpeg = await board.export('jpeg', {
+  maxSide: 1280,
+  maxBytes: 245760,
+  labels: true,
+});
 ```
 
-The Export control downloads the current page, even when items are selected. Which formats it offers is `ui.export` on `createBoard`: PNG and SVG by default, AnnieDoc when the host includes `'json'`, or hidden when `export` is `false`. One listed format downloads on click; two or more open a menu. Programmatic `export` always accepts `'json'`, `'svg'`, and `'png'`, even when the control hides a format. It defaults to `scope: 'page'`. PNG output defaults to 2× resolution. Pass `scale` to choose another resolution. The programmatic API still accepts `scope` for the whole document, a selection, or the viewport. Exports are asynchronous. JSON and SVG return strings. PNG returns a Blob. Scope controls the included content. `labels` adds item IDs for vision workflows. PNG uses an offscreen canvas only for rasterization. The editor's drawing surface is HTML and SVG. Browser CORS rules still apply to remote media. Custom HTML cannot be assumed to rasterize identically across browsers. Prefer explicit custom SVG output for portable exports.
+The Export control downloads the current page, even when items are selected. Which formats it offers is `ui.export` on `createBoard`: PNG and SVG by default, AnnieDoc when the host includes `'json'`, or hidden when `export` is `false`. One listed format downloads on click; two or more open a menu. Programmatic `export` accepts `'json'`, `'svg'`, `'png'`, `'jpeg'`, and `'webp'`, even when the control hides a format. It defaults to `scope: 'page'`. Raster output defaults to 2× resolution. Pass `scale`, `maxSide`, `maxBytes`, and `quality` (JPEG/WebP, default 0.85) to budget a raster. A missed `maxBytes` budget still returns the smallest blob; it does not throw. JSON and SVG return strings. Rasters return a Blob. `labels` adds item IDs for vision workflows. Rasterization uses an offscreen canvas. The editor's drawing surface is HTML and SVG. Browser CORS rules still apply to remote media. Custom HTML cannot be assumed to rasterize identically across browsers. Prefer explicit custom SVG output for portable exports. Headless documents reject raster export.
 
-Operation limits are exported as `LIMITS` from `anniedrawing/agent` and `anniedrawing/core`: at most 1,000 operations per API or agent batch (including at most 1,000 created items across nested children), up to 50,000 operations for a local `user` batch (`LIMITS.maxItems`), 50,000 items per document, coordinate magnitude 1,000,000, 100,000 text characters, nesting depth 32, JSON data nesting 104 (`LIMITS.maxJsonDepth`), 100 history entries (`LIMITS.maxHistory`), 100,000 path points, and 20,000,000 characters per media source. These are validation ceilings. They are not a promise that every maximum-size document stays fast. Read the runtime exported values before building UI around them.
+Operation limits are exported as `LIMITS` from `anniedrawing/agent` and `anniedrawing/core`: at most 1,000 operations per API or agent batch (including at most 1,000 created items across nested children), up to 50,000 operations for a local `user` batch (`LIMITS.maxItems`), 50,000 items per document, coordinate magnitude 1,000,000, 100,000 text characters, nesting depth 32, JSON data nesting 104 (`LIMITS.maxJsonDepth`), 100 history entries (`LIMITS.maxHistory`), 500 session log slices (`LIMITS.maxSessionLog`), 100,000 path points, and 20,000,000 characters per media source. These are validation ceilings. They are not a promise that every maximum-size document stays fast. Read the runtime exported values before building UI around them.

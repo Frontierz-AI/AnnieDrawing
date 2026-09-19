@@ -8,9 +8,12 @@ Kind catalog: 1
 const board = window.__anniedrawing[0]; // or createDoc()
 board.kindsSince();     // all built-in kinds; pass a previous version for only what is new
 board.describe();       // text with IDs; call anytime to see what is on the board
+board.describe({ since });
+board.changesSince(since);
 board.read();           // deep JSON copy (browser)
 board.get(id);
 board.query({ kind: 'note' });
+board.query({ kind: 'arrow' }); // matches stored connector created as arrow
 ```
 
 `kindsSince(since?)` lists built-in kinds added or last changed after that catalog version. Omit `since` or pass `0` for every built-in kind. Remember the returned `version`. Also exported as `kindsSince` / `CATALOG_VERSION` from `anniedrawing`, `anniedrawing/core`, and `anniedrawing/agent`. Custom host kinds are not in the catalog.
@@ -20,10 +23,10 @@ Reads return copies. Mutating them does not edit the board.
 ## Write
 
 ```
-board.apply(ops, { origin: 'agent:name', label: 'What changed', dryRun?: false, agentName?: 'Name' })
+board.apply(ops, { origin: 'agent:name', label: 'What changed', dryRun?: false, agentName?: 'Name', reveal?: 'fit' })
 ```
 
-Operations: `add`, `set`, `remove`, `order`, `reparent`, `page.add`, `page.set`, `page.remove`, `meta.set`, `media.set`, `media.remove`. A failed batch changes nothing. `set` merges `style`, `text`, and `data` one level deep. Do not change `id` with `set`. `add` accepts `page`, `parent`, `index`, and `place`. `order.to` is `front`, `back`, `forward`, `backward`, or a numeric index.
+Operations: `add`, `set`, `remove`, `order`, `reparent`, `page.add`, `page.set`, `page.remove`, `meta.set`, `media.set`, `media.remove`. A failed batch changes nothing. `set` merges `style`, `text`, and `data` one level deep. Do not change `id` with `set`. `add` accepts `page`, `parent`, `index`, and `place`. `order.to` is `front`, `back`, `forward`, `backward`, or a numeric index. Kind aliases: `rectangle` → `rect`, `arrow` → `connector`. Connector `from`/`to` accept `{ item, side }`, `{ x, y }`, or a string id.
 
 `place` requires exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`. Default `gap` is 32. Default `align` is `middle`. `inside` requires a `group`. Do not call `load()` to patch a few items.
 
@@ -39,7 +42,7 @@ Built-in kinds, default size when `w`/`h` omitted, catalog `since` 1:
 | `ellipse` | 180×110 | Ellipse or circle. |
 | `diamond` | 160×140 | Decision or highlight. |
 | `line` | 180×0 | Segment. Optional `points` relative to x/y. |
-| `connector` | 0×0 | `from`/`to` as `{ item, side? }` or `{ x, y }`. `route`: straight/elbow/curve. Compact JSON omits x/y/w/h. |
+| `connector` | 0×0 | `from`/`to` as `{ item, side? }`, `{ x, y }`, or a string item id. `route`: straight/elbow/curve. Compact JSON omits x/y/w/h. |
 | `path` | 0×0 | Freehand. `points` (`[x,y,pressure?]`), optional `closed`. |
 | `text` | 200×48 | Plain text. Browser `autoWidth` measures. |
 | `note` | 200×180 | Sticky. Default moss fill, 12px corner. |
@@ -65,7 +68,7 @@ Media MIME: `image/png`, `image/jpeg`, `image/gif`, `image/webp`, `image/avif`, 
 
 Query: `kind` (string or array), `text` (substring or JS `RegExp`; JSON tools send a string), `within`, `inside`, `connectedTo`, `direction` (in/out/both), `data`, `hidden`, `locked`, `page`. `text` matches `item.text.value` and `item.name`.
 
-`describe` defaults: `detail: 'normal'`, `maxItems: 100`. Optional `relations`, `freeSpace`, `scope`, `page`, `selection`.
+`describe` defaults: `detail: 'normal'`, `maxItems: 100`. Optional `relations`, `freeSpace`, `scope`, `page`, `selection`, `since`. `changesSince(since)` returns session slices; `truncated: true` means re-read the board.
 
 ## Tools
 

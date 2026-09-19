@@ -26,7 +26,7 @@ import { createDoc, kindsSince } from 'anniedrawing/core';
 const board = createDoc();
 ```
 
-`createDoc` and `createBoard` share `apply`, `get`, `query`, `describe`, `kindsSince`, `toJSON`, `undo`, `redo`, `load`, and `on`. The browser board also has `read`, `view`, `export`, and `selection`.
+`createDoc` and `createBoard` share `apply`, `get`, `query`, `describe`, `kindsSince`, `changesSince`, `toJSON`, `undo`, `redo`, `load`, `clear`, `revision`, and `on`. The browser board also has `read`, `view`, `export`, and `selection`.
 
 ## Kind catalog
 
@@ -48,6 +48,8 @@ Start with a text summary, then read JSON when you need fields or IDs.
 ```js
 board.describe();
 board.describe({ detail: 'full', relations: true, freeSpace: true });
+board.describe({ since: board.revision });
+board.changesSince(0);
 board.get('i_api');
 board.query({ kind: 'note' });
 board.query({ kind: ['rect', 'ellipse'], text: 'API' });
@@ -58,7 +60,7 @@ board.read(); // browser: deep copy; optional scope doc | page | selection | vie
 board.toJSON(); // portable document
 ```
 
-`describe` writes English lines with IDs. Default `detail` is `normal`. Default `maxItems` is 100 (maximum 10,000). Empty pages include `An empty board, ready for your first idea.`
+`describe` writes English lines with IDs. Default `detail` is `normal`. Default `maxItems` is 100 (maximum 10,000). Empty pages include `An empty board, ready for your first idea.` `describe({ since })` lists items created, last written, or removed after that session revision. `changesSince(since)` returns `{ cursor, since, changes }` and may set `truncated: true`.
 
 `query` filters combine with AND. Fields: `kind` (string or string array), `text` (substring or JS `RegExp`; JSON tools send a string), `within`, `inside`, `connectedTo`, `direction` (`in` / `out` / `both`, default `both`), `data`, `hidden`, `locked`, `page`. `text` matches `item.text.value` and `item.name`. A string is case-insensitive.
 
@@ -74,11 +76,12 @@ const result = board.apply(ops, {
   label: 'What changed',
   dryRun: false,
   agentName: 'Name',
+  reveal: 'fit',
 });
-// { ok, created, errors, warnings }
+// { ok, created, errors, warnings, skipped? }
 ```
 
-A failed batch changes nothing. `dryRun: true` validates and does not write. It does not reserve IDs. Do not call `load()` to patch a few items. Do not set `merge: true` unless you intend to fold this commit into the previous history entry with the same origin and label.
+A failed batch changes nothing. `dryRun: true` validates and does not write. It does not reserve IDs. Do not call `load()` to patch a few items. Do not set `merge: true` unless you intend to fold this commit into the previous history entry with the same origin and label. `lenient: true` is available on `apply` only.
 
 Use stable IDs when later operations in the same batch need to reference new items. Generated prefixes are `i_`, `p_`, and `m_`.
 
@@ -86,7 +89,7 @@ Operations: `add`, `set`, `remove`, `order`, `reparent`, `page.add`, `page.set`,
 
 `set` merges `style`, `text`, and `data` one level deep. Other fields are replaced. Do not change `id` with `set`. `order.to` is `front`, `back`, `forward`, `backward`, or a numeric index.
 
-`add` accepts `page`, `parent`, `index`, and `place`. `place` needs exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`. Default `gap` is 32. Default `align` is `middle`. `inside` requires a `group`.
+`add` accepts `page`, `parent`, `index`, and `place`. `place` needs exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`. Default `gap` is 32. Default `align` is `middle`. `inside` requires a `group`. Kind aliases: `rectangle` stores `rect`; `arrow` stores `connector` with an end arrow. `from` / `to` accept `{ item, side }`, `{ x, y }`, or a string item id.
 
 `OVERLAPS_EXISTING` is a warning. The batch still committed.
 
@@ -169,7 +172,7 @@ Re-read affected IDs before a destructive edit if a person may have changed them
 
 `style`: `stroke`, `strokeWidth` (0–1000), `dash` (`solid` / `dashed` / `dotted`), `fill`, `fillMode` (`solid` / `tint` / `hatch`), `corner`, `opacity` (0–1). Notes and cards default to a 12px corner. `fill: 'none'` is hollow.
 
-Named colors: `ink`, `slate`, `coral`, `amber`, `moss`, `teal`, `sky`, `violet`, `rose`, `paper`. CSS colors are also accepted.
+Named colors: `ink`, `slate`, `coral`, `amber`, `moss`, `teal`, `sky`, `violet`, `rose`, `paper`. CSS colors are also accepted. `apply` also accepts `black`, `grey`, `gray`, `blue`, `light-blue`, `green`, `light-green`, `red`, `light-red`, `orange`, `yellow`, `violet`, and `light-violet`; the document stores the token.
 
 ## Built-in kinds
 
@@ -207,7 +210,7 @@ Omit `w` / `h` to use the default size in the catalog.
 
 ### `connector`
 
-`from` / `to` are `{ item, side?, anchor? }` or `{ x, y }`. `side` is `auto` / `top` / `right` / `bottom` / `left`. `route` is `straight` / `elbow` / `curve`. Heads: `none` / `arrow` / `dot`. Optional `waypoints` are page-space `[x, y]`. Bound ends detach to their last point when the target disappears.
+`from` / `to` are `{ item, side?, anchor? }`, `{ x, y }`, or a string item id stored as `{ item, side: 'auto' }`. `side` is `auto` / `top` / `right` / `bottom` / `left`. `route` is `straight` / `elbow` / `curve`. Heads: `none` / `arrow` / `dot`. Optional `waypoints` are page-space `[x, y]`. Bound ends detach to their last point when the target disappears. `kind: 'arrow'` stores `connector` with an end arrow.
 
 ```js
 { op: 'add', item: { id: 'i_flow', kind: 'connector',
