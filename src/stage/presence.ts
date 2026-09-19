@@ -3,6 +3,9 @@ import { cursorArrow } from '../input/cursors';
 import type { Lens } from './lens';
 import { esc } from './paint';
 
+/** In-view non-connector placements visited one by one before the rest appear together. */
+const SEQUENTIAL_STOPS = 8;
+
 interface Placement {
   box: Box;
   elements: HTMLElement[];
@@ -33,6 +36,10 @@ export class AgentPresence {
     document.addEventListener('visibilitychange', this.preference);
   }
 
+  holds(element: HTMLElement) {
+    return this.pending.has(element);
+  }
+
   enqueue(placements: Placement[], name?: string) {
     if (this.quiet()) return;
     const label = name?.trim();
@@ -42,6 +49,7 @@ export class AgentPresence {
       if (!placement.elements.length) continue;
       for (const element of placement.elements) {
         element.classList.add('ad-agent-pending');
+        element.tabIndex = -1;
         this.pending.add(element);
       }
       this.queue.push(placement);
@@ -53,8 +61,20 @@ export class AgentPresence {
       });
   }
 
-  viewChanged() {
-    if (this.running) this.clear();
+  /** Drop items that left the document; keep the walk going for what remains. */
+  prune() {
+    for (const element of [...this.pending]) {
+      if (element.isConnected) continue;
+      this.restore.get(element)?.();
+      this.restore.delete(element);
+      this.pending.delete(element);
+    }
+    const keep = (placement: Placement) => {
+      placement.elements = placement.elements.filter((element) => this.pending.has(element));
+      return placement.elements.length > 0;
+    };
+    this.queue = this.queue.filter(keep);
+    if (!this.pending.size) this.clear();
   }
 
   clear() {
@@ -65,7 +85,10 @@ export class AgentPresence {
     this.tick = 0;
     for (const restore of this.restore.values()) restore();
     this.restore.clear();
-    for (const element of this.pending) element.classList.remove('ad-agent-pending');
+    for (const element of this.pending) {
+      element.classList.remove('ad-agent-pending');
+      if (element.tabIndex < 0) element.tabIndex = 0;
+    }
     this.pending.clear();
     this.queue = [];
     this.cursor?.remove();
@@ -122,21 +145,61 @@ export class AgentPresence {
     return `translate(${point.x - 7}px,${point.y - 7}px)`;
   }
 
-  private async move(generation: number, cursor: HTMLElement, from: Point, to: Point) {
-    const distance = Math.hypot(to.x - from.x, to.y - from.y);
-    const bend = Math.min(36, distance / 8);
-    const control = { x: (from.x + to.x) / 2 + bend, y: (from.y + to.y) / 2 - bend };
-    const at = (t: number) => {
-      const s = 1 - t;
-      return {
-        x: s * s * from.x + 2 * s * t * control.x + t * t * to.x,
-        y: s * s * from.y + 2 * s * t * control.y + t * t * to.y,
-      };
-    };
+  private center(box: Box): Point {
+    return { x: box.x + box.w / 2, y: box.y + box.h / 2 };
+  }
+
+  private async move(generation: number, cursor: HTMLElement, fromPage: Point, toPage: Point) {
+    const from0 = this.lens.toScreen(fromPage);
+    const to0 = this.lens.toScreen(toPage);
+    const distance = Math.hypot(to0.x - from0.x, to0.y - from0.y);
     await this.play(generation, Math.min(650, 320 + distance * 0.35), (t) => {
-      cursor.style.transform = this.transform(at(t));
+      const from = this.lens.toScreen(fromPage);
+      const to = this.lens.toScreen(toPage);
+      const bend = Math.min(36, Math.hypot(to.x - from.x, to.y - from.y) / 8);
+      const s = 1 - t;
+      cursor.style.transform = this.transform({
+        x: s * s * from.x + 2 * s * t * ((from.x + to.x) / 2 + bend) + t * t * to.x,
+        y: s * s * from.y + 2 * s * t * ((from.y + to.y) / 2 - bend) + t * t * to.y,
+      });
     });
-    if (generation === this.generation) cursor.style.transform = this.transform(to);
+    if (generation === this.generation)
+      cursor.style.transform = this.transform(this.lens.toScreen(toPage));
+  }
+
+  private connector(placement: Placement) {
+    return (
+      placement.elements.length > 0 &&
+      placement.elements.every((element) => element.dataset.adKind === 'connector')
+    );
+  }
+
+  private onScreen(placement: Placement) {
+    const corner = this.lens.toScreen(placement.box);
+    const right = corner.x + placement.box.w * this.lens.zoom;
+    const bottom = corner.y + placement.box.h * this.lens.zoom;
+    const { width, height } = this.lens;
+    return right >= 0 && bottom >= 0 && corner.x <= width && corner.y <= height;
+  }
+
+  private visitable(placement: Placement) {
+    return (
+      placement.elements.some((element) => element.isConnected) &&
+      !this.connector(placement) &&
+      this.onScreen(placement)
+    );
+  }
+
+  private take(list: Placement[]) {
+    return list.splice(0).flatMap((entry) => entry.elements);
+  }
+
+  private show(generation: number, element: HTMLElement) {
+    if (!this.pending.has(element)) return;
+    element.classList.remove('ad-agent-pending');
+    element.tabIndex = 0;
+    this.pending.delete(element);
+    this.reveal(generation, element);
   }
 
   private reveal(generation: number, element: HTMLElement) {
@@ -163,52 +226,40 @@ export class AgentPresence {
     this.running = true;
     let position: Point | undefined;
     let stops = 0;
+    const deferred: Placement[] = [];
     while (this.queue.length && generation === this.generation) {
       if (this.quiet()) {
         this.clear();
         return;
       }
-      const placement = this.queue.shift()!;
-      const corner = this.lens.toScreen(placement.box);
-      const right = corner.x + placement.box.w * this.lens.zoom;
-      const bottom = corner.y + placement.box.h * this.lens.zoom;
-      const { width, height } = this.lens;
-      if (right < 0 || bottom < 0 || corner.x > width || corner.y > height) {
-        for (const element of placement.elements) {
-          element.classList.remove('ad-agent-pending');
-          this.pending.delete(element);
-        }
+      this.prune();
+      if (generation !== this.generation) return;
+      const placement = this.queue.shift();
+      if (!placement) break;
+      if (!this.visitable(placement)) {
+        deferred.push(placement);
         continue;
       }
-      // Finish large batches together after eight visible stops.
-      if (++stops >= 8)
-        placement.elements.push(...this.queue.splice(0).flatMap((entry) => entry.elements));
-      const target = {
-        x: Math.max(12, Math.min(width - 12, (Math.max(0, corner.x) + Math.min(width, right)) / 2)),
-        y: Math.max(
-          12,
-          Math.min(height - 12, (Math.max(0, corner.y) + Math.min(height, bottom)) / 2),
-        ),
-      };
+      const last =
+        ++stops >= SEQUENTIAL_STOPS || !this.queue.some((entry) => this.visitable(entry));
+      if (last) placement.elements.push(...this.take(deferred), ...this.take(this.queue));
+      const target = this.center(placement.box);
       if (!this.cursor) {
         this.cursor = document.createElement('div');
         this.cursor.className = 'ad-agent-cursor';
         this.cursor.setAttribute('aria-hidden', 'true');
         this.cursor.innerHTML = `<svg width="36" height="36" viewBox="0 0 36 36"><path d="${cursorArrow}"/></svg>${this.name ? `<span>${esc(this.name)}</span>` : ''}`;
-        position = this.edge(target);
-        this.cursor.style.transform = this.transform(position);
-        this.cursor.dataset.adFrom = `${position.x},${position.y}`;
+        const edge = this.edge(this.lens.toScreen(target));
+        position = this.lens.toPage(edge);
+        this.cursor.style.transform = this.transform(edge);
+        this.cursor.dataset.adFrom = `${edge.x},${edge.y}`;
         this.root.append(this.cursor);
       }
       const cursor = this.cursor;
       await this.move(generation, cursor, position!, target);
       if (generation !== this.generation) return;
       position = target;
-      for (const element of placement.elements) {
-        element.classList.remove('ad-agent-pending');
-        this.pending.delete(element);
-        this.reveal(generation, element);
-      }
+      for (const element of placement.elements) this.show(generation, element);
       const svg = cursor.querySelector('svg');
       if (svg)
         await this.play(generation, 260, (t) => {
@@ -217,8 +268,14 @@ export class AgentPresence {
       if (svg && generation === this.generation) svg.style.transform = '';
     }
     if (generation !== this.generation) return;
-    if (this.cursor && position)
-      await this.move(generation, this.cursor, position, this.edge(position));
+    if (deferred.length) {
+      for (const element of this.take(deferred)) this.show(generation, element);
+    }
+    if (generation !== this.generation) return;
+    if (this.cursor && position) {
+      const leave = this.lens.toPage(this.edge(this.lens.toScreen(position)));
+      await this.move(generation, this.cursor, position, leave);
+    }
     if (generation !== this.generation) return;
     this.cursor?.remove();
     this.cursor = undefined;

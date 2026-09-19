@@ -338,6 +338,6 @@ Optional wrapper around the same APIs. Import `toolDefs` and `runTool` from `ann
 
 Browser `origin: 'user'` rejects locked targets with `LOCKED`. Programmatic and headless calls can still edit locked items; leave them alone unless the task includes them. `board.isLocked(id)` includes group protection.
 
-Agent-origin creates on a browser board show a visiting cursor. Pass `agentName` to label it. The document, exports, and history are complete immediately. Do not sleep or split a batch to time the animation. Call `view.fit` only when a camera change is wanted.
+Agent-origin creates on a browser board show a visiting cursor. Pass `agentName` to label it. The cursor visits the first on-screen shapes, then reveals the rest together. A person can keep editing during that walk. The document, exports, and history are complete immediately. Do not sleep or split a batch to time the animation. Call `view.fit` only when a camera change is wanted.
 
 Origin is provenance, not authorization.

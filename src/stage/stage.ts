@@ -74,11 +74,7 @@ export class Stage {
     this.root.append(this.grid, this.world, this.overlay);
     host.append(this.root);
     this.lens = new Lens(this.root);
-    let camera = this.lens.state;
-    this.lens.onChange((state) => {
-      if (state.x !== camera.x || state.y !== camera.y || state.zoom !== camera.zoom)
-        this.presence?.viewChanged();
-      camera = state;
+    this.lens.onChange(() => {
       if (!this.cameraFrame)
         this.cameraFrame = requestAnimationFrame(() => {
           this.cameraFrame = 0;
@@ -130,6 +126,13 @@ export class Stage {
   }
   finishPresentation() {
     this.presence?.clear();
+  }
+  prunePresentation() {
+    this.presence?.prune();
+  }
+  isPending(id: string) {
+    const element = this.records.get(id)?.view.element;
+    return !!element && !!this.presence?.holds(element);
   }
   render(doc: AnnieDoc, pageId: string, drafts?: Map<string, Partial<Item>>): void {
     if (this.disposed) return;
@@ -237,6 +240,7 @@ export class Stage {
     this.previousDrafts = new Set(drafts?.keys());
     this.updateCulling();
     this.paintOverlay();
+    this.presence?.prune();
   }
   private renderDrafts(drafts?: Map<string, Partial<Item>>): void {
     const dirty = new Set([...this.previousDrafts, ...(drafts?.keys() ?? [])]);
@@ -282,6 +286,7 @@ export class Stage {
       this.updateCulling();
       this.paintOverlay();
     }
+    this.presence?.prune();
   }
   setSelection(ids: string[]): void {
     if (

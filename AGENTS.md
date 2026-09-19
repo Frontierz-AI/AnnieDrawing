@@ -45,7 +45,7 @@ A person may edit while an agent is reasoning. Re-read affected items before a d
 
 Use the public API. Do not write through private stage internals or synthetic DOM edits. Browser agents can inspect `[data-ad-id]`, `[data-ad-kind]`, and ARIA labels. `board.destroy()` removes listeners and its global registration. Consumers may disable the global hook.
 
-New items added through `board.apply` with an `agent:` origin automatically get a visiting cursor and reveal animation. Pass `agentName` when the cursor should show a name. Otherwise it stays unlabeled. The document, exports, and undo history commit synchronously. Animation is presentation only. Do not add sleeps or split an atomic batch to choreograph it. An immediate `board.view.fit()` is supported when a camera change is wanted. Human input, navigation, and reduced motion finish the presentation immediately. Use `agentPresence: false` when creating a board that should skip it.
+New items added through `board.apply` with an `agent:` origin automatically get a visiting cursor and reveal animation. Pass `agentName` when the cursor should show a name. Otherwise it stays unlabeled. The cursor visits the first on-screen shapes one after another, then reveals the rest together. The document, exports, and undo history commit synchronously. Animation is presentation only. Do not add sleeps or split an atomic batch to choreograph it. An immediate `board.view.fit()` is supported when a camera change is wanted. A person may keep editing; pending items are not hittable. Reduced motion and a hidden tab finish the presentation immediately. Use `agentPresence: false` when creating a board that should skip it.
 
 ## Contribution and provenance
 

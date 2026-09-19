@@ -105,7 +105,7 @@ Click, tap, or focus a locked item to select it. Editing controls stay disabled 
 
 Browser `apply` batches with `origin: 'user'` reject protected item mutations with `LOCKED`. Other programmatic origins and the headless model may still edit locked items. Treat user locks as a request to leave those items alone unless the task includes them.
 
-Successful browser `apply` calls with an `agent:` origin show a visiting cursor and reveal the new items. Pass `agentName` to label the cursor. The document, exports, and undo history commit before that presentation starts. Set `agentPresence: false` on `createBoard` to skip it.
+Successful browser `apply` calls with an `agent:` origin show a visiting cursor. It walks the first on-screen shapes, then reveals the rest together. A person can keep editing while that walk runs. Pass `agentName` to label the cursor. The document, exports, and undo history commit before that presentation starts. Set `agentPresence: false` on `createBoard` to skip it.
 
 Pasting a single `http(s)` URL creates a `video` item for YouTube and Vimeo, an `image` item for an image URL, or a `link` card for other sites. The browser may then fetch that URL, without credentials, for Open Graph title, description, and image. Pass `unfurl: false` to skip the fetch. Agent operations do not fetch.
 

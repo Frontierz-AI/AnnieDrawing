@@ -92,9 +92,9 @@ The IDs in this example are readable placeholders. Check existing IDs or generat
 
 `place` requires exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`. Default `gap` is 32. Default `align` is `middle`. `inside` works only on a `group`. Omitted `w` and `h` use the kind's default size. Do not set `merge: true` on agent batches unless you intend to fold this commit into the previous history entry with the same origin and label.
 
-In the browser, a successful `apply` with an `agent:` origin shows a lilac cursor entering from outside the viewport, then reveals the new items. Pass `agentName` to label the cursor. Without it the cursor has no name. Put related items in one batch. The editor sequences the presentation, including groups and large batches.
+In the browser, a successful `apply` with an `agent:` origin shows a lilac cursor entering from outside the viewport. It visits the first on-screen shapes one after another, then reveals the rest together, including connectors. Pass `agentName` to label the cursor. Without it the cursor has no name. Put related items in one batch. Do not split a batch to choreograph the walk.
 
-The returned result, JSON, exports, and history are complete while that presentation runs. Do not sleep or split an atomic batch to time the animation. Updates to existing items stay immediate. The presentation does not move the camera. Call `view.fit` immediately after `apply` only when that camera change is wanted. Human input and reduced motion reveal pending items immediately. Set `agentPresence: false` on `createBoard` to skip the presentation.
+The returned result, JSON, exports, and history are complete while that presentation runs. Do not sleep or split an atomic batch to time the animation. Updates to existing items stay immediate. The presentation does not move the camera. Call `view.fit` immediately after `apply` only when that camera change is wanted. A person can keep editing; pending items are not hittable. Reduced motion and a hidden tab reveal pending items immediately. Set `agentPresence: false` on `createBoard` to skip the presentation.
 
 ## Patch
 

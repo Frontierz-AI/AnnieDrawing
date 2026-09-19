@@ -95,6 +95,53 @@ test('phone has seven reachable tools and secondary actions in the board menu', 
   await capture(page, info, 'phone-export');
 });
 
+test('short desktop keeps the tool sidebar centered with tighter chrome', async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 520 });
+  await openDemo(page);
+  const metrics = await page.evaluate(() => {
+    const toolbar = document.querySelector('.ad-toolbar')!.getBoundingClientRect();
+    const header = document.querySelector('.ad-header')!.getBoundingClientRect();
+    const footer = document.querySelector('.ad-footer')!.getBoundingClientRect();
+    const icon = document.querySelector('.ad-toolbar .ad-icon-button svg')!.getBoundingClientRect();
+    return {
+      toolbarMid: toolbar.top + toolbar.height / 2,
+      toolbarHeight: toolbar.height,
+      icon: Math.max(icon.width, icon.height),
+      headerTop: header.top,
+      footerGap: 520 - footer.bottom,
+    };
+  });
+  expect(metrics.toolbarMid).toBeGreaterThan(200);
+  expect(metrics.toolbarMid).toBeLessThan(320);
+  expect(metrics.toolbarHeight).toBeLessThan(380);
+  expect(metrics.icon).toBeLessThanOrEqual(20);
+  expect(metrics.headerTop).toBeLessThan(16);
+  expect(metrics.footerGap).toBeLessThan(16);
+  await capture(page, info, 'short-desktop');
+});
+
+test('phone landscape keeps tools on a bottom bar inside the viewport', async ({ page }, info) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await openDemo(page);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(844);
+  const toolbar = page.locator('.ad-toolbar');
+  await expect(toolbar.getByRole('button')).toHaveCount(7);
+  const box = await toolbar.boundingBox();
+  expect(box!.y).toBeGreaterThan(280);
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(844);
+  for (const tool of await toolbar.getByRole('button').all()) {
+    const toolBox = await tool.boundingBox();
+    expect(toolBox!.y).toBeGreaterThanOrEqual(0);
+    expect(toolBox!.y + toolBox!.height).toBeLessThanOrEqual(390);
+  }
+  await page.getByRole('button', { name: 'Board menu', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Hand', exact: true })).toBeVisible();
+  await capture(page, info, 'phone-landscape');
+});
+
 test('small phone controls stay inside the viewport and documentation opens', async ({
   page,
 }, info) => {

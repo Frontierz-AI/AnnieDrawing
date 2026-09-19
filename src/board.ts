@@ -167,11 +167,6 @@ export class Board {
     this.stage.root.dataset.adBoard = '';
     this.cleanup.push(
       this.model.on('change', (event) => {
-        if (
-          !event.origin.startsWith('agent:') ||
-          event.ops.some((op) => op.op !== 'add' && op.op !== 'media.set')
-        )
-          this.stage.finishPresentation();
         this.document = this.model.toJSON({ compact: false });
         if (!this.document.pages.some((page) => page.id === this.pageId))
           this.pageId = this.document.pages[0].id;
@@ -819,7 +814,6 @@ export class Board {
     text.addEventListener('keydown', key);
   }
   cancel() {
-    this.stage.finishPresentation();
     this.clearInteractive();
     clearTimeout(this.longPressTimer);
     this.lastTouchTap = undefined;
@@ -942,6 +936,7 @@ export class Board {
       tolerance: 6 / this.view.zoom,
       enteredGroup: this.enteredGroup,
       outline: this.outline,
+      ignore: (candidate) => this.stage.isPending(candidate.id),
     });
     if (!item || item.id === this.enteredGroup || (!includeLocked && this.isLocked(item.id)))
       return undefined;
@@ -955,7 +950,6 @@ export class Board {
   private pointerDown = (e: PointerEvent) => {
     if (this.isUI(e.target) || e.button > 1) return;
     this.clearInteractive(e.target);
-    this.stage.finishPresentation();
     clearTimeout(this.longPressTimer);
     if (e.pointerType !== 'touch') this.lastTouchTap = undefined;
     const screen = this.point(e);
@@ -1019,9 +1013,8 @@ export class Board {
     }
     if (this.tool === 'select') {
       const targetId = (e.target as Element).closest<HTMLElement>('[data-ad-id]')?.dataset.adId;
-      const item =
-        this.hit(start, true) ??
-        (targetId && this.isLocked(targetId) ? this.get(targetId) : undefined);
+      const fromDom = targetId && !this.stage.isPending(targetId) ? this.get(targetId) : undefined;
+      const item = this.hit(start, true) ?? fromDom;
       if (item) {
         if (e.shiftKey) {
           this.select(
@@ -1412,7 +1405,10 @@ export class Board {
         };
       this.select([
         ...drag.ids,
-        ...this.spatial.enclosed(b, { enteredGroup: this.enteredGroup }).map((i) => i.id),
+        ...this.spatial.enclosed(b, {
+          enteredGroup: this.enteredGroup,
+          ignore: (candidate) => this.stage.isPending(candidate.id),
+        }).map((i) => i.id),
       ]);
     }
     if (drag.kind === 'erase') ops.push(...drag.ids.map((id) => ({ op: 'remove' as const, id })));
@@ -1535,7 +1531,8 @@ export class Board {
         includeLocked: true,
         enteredGroup: this.enteredGroup,
         outline: this.outline,
-      }) ?? (targetId ? this.get(targetId) : undefined);
+        ignore: (candidate) => this.stage.isPending(candidate.id),
+      }) ?? (targetId && !this.stage.isPending(targetId) ? this.get(targetId) : undefined);
     if (item) {
       this.setTool('select');
       this.select([item.id]);
@@ -1592,7 +1589,6 @@ export class Board {
   }
   private keyDown = (e: KeyboardEvent) => {
     if (this.isUI(e.target)) return;
-    this.stage.finishPresentation();
     const mod = e.metaKey || e.ctrlKey,
       key = e.key.toLowerCase();
     if (key === 'contextmenu' || (key === 'f10' && e.shiftKey)) {
@@ -1622,7 +1618,11 @@ export class Board {
     }
     if (mod && key === 'a') {
       e.preventDefault();
-      this.select(this.items.filter((i) => !i.hidden && !i.locked).map((i) => i.id));
+      this.select(
+        this.items
+          .filter((i) => !i.hidden && !i.locked && !this.stage.isPending(i.id))
+          .map((i) => i.id),
+      );
       return;
     }
     if (key === '1' && !mod) {
