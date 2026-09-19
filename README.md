@@ -21,7 +21,7 @@ npm run dev
 
 The development server uses Vite's default port 5173. Open http://127.0.0.1:5173 for the editor, or http://127.0.0.1:5173/docs/index.html for this manual. If 5173 is already in use, Vite prints the next free address.
 
-The demo stores the current drawing in the browser. That storage is local to the browser profile. Export a `.annie` file for a portable copy. New files use format version 2 and `pages`. Version 1 files with `sheets` migrate on load.
+The demo stores the current drawing in the browser. That storage is local to the browser profile. Its Export control offers PNG, SVG, and AnnieDoc. Export a `.annie` file for a portable copy. New files use format version 2 and `pages`. Version 1 files with `sheets` migrate on load.
 
 ## Package status
 
@@ -32,10 +32,13 @@ import { createBoard } from 'anniedrawing';
 import 'anniedrawing/style.css';
 
 const host = document.querySelector<HTMLElement>('#drawing')!;
-const board = createBoard(host, { theme: 'auto', ui: true });
-// Defaults if omitted: theme 'light', ui true (AnnieDrawing menu on, export PNG and SVG),
-// exposeGlobal true, agentPresence true. Pass ui: { export: ['png', 'svg', 'json'] } to offer AnnieDoc.
-// theme: 'auto' follows the system appearance.
+const board = createBoard(host, {
+  theme: 'auto',
+  ui: {
+    menu: true,
+    export: ['png', 'svg'],
+  },
+});
 
 const result = board.apply(
   [
@@ -58,6 +61,8 @@ if (!result.ok) console.error(result.errors);
 board.view.fit();
 console.log(board.describe());
 ```
+
+`theme` is `'light'` when omitted, `'dark'`, or `'auto'` to follow the system. `ui: false` omits editor chrome. `ui.menu` is the AnnieDrawing control (default on). `ui.export` defaults to PNG and SVG; pass `'json'` to offer AnnieDoc, or `false` to hide Export. The local demo uses `export: ['png', 'svg', 'json']`. Other defaults: `exposeGlobal` true, `agentPresence` true.
 
 The host element must have a nonzero width and height, for example `height: 600px`. Call `board.destroy()` when the host is removed. Await `board.ready` before edits that depend on restored autosave content. `import 'anniedrawing/style.css'` loads editor styles only; it does not change the host page's `html` or `body` layout.
 

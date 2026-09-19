@@ -25,6 +25,11 @@
       html {
         scroll-behavior: smooth;
         scroll-padding-top: 100px;
+        overflow-x: hidden;
+      }
+      html,
+      body {
+        max-width: 100%;
       }
       body {
         margin: 0;
@@ -67,6 +72,8 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 8px;
+        min-width: 0;
         padding: 0 max(5vw, 24px);
         position: sticky;
         top: 0;
@@ -79,6 +86,7 @@
         display: flex;
         align-items: center;
         gap: 11px;
+        min-width: 0;
         text-decoration: none;
         font-size: 20px;
         font-weight: 800;
@@ -107,6 +115,14 @@
       .open:hover {
         background: #1c5053;
         color: white;
+      }
+      .shell,
+      main,
+      aside,
+      .code,
+      table {
+        min-width: 0;
+        max-width: 100%;
       }
       .shell {
         max-width: 1230px;
@@ -165,12 +181,13 @@
         border-radius: 50%;
       }
       h1 {
-        font-size: clamp(38px, 5vw, 64px);
+        font-size: clamp(32px, 5vw, 64px);
         line-height: 1.08;
         letter-spacing: -2.7px;
         max-width: 650px;
         font-weight: 750;
         margin: 25px 0;
+        overflow-wrap: anywhere;
       }
       h1 span {
         position: relative;
@@ -262,6 +279,7 @@
       pre {
         white-space: pre;
         overflow: auto;
+        max-width: 100%;
         padding: 24px;
         background: #16383b;
         border-radius: 13px;
@@ -432,8 +450,14 @@
           display: none;
         }
         h1 {
-          font-size: 43px;
-          letter-spacing: -1.8px;
+          font-size: clamp(28px, 10vw, 36px);
+          letter-spacing: -1.2px;
+        }
+        header .open {
+          flex: 0 0 auto;
+        }
+        nav {
+          max-width: 100%;
         }
         .lede {
           font-size: 17px;
@@ -593,9 +617,10 @@ npm run dev</code></pre>
             require a UI framework, account, backend, or drawing canvas.
           </p>
           <p class="muted">
-            The demo stores the current drawing in the browser. Export a
-            <code>.annie</code> file for a portable copy. New files use format version 2 and
-            <code>pages</code>. Version 1 files with <code>sheets</code> migrate on load.
+            The demo stores the current drawing in the browser. Its Export control offers PNG, SVG,
+            and AnnieDoc. Export a <code>.annie</code> file for a portable copy. New files use
+            format version 2 and <code>pages</code>. Version 1 files with <code>sheets</code>
+            migrate on load.
           </p>
         </section>
         <section class="chapter" id="embed">
@@ -631,7 +656,12 @@ board.apply([{ op: 'add', item: {
           <div class="callout">
             The host must have nonzero width and height, for example
             <code>#board { height: 600px; }</code>. Await <code>board.ready</code> before edits that
-            depend on restored autosave content.
+            depend on restored autosave content. <code>theme</code> is <code>light</code> when
+            omitted, <code>dark</code>, or <code>auto</code> for the system.
+            <code>ui: false</code> omits editor chrome. <code>ui.menu</code> is the AnnieDrawing
+            control (default on). <code>ui.export</code> lists <code>png</code>, <code>svg</code>,
+            and <code>json</code> for AnnieDoc. An imported board defaults to PNG and SVG. This demo
+            also offers AnnieDoc.
           </div>
           <p>
             For Node.js or workers, import <code>createDoc</code> from
@@ -653,8 +683,9 @@ board.apply([{ op: 'add', item: {
             Fit the view with <kbd>2</kbd>. Hold Shift to keep a resize proportional. Select an item
             to open its inspector. Fill, Line, and Color choose colors. Line also sets thickness and
             pattern. Text-capable shapes show size, alignment, and font. More arrangement options
-            opens align, distribute, group, and stacking. Pages lists pages. The board menu holds
-            appearance and documentation.
+            opens align, distribute, group, and stacking. Pages lists pages. The AnnieDrawing menu
+            holds appearance and documentation unless the host hides it. This demo's Export control
+            offers PNG, SVG, and AnnieDoc; an imported board defaults to PNG and SVG.
           </p>
           <div class="shortcut-grid">
             <div class="shortcut"><span>Select / move</span><kbd>V</kbd></div>
@@ -813,9 +844,10 @@ console.log(board.describe())</code></pre>
               <h3>SVG and PNG</h3>
               <p>
                 The Export control downloads the current page. An imported board offers PNG and SVG;
-                pass <code>json</code> to add AnnieDoc. SVG is vector. PNG defaults to 2×
-                resolution. Pass <code>labels: true</code> when a vision model needs item IDs in the
-                image.
+                pass <code>ui.export</code> with <code>json</code> to add AnnieDoc, or
+                <code>false</code> to hide Export. SVG is vector. PNG defaults to 2× resolution.
+                Pass <code>labels: true</code> when a vision model needs item IDs in the image.
+                Programmatic <code>board.export</code> always accepts JSON, SVG, and PNG.
               </p>
             </div>
           </div>

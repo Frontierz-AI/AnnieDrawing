@@ -18,8 +18,11 @@ Use Node.js 24 or newer for development and headless examples. Browser hosts nee
 const board = createBoard(host, {
   doc, // optional initial AnnieDoc
   readonly: false,
-  theme: 'light', // 'light' | 'dark' | 'auto' (follows the system)
-  ui: true, // false omits chrome; or { menu, export }
+  theme: 'light', // also 'dark' | 'auto'
+  ui: {
+    menu: true, // AnnieDrawing control; false hides it
+    export: ['png', 'svg'], // add 'json' for AnnieDoc; false hides Export
+  },
   autosaveKey: 'my-diagram', // opt-in browser persistence
   exposeGlobal: true, // default on; window.__anniedrawing is an array
   agentPresence: true, // default on; visiting cursor for agent: additions
@@ -33,21 +36,16 @@ await board.ready; // wait for optional autosave restoration
 board.destroy();
 ```
 
-The host must have nonzero width and height. `destroy()` releases the board's listeners, views, subscriptions, and global registration. Dispose application integrations with their own cleanup functions. The library does not ship a font file. The demo loads Nunito. The library CSS uses system fallbacks.
+The host must have nonzero width and height. `destroy()` releases the board's listeners, views, subscriptions, and global registration. Dispose application integrations with their own cleanup functions. The library does not ship a font file. The demo loads Nunito. The library CSS uses system fallbacks. `BoardOptions`, `UiOptions`, and `UiExportFormat` are exported from `anniedrawing`.
 
-`theme` is `'light'` when omitted, `'dark'`, or `'auto'` to follow `prefers-color-scheme`. `ui: false` omits editor chrome. Pass an object to keep the tools and choose header controls:
+| Option      | Default         | Meaning                                                                                                     |
+| ----------- | --------------- | ----------------------------------------------------------------------------------------------------------- |
+| `theme`     | `'light'`       | `'light'`, `'dark'`, or `'auto'` (follows `prefers-color-scheme`). Change later with `setTheme`.            |
+| `ui`        | `true`          | `false` omits editor chrome. An object keeps the tools and sets the header.                                 |
+| `ui.menu`   | `true`          | AnnieDrawing control: open a drawing, grid, appearance, documentation.                                      |
+| `ui.export` | `['png','svg']` | `false` hides Export. `'png'`, `'svg'`, and `'json'` (AnnieDoc `.annie`). One format downloads immediately. |
 
-```ts
-createBoard(host, {
-  theme: 'auto',
-  ui: {
-    menu: false, // hide the AnnieDrawing control
-    export: ['png', 'svg'], // default when omitted; false hides Export
-  },
-});
-```
-
-`export` accepts `'png'`, `'svg'`, and `'json'` (the AnnieDoc `.annie` file). The default for an imported board is PNG and SVG. Include `'json'` to offer AnnieDoc. The local demo passes `['png', 'svg', 'json']`. A single format downloads on click; two or more open a menu. Programmatic `board.export()` is unchanged and still supports every format.
+`ui: true` is the same as `{ menu: true, export: ['png', 'svg'] }`. Two or more export formats open a menu. The local demo passes `export: ['png', 'svg', 'json']`. Programmatic `board.export()` still supports every format even when the Export control hides one.
 
 `createDoc(initial?, { readonly?, allowedImageOrigins?, sanitizeHTML?, kinds? })` provides the model without creating DOM nodes. It returns `apply`, `get`, `query`, `describe`, `kindsSince`, `toJSON`, `undo`, `redo`, `load`, `on`, `canUndo`, `canRedo`, `itemSignal`, `fieldSignal`, and `childrenSignal`. `anniedrawing/core` also exports `applyDraft`, `translateItem`, `copyItems`, `detachMissingEndpoints`, `allItems`, and `clipboardText` for hosts that implement clipboard or preview layers. `applyDraft` merges nested `style`, `text`, and `data`. `clipboardText` reads the first non-comment `text/uri-list` line, then `text/plain`.
 
@@ -118,7 +116,7 @@ board.select(['i_one']);
 board.isLocked('i_one'); // includes locks on ancestors and descendants
 board.setTool('rect');
 board.setPage('p_main');
-board.setTheme('dark');
+board.setTheme('dark'); // also 'light' | 'auto'
 board.setGrid(false);
 board.focus();
 board.add('rect'); // toolbar-sized item at the view center
@@ -222,6 +220,6 @@ const png = await board.export('png', {
 });
 ```
 
-The Export control downloads the current page, even when items are selected. Programmatic `export` defaults to `scope: 'page'`. PNG output defaults to 2× resolution. Pass `scale` to choose another resolution. The programmatic `export` API still accepts `scope` for the whole document, a selection, or the viewport. Exports are asynchronous. JSON and SVG return strings. PNG returns a Blob. Scope controls the included content. `labels` adds item IDs for vision workflows. PNG uses an offscreen canvas only for rasterization. The editor's drawing surface is HTML and SVG. Browser CORS rules still apply to remote media. Custom HTML cannot be assumed to rasterize identically across browsers. Prefer explicit custom SVG output for portable exports.
+The Export control downloads the current page, even when items are selected. Which formats it offers is `ui.export` on `createBoard`: PNG and SVG by default, AnnieDoc when the host includes `'json'`, or hidden when `export` is `false`. One listed format downloads on click; two or more open a menu. Programmatic `export` always accepts `'json'`, `'svg'`, and `'png'`, even when the control hides a format. It defaults to `scope: 'page'`. PNG output defaults to 2× resolution. Pass `scale` to choose another resolution. The programmatic API still accepts `scope` for the whole document, a selection, or the viewport. Exports are asynchronous. JSON and SVG return strings. PNG returns a Blob. Scope controls the included content. `labels` adds item IDs for vision workflows. PNG uses an offscreen canvas only for rasterization. The editor's drawing surface is HTML and SVG. Browser CORS rules still apply to remote media. Custom HTML cannot be assumed to rasterize identically across browsers. Prefer explicit custom SVG output for portable exports.
 
 Operation limits are exported as `LIMITS` from `anniedrawing/agent` and `anniedrawing/core`: at most 1,000 operations per API or agent batch (including at most 1,000 created items across nested children), up to 50,000 operations for a local `user` batch (`LIMITS.maxItems`), 50,000 items per document, coordinate magnitude 1,000,000, 100,000 text characters, nesting depth 32, JSON data nesting 104 (`LIMITS.maxJsonDepth`), 100 history entries (`LIMITS.maxHistory`), 100,000 path points, and 20,000,000 characters per media source. These are validation ceilings. They are not a promise that every maximum-size document stays fast. Read the runtime exported values before building UI around them.
