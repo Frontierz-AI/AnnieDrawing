@@ -12,16 +12,67 @@ const setup = async (page: Page) => {
 
 test('plain text paste creates medium text', async ({ page }) => {
   await setup(page);
-  const item = await page.evaluate(() => {
+  const item = await page.evaluate(async () => {
     const b = window.__anniedrawing![0];
     const clipboard = new DataTransfer();
     clipboard.setData('text/plain', 'A pasted thought');
     const event = new Event('paste', { bubbles: true, cancelable: true });
     Object.defineProperty(event, 'clipboardData', { value: clipboard });
     b.stage.root.dispatchEvent(event);
+    const started = Date.now();
+    while (!b.query({ kind: 'text' }).length && Date.now() - started < 1000)
+      await new Promise((resolve) => setTimeout(resolve, 20));
     return b.query({ kind: 'text' })[0];
   });
   expect(item.text).toMatchObject({ value: 'A pasted thought', size: 'm' });
+});
+
+test('pasted video, image and website URLs create card items', async ({ page }) => {
+  await setup(page);
+  const result = await page.evaluate(async () => {
+    const board = window.__anniedrawing![0];
+    const send = (text: string) => {
+      const clipboard = new DataTransfer();
+      clipboard.setData('text/plain', text);
+      const event = new Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'clipboardData', { value: clipboard });
+      board.stage.root.dispatchEvent(event);
+    };
+    send('https://www.youtube.com/watch?v=ihe1QbeGt7U&list=RDihe1QbeGt7U');
+    send(
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgvBn6PwAE+QKJBZFmAAAAAElFTkSuQmCC',
+    );
+    send('https://example.com/notes');
+    const started = Date.now();
+    while (
+      (!board.query({ kind: 'image' }).length ||
+        !board.stage.world.querySelector('iframe') ||
+        !board.stage.world.querySelector('.ad-link-open')) &&
+      Date.now() - started < 2000
+    )
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    const video = board.query({ kind: 'video' })[0];
+    const image = board.query({ kind: 'image' })[0];
+    const link = board.query({ kind: 'link' })[0];
+    const videoEl = board.stage.world.querySelector<HTMLElement>(`[data-ad-id="${video.id}"]`);
+    return {
+      video: { href: video.href, src: videoEl?.querySelector('iframe')?.getAttribute('src') },
+      image: !!image.media,
+      link: { href: link.href, title: link.text?.value, host: link.name },
+      radius: getComputedStyle(videoEl!.querySelector('.ad-auxiliary')!).borderRadius,
+      open: !!board.stage.world.querySelector('.ad-link-open'),
+    };
+  });
+  expect(result.video.href).toBe('https://www.youtube.com/watch?v=ihe1QbeGt7U&list=RDihe1QbeGt7U');
+  expect(result.video.src).toContain('youtube-nocookie.com/embed/ihe1QbeGt7U');
+  expect(result.image).toBe(true);
+  expect(result.link).toMatchObject({
+    href: 'https://example.com/notes',
+    title: 'example.com',
+    host: 'example.com',
+  });
+  expect(result.radius).toBe('16px');
+  expect(result.open).toBe(true);
 });
 
 test('clipboard remaps group ids and internal connectors without corrupting originals', async ({

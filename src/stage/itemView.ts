@@ -74,9 +74,10 @@ export class ItemView implements KindView {
       this.shape.replaceChildren();
       this.text.replaceChildren();
       this.auxiliary.replaceChildren();
-      this.auxiliary.classList.remove('ad-html-content', 'ad-html');
+      this.auxiliary.className = 'ad-auxiliary';
       this.shape.style.display = '';
       this.element.dataset.adKind = item.kind;
+      if (['image', 'video', 'link'].includes(item.kind)) this.auxiliary.classList.add('ad-card');
       mount = true;
     }
     const connector = item.kind === 'connector' ? routeConnector(item, lookup, outline) : undefined;
@@ -167,6 +168,9 @@ export class ItemView implements KindView {
       item.kind,
       item.name,
       item.html,
+      item.href,
+      item.description,
+      item.text?.value,
       item.media,
       item.media ? doc.media[item.media]?.src : undefined,
       theme,
@@ -193,6 +197,11 @@ export class ItemView implements KindView {
             }
             this.auxiliary.append(img);
           } else this.placeholder('Image unavailable');
+        } else if (item.kind === 'video' || item.kind === 'link') {
+          const stamp = auxiliary;
+          void import('./cards').then(({ paintCard }) => {
+            if (this.previous.get('auxiliary') === stamp) paintCard(this.auxiliary, item, this.doc);
+          });
         } else if (item.kind === 'html') {
           this.auxiliary.classList.add('ad-html-content', 'ad-html');
           if (sanitizeHTML) this.auxiliary.innerHTML = sanitizeHTML(item.html ?? '');
@@ -206,7 +215,7 @@ export class ItemView implements KindView {
     }
     const label =
       definition?.summarize?.(item) ??
-      `${item.kind === 'rect' ? 'Rectangle' : item.kind[0].toUpperCase() + item.kind.slice(1)}${item.text?.value || item.name ? `: ${item.text?.value ?? item.name}` : ''}`;
+      `${item.kind === 'rect' ? 'Rectangle' : item.kind[0].toUpperCase() + item.kind.slice(1)}${item.text?.value || item.name || item.href ? `: ${item.text?.value ?? item.name ?? item.href}` : ''}`;
     if (this.changed('aria', label)) this.element.setAttribute('aria-label', label);
     if (
       custom &&

@@ -35,7 +35,7 @@ test('desktop keeps essential controls visible and groups secondary tools', asyn
     items: [],
   });
   const toolbar = page.locator('.ad-toolbar');
-  await expect(toolbar.getByRole('button')).toHaveCount(9);
+  await expect(toolbar.getByRole('button')).toHaveCount(8);
   await expect(toolbar.getByRole('button', { name: 'Select', exact: true })).toHaveAttribute(
     'aria-keyshortcuts',
     /v/i,
@@ -43,7 +43,7 @@ test('desktop keeps essential controls visible and groups secondary tools', asyn
   await expect(toolbar.getByRole('button', { name: 'More tools', exact: true })).toHaveCount(0);
   await capture(page, info, 'desktop-default');
   await page.getByRole('button', { name: 'Shapes', exact: true }).click();
-  for (const name of ['Rectangle', 'Ellipse', 'Diamond', 'Line']) {
+  for (const name of ['Rectangle', 'Ellipse', 'Diamond', 'Line', 'Arrow']) {
     await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
   }
   await page.getByRole('button', { name: 'Line', exact: true }).click();
@@ -73,11 +73,11 @@ test('phone has seven reachable tools and secondary actions in the board menu', 
   await page.getByRole('button', { name: 'Sticky note', exact: true }).click();
   expect(await page.evaluate(() => window.__anniedrawing![0].tool)).toBe('note');
   await expect(page.getByRole('button', { name: 'Add image', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Board menu', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Hand', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Shapes', exact: true }).click();
   await page.getByRole('button', { name: 'Arrow', exact: true }).click();
   expect(await page.evaluate(() => window.__anniedrawing![0].tool)).toBe('connector');
   await page.getByRole('button', { name: 'Board menu', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Hand', exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Board menu', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('group', { name: 'Board menu', exact: true })).toHaveCount(0);

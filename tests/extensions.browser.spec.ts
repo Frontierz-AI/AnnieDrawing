@@ -252,6 +252,37 @@ test('DOMPurify sanitises HTML and double-click enables inert interactive contro
   expect(await page.evaluate(() => (window as any).__htmlRan)).toBeUndefined();
 });
 
+test('double-click enables a pasted video player', async ({ page }) => {
+  await page.evaluate(async () => {
+    const boardPath = '/src/board.ts';
+    const { createBoard } = await import(boardPath);
+    const board = createBoard(document.querySelector('#extension-fixture'), { ui: false });
+    board.apply(
+      [
+        {
+          op: 'add',
+          item: {
+            id: 'i_video',
+            kind: 'video',
+            href: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+            x: 200,
+            y: 160,
+          },
+        },
+      ],
+      { origin: 'user' },
+    );
+    board.stage.lens.set({ x: 0, y: 0, zoom: 1 });
+  });
+  const video = page.locator('[data-ad-id="i_video"]');
+  await expect(video.locator('iframe')).toHaveAttribute(
+    'src',
+    'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?rel=0',
+  );
+  await page.mouse.dblclick(280, 220);
+  await expect(video).toHaveAttribute('data-ad-interactive', 'true');
+});
+
 test('custom polygon connectors match the drawn edge, exported SVG, bounds, and detached endpoint', async ({
   page,
 }) => {

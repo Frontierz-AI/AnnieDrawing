@@ -4,4 +4,6 @@ export * from './defaults';
 export * from './ids';
 export * from './schema';
 export * from './migrate';
+export * from './links';
+export * from './paste';
 export * from '../geo/index';

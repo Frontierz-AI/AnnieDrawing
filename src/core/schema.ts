@@ -89,6 +89,8 @@ export const ItemSchema: v.GenericSchema = v.lazy(() =>
     autoWidth: v.optional(v.boolean()),
     media: v.optional(id),
     crop: v.optional(BoxSchema),
+    href: v.optional(text),
+    description: v.optional(text),
     html: v.optional(text),
     mount: v.optional(id),
   }),
@@ -101,6 +103,8 @@ export const PatchSchema = v.looseObject({
   rotation: v.optional(coordinate),
   style: v.optional(StyleSchema),
   text: v.optional(v.partial(TextSchema)),
+  href: v.optional(text),
+  description: v.optional(text),
   data: v.optional(record),
 });
 export const PlacementSchema = v.object({

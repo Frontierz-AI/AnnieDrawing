@@ -220,7 +220,7 @@ test('grouped tools support keyboard navigation and escape returns focus', async
   await expect(shapes).toHaveAttribute('aria-expanded', 'false');
   await shapes.click();
   await page.keyboard.press('End');
-  await expect(page.getByRole('button', { name: 'Line', exact: true })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Arrow', exact: true })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(shapes).toBeFocused();
   await expect(shapes).toHaveAttribute('aria-expanded', 'false');

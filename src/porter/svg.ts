@@ -1,3 +1,4 @@
+import { CARD_CORNER } from '../core/defaults';
 import type { AnnieDoc, Box, ExportOptions, Item } from '../core/types';
 import { boundsOf, flattenItems, routeConnector } from '../geo/index';
 import { createKindRegistry, type KindDef } from '../kinds/registry';
@@ -79,6 +80,24 @@ function textMarkup(
   return `${label}<text x="${x}" y="${y}" font-family="${esc(fontFamily(item.text.font))}" font-size="${size}" text-anchor="${connectorPoint ? 'middle' : anchor}" fill="${esc(labelColor(item, theme))}">${lines.map((line, index) => `<tspan x="${x}" dy="${index ? lineHeight : 0}">${esc(line) || '&#160;'}</tspan>`).join('')}</text>`;
 }
 
+function cardExport(item: Item, theme: 'light' | 'dark', doc: AnnieDoc): string {
+  const r = Math.min(item.style?.corner ?? CARD_CORNER, item.w / 2, item.h / 2);
+  const title = item.text?.value || item.name || item.kind;
+  const face = fonts.sans;
+  if (item.kind === 'video') {
+    const play = Math.min(item.w, item.h) * 0.16,
+      cx = item.w / 2,
+      cy = item.h / 2;
+    return `<rect width="${item.w}" height="${item.h}" rx="${r}" fill="#103639"/><path d="M${cx - play * 0.35} ${cy - play}L${cx + play * 0.75} ${cy}L${cx - play * 0.35} ${cy + play}Z" fill="#fff"/><text x="14" y="${item.h - 16}" fill="#fff" font-family="${esc(face)}" font-size="13">${esc(title)}</text>`;
+  }
+  const media = item.media ? doc.media[item.media] : undefined;
+  const imageH = Math.min(item.h * 0.52, 168);
+  const preview = media
+    ? `<image width="${item.w}" height="${imageH}" href="${esc(media.src)}" preserveAspectRatio="xMidYMid slice"/>`
+    : `<rect width="${item.w}" height="${imageH}" fill="#8F93F91a"/><text x="${item.w / 2}" y="${imageH / 2 + 8}" text-anchor="middle" fill="#8F93F9" font-family="${esc(face)}" font-size="28">${esc(title.slice(0, 1).toUpperCase())}</text>`;
+  return `<rect width="${item.w}" height="${item.h}" rx="${r}" fill="${color('paper', theme)}"/>${preview}<text x="14" y="${imageH + 28}" fill="${color('ink', theme)}" font-family="${esc(face)}" font-size="16">${esc(title)}</text><text x="${item.w - 14}" y="${item.h - 16}" text-anchor="end" fill="${color('teal', theme)}" font-family="${esc(face)}" font-size="12">Open</text>`;
+}
+
 /** Create a portable SVG without scripts, foreignObject, or a DOM dependency. */
 export function exportSVG(doc: AnnieDoc, items: Item[], options: SVGExportOptions = {}): string {
   const theme = options.theme ?? 'light';
@@ -142,12 +161,17 @@ export function exportSVG(doc: AnnieDoc, items: Item[], options: SVGExportOption
         );
     } else if (item.kind === 'image') {
       const media = item.media ? doc.media[item.media] : undefined;
+      const radius = Math.min(item.style?.corner ?? CARD_CORNER, item.w / 2, item.h / 2);
+      const clip = `export_clip_${itemIndex}`;
       if (media) {
-        if (item.crop && item.crop.w > 0 && item.crop.h > 0) {
-          markup = `<svg width="${item.w}" height="${item.h}" viewBox="${item.crop.x} ${item.crop.y} ${item.crop.w} ${item.crop.h}" preserveAspectRatio="none" overflow="hidden"><image width="${media.w}" height="${media.h}" href="${esc(media.src)}" preserveAspectRatio="none"/></svg>`;
-        } else
-          markup = `<image width="${item.w}" height="${item.h}" href="${esc(media.src)}" preserveAspectRatio="none"/>`;
+        const clipped =
+          item.crop && item.crop.w > 0 && item.crop.h > 0
+            ? `<svg width="${item.w}" height="${item.h}" viewBox="${item.crop.x} ${item.crop.y} ${item.crop.w} ${item.crop.h}" preserveAspectRatio="none" overflow="hidden"><image width="${media.w}" height="${media.h}" href="${esc(media.src)}" preserveAspectRatio="none"/></svg>`
+            : `<image width="${item.w}" height="${item.h}" href="${esc(media.src)}" preserveAspectRatio="none"/>`;
+        markup = `<defs><clipPath id="${clip}"><rect width="${item.w}" height="${item.h}" rx="${radius}"/></clipPath></defs><g clip-path="url(#${clip})">${clipped}</g>`;
       }
+    } else if (item.kind === 'video' || item.kind === 'link') {
+      markup = cardExport(item, theme, doc);
     } else if (!['text', 'group'].includes(item.kind)) {
       markup = `<rect width="${item.w}" height="${item.h}" rx="8" fill="${color('paper', theme)}" stroke="#8F93F9" stroke-dasharray="5 4"/><text x="12" y="24" fill="${color('ink', theme)}" font-family="${esc(fonts.sans)}" font-size="14">${esc(item.kind === 'html' ? 'HTML content' : `Unknown kind: ${item.kind}`)}</text>`;
     }

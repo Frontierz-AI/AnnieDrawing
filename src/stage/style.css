@@ -6,6 +6,7 @@
   overflow: hidden;
   touch-action: none;
   outline: none;
+  --ad-cs: drop-shadow(0 8px 18px #1036391f);
   background: var(--ad-paper, #fbfcfa);
   color: var(--ad-ink, #103639);
   font-family:
@@ -134,7 +135,7 @@
   line-height: 1.5;
 }
 .ad-item[data-ad-kind='note'] .ad-shape {
-  filter: drop-shadow(0 3px 3px rgb(16 54 57 / 8%));
+  filter: var(--ad-cs);
 }
 .ad-item[data-ad-kind='connector'] .ad-text {
   width: max-content;
@@ -171,9 +172,10 @@
   object-fit: fill;
   pointer-events: none;
 }
-.ad-item[data-ad-kind='image'] .ad-auxiliary {
+.ad-card {
   overflow: hidden;
-  border-radius: 4px;
+  border-radius: 16px;
+  filter: var(--ad-cs);
 }
 .ad-html-content {
   overflow: auto;

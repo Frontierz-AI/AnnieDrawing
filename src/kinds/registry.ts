@@ -47,6 +47,8 @@ const builtins = [
   'text',
   'note',
   'image',
+  'video',
+  'link',
   'group',
   'html',
 ];

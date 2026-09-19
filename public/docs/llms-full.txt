@@ -13,7 +13,7 @@ Source: README.md
 
 Draw with HTML and SVG. Save an ordinary JSON document. Give an agent the same small, validated editing API that the editor uses. Everything runs locally; no account, API key, analytics, or drawing service is required.
 
-- Shapes, sticky notes, text, freehand, attached connectors, groups and images.
+- Shapes, sticky notes, text, freehand, attached connectors, groups, images, pasted YouTube/Vimeo players and website cards.
 - Infinite pan and zoom, selection, resize, rotate, undo, pages and export.
 - Click a locked item to select and unlock it; editing controls stay disabled until unlocked. Integrations can check `board.isLocked(id)` before editing.
 - Plain TypeScript and browser DOM. A headless model works in Node and workers.
@@ -149,6 +149,7 @@ const board = createBoard(host, {
   allowedImageOrigins: ['https://images.example.com'],
   // sanitizeHTML: (html) => DOMPurify.sanitize(html),
   // kinds: [customKind],
+  // unfurl: false, // skip fetching pasted website URLs for title and image
 });
 await board.ready; // wait for optional autosave restoration
 // ...
@@ -248,11 +249,13 @@ The cursor is decorative and ignores pointer events. Selection, focus and the pe
 
 ## Pointer and keyboard editing
 
-The built-in toolbar shows select, hand, eraser, then **Shapes**, arrow, draw, text, sticky note and image. **Shapes** groups rectangle, ellipse, diamond and line. On phones, hand and arrow move into the **AnnieDrawing** menu so the bottom bar stays tappable. **AnnieDrawing** also opens appearance, document actions, the agent playground and documentation. **Export** is a format menu that downloads the current page as PNG, SVG or an Annie document. Page chips in the bottom bar switch pages, and **+** adds a page. **All pages** appears when the chips overflow; the active page stays visible. Right-click a page chip to rename or delete that page. The last page cannot be deleted. Arrow keys, Home and End navigate page tabs. The zoom percentage opens zoom controls.
+The built-in toolbar shows select, hand, eraser, then **Shapes**, draw, text, sticky note and image. **Shapes** groups rectangle, ellipse, diamond, line and arrow. On phones, hand moves into the **AnnieDrawing** menu so the bottom bar stays tappable. **AnnieDrawing** also opens appearance, document actions, the agent playground and documentation. **Export** is a format menu that downloads the current page as PNG, SVG or an Annie document. Page chips in the bottom bar switch pages, and **+** adds a page. **All pages** appears when the chips overflow; the active page stays visible. Right-click a page chip to rename or delete that page. The last page cannot be deleted. Arrow keys, Home and End navigate page tabs. The zoom percentage opens zoom controls.
 
-Selecting an item opens a compact inspector with controls for that item type. **Fill**, **Line** and **Opacity** share one row; **Color** replaces fill and line on plain text. Fill, line and text color open a palette. Text-capable shapes, including empty ones, show **Text** (S/M/L/XL), **Align** and **Font** on their own rows. Friendly (`sans`), Serif, Mono and Handwritten (`hand`, the default) remain the font choices. Stroked shapes also get line weight (1, 2, 4 or 8) and **Pattern** (solid, dashed or dotted) on separate rows. Open freehand paths omit pattern. Sticky notes keep fill and text controls and omit line color, weight and pattern. Images omit line and text controls. **Opacity** opens a 0–100% slider. The lock icon beside Delete locks or unlocks the selection. Connector route and arrowhead controls appear directly for a selected connector. Deselect to return to the unobstructed board.
+Selecting an item opens a compact inspector with controls for that item type. **Fill**, **Line** and **Opacity** share one row; **Color** replaces fill and line on plain text. Fill, line and text color open a palette. Text-capable shapes, including empty ones, show **Text** (S/M/L/XL), **Align** and **Font** on their own rows. Friendly (`sans`), Serif, Mono and Handwritten (`hand`, the default) remain the font choices. Stroked shapes also get line weight (1, 2, 4 or 8) and **Pattern** (solid, dashed or dotted) on separate rows. Open freehand paths omit pattern. Sticky notes keep fill and text controls and omit line color, weight and pattern. Images, videos and link cards omit line and text controls. **Opacity** opens a 0–100% slider. The lock icon beside Delete locks or unlocks the selection. Connector route and arrowhead controls appear directly for a selected connector. Deselect to return to the unobstructed board.
 
-Select a shape and press Enter, double-click it, or double-tap it on a touchscreen to edit its text. Press and hold an item, or right-click it, to select it and open its actions. The anchored context menu offers Edit text where supported, Bring to front, Send to back, Duplicate and Delete, all for the clicked item. Shift+F10 opens the selected item’s menu; Escape dismisses it. Click, tap or focus a locked item to select it. Its editing controls and context actions are gray and disabled; Unlock and Deselect remain available in the inspector. A readonly board disables saved changes, including unlocking.
+Select a shape and press Enter, double-click it, or double-tap it on a touchscreen to edit its text. Double-click a YouTube or Vimeo player, or an HTML item, to use its controls; click the board or press Escape to drag it again. Link cards keep an Open button that always works. Press and hold an item, or right-click it, to select it and open its actions. The anchored context menu offers Edit text where supported, Bring to front, Send to back, Duplicate and Delete, all for the clicked item. Shift+F10 opens the selected item’s menu; Escape dismisses it. Click, tap or focus a locked item to select it. Its editing controls and context actions are gray and disabled; Unlock and Deselect remain available in the inspector. A readonly board disables saved changes, including unlocking.
+
+Pasting a single http(s) URL creates a specialised item: YouTube and Vimeo become a `video` player, image URLs become an `image`, and other sites become a `link` card with title, description and an Open control. The card is created immediately from the URL; the browser may then fetch that page, without credentials, for Open Graph title, description and image. Pass `unfurl: false` to skip the fetch, or pass a function when the host has its own preview source. Agent operations do not fetch. Dropping the same URL text onto the board follows the same rules.
 
 Position and rotation follow your pointer directly. Shift constrains movement to one axis or keeps resize proportions; Alt resizes from the center. Pinch to zoom, or use the hand tool to pan on a touchscreen. A displayed grid is a visual reference.
 
@@ -351,9 +354,11 @@ The tree is `pages → items → children`. Only groups have children. Array ord
 
 Common item fields are `id`, `kind`, `x`, `y`, `w`, `h`, `rotation`, `style`, `text`, `name`, `locked`, `hidden` and application-owned `data`. The document model expands defaults internally and omits default style flags on serialization. `data` is JSON metadata; the editor does not execute it.
 
-Built-in kinds are `rect`, `ellipse`, `diamond`, `line`, `connector`, `path`, `text`, `note`, `image`, `group` and `html`. Unknown kinds are retained with a visible placeholder, so loading and saving do not silently destroy custom content.
+Built-in kinds are `rect`, `ellipse`, `diamond`, `line`, `connector`, `path`, `text`, `note`, `image`, `video`, `link`, `group` and `html`. Unknown kinds are retained with a visible placeholder, so loading and saving do not silently destroy custom content.
 
-`text` contains a plain `value`, horizontal `align`, vertical `valign`, `size` (`s`, `m`, `l`, `xl` or a number), and `font` (`sans`, `serif`, `mono`, `hand`). Omitted `font` is `hand`, the handwritten Comic Sans-like stack. Style fields include `stroke`, `strokeWidth`, `dash`, `fill`, `fillMode`, `corner` and `opacity`.
+`text` contains a plain `value`, horizontal `align`, vertical `valign`, `size` (`s`, `m`, `l`, `xl` or a number), and `font` (`sans`, `serif`, `mono`, `hand`). Omitted `font` is `hand`, the handwritten Comic Sans-like stack. Style fields include `stroke`, `strokeWidth`, `dash`, `fill`, `fillMode`, `corner` and `opacity`. Notes default to a 16px corner, matching images, videos and link cards.
+
+`href` is an http(s) URL on `video` and `link` items. `description` is optional plain text for a link card. A `video` href must be a YouTube or Vimeo watch or embed URL; the renderer derives the player address from the parsed id and does not store iframe markup.
 
 The named colors are `ink`, `slate`, `coral`, `amber`, `moss`, `teal`, `sky`, `violet`, `rose` and `paper`. These map to Frontierz colors and theme-aware foreground/background values. Ordinary CSS colors are also accepted. `fill: 'none'` creates a hollow shape.
 
@@ -365,9 +370,9 @@ Line and freehand `points` are relative to the item's x/y. Freehand points may i
 
 ## Media and HTML
 
-Image items reference a key in the top-level `media` map. A record contains `{ mime, w, h, src }`. Embedded data URLs make files portable. Remote images require an explicit allowed origin and may still fail PNG export if their server does not permit cross-origin loading.
+Image items reference a key in the top-level `media` map. A record contains `{ mime, w, h, src }`. Embedded data URLs make files portable. Remote images require an explicit allowed origin and may still fail PNG export if their server does not permit cross-origin loading. Link cards may reuse `media` for a preview image.
 
-HTML is an optional application integration. Plain text is safe by construction; rendered HTML requires an explicit sanitizer. Custom kind mount callbacks live in trusted application code, never as executable code embedded in the file. See [security](../SECURITY.md).
+HTML is an optional application integration. Plain text is safe by construction; rendered HTML requires an explicit sanitizer. Video and link items are not HTML: they are structured fields rendered with trusted DOM. Custom kind mount callbacks live in trusted application code, never as executable code embedded in the file. See [security](../SECURITY.md).
 
 ## Versioning
 
@@ -546,6 +551,8 @@ const board = createBoard(host, {
 ```
 
 Applications must explicitly provide a sanitizer. The host and its custom callbacks remain responsible for their rendering policy; a sanitizer is not a sandbox. For agent-origin changes, the model applies the supplied sanitizer before committing HTML. Without one it conservatively escapes markup. The renderer applies the supplied sanitizer again at the DOM boundary; mount IDs from agent changes are removed. Keep interactive embeds narrow and never store executable callbacks in `.annie` JSON.
+
+Built-in `video` and `link` items are not HTML. They store an `href` and optional title, description and preview media. The renderer constructs the YouTube or Vimeo iframe and the link card itself; do not paste those URLs into an `html` item to get the same result.
 
 ## Custom kinds
 
@@ -827,6 +834,8 @@ Reports should include the affected version, reproduction steps, expected impact
 - `origin: 'agent:name'` records provenance; callers can supply that string. Do not use it as proof of identity or permission.
 - HTML is inert without an explicit sanitizer integration. Use DOMPurify and a restrictive policy; never pass an identity function as a sanitizer. Custom kind renderers and mount callbacks are trusted application code, not sandboxed extensions.
 - Image data is limited to supported image URLs. Configure remote origins deliberately. Remote files can have privacy and CORS consequences; application owners should prefer embedded images for portable private documents.
+- `video` and `link` items store an http(s) `href` only. The renderer builds YouTube/Vimeo iframes from parsed identifiers; it never writes a raw user URL into `iframe.src`. Link titles and descriptions use `textContent`. The Open control uses `rel="noopener noreferrer"`.
+- Pasting a website URL may fetch that URL from the user's browser to read Open Graph tags. The request omits credentials, follows only http(s), and is limited in time and size. It does not run for agent operations. Hosts that do not want this fetch can pass `unfurl: false`. Loading a video player contacts YouTube or Vimeo when that item is shown.
 - A live global board hook grants scripts already running in the page access to the board. Disable it in applications that do not need agent inspection, and protect the surrounding page from XSS.
 - Local autosave is browser storage, not encryption or a backup service. Browser clearing or storage policies may remove it. Export `.annie` files for portable copies.
 

@@ -1,6 +1,8 @@
 import { signal } from '@preact/signals-core';
+import { CARD_CORNER } from './core/defaults';
 import { itemId, mediaId } from './core/ids';
-import { createDoc } from './core/index';
+import { createDoc } from './core/doc';
+import type { LinkPreview } from './core/links';
 import { lockedItems } from './core/locks';
 import { describeDoc } from './agent/describe';
 import type {
@@ -49,6 +51,7 @@ export interface BoardOptions {
   exposeGlobal?: boolean;
   allowedImageOrigins?: string[];
   sanitizeHTML?: (html: string) => string;
+  unfurl?: false | ((url: string) => Promise<LinkPreview | undefined>);
 }
 type Events = {
   change: ChangeEvent;
@@ -74,7 +77,6 @@ type Drag = {
   alt?: boolean;
 };
 const clone = <T>(value: T): T => structuredClone(value);
-const TEXT_SIZE = 'm';
 export function flatten(items: Item[]): Item[] {
   return items.flatMap((item) => [item, ...flatten(item.children ?? [])]);
 }
@@ -156,6 +158,7 @@ export class Board {
   private previewDocument?: AnnieDoc;
   private previewBase?: AnnieDoc;
   private observer: ResizeObserver;
+  private unfurl?: false | ((url: string) => Promise<LinkPreview | undefined>);
 
   constructor(host: HTMLElement, options: BoardOptions = {}) {
     this.host = host;
@@ -169,6 +172,7 @@ export class Board {
     this.document = this.model.toJSON({ compact: false });
     this.pageId = this.document.pages[0].id;
     this.themeValue = options.theme ?? 'light';
+    this.unfurl = options.unfurl;
     this.stage = new Stage(host, {
       agentPresence: options.agentPresence,
       theme: this.themeValue,
@@ -583,7 +587,12 @@ export class Board {
             style: clone(this.defaultStyle),
             ...(kind === 'note'
               ? {
-                  style: { ...this.defaultStyle, fill: 'moss', stroke: 'none', corner: 4 },
+                  style: {
+                    ...this.defaultStyle,
+                    fill: 'moss',
+                    stroke: 'none',
+                    corner: CARD_CORNER,
+                  },
                   text: { value: 'A little idea', size: 'l' },
                 }
               : {}),
@@ -827,6 +836,7 @@ export class Board {
   }
   cancel() {
     this.stage.finishPresentation();
+    this.clearInteractive();
     clearTimeout(this.longPressTimer);
     this.lastTouchTap = undefined;
     this.finishEditor?.(false);
@@ -973,6 +983,7 @@ export class Board {
   }
   private pointerDown = (e: PointerEvent) => {
     if (this.isUI(e.target) || e.button > 1) return;
+    this.clearInteractive(e.target);
     this.stage.finishPresentation();
     clearTimeout(this.longPressTimer);
     if (e.pointerType !== 'touch') this.lastTouchTap = undefined;
@@ -1124,7 +1135,7 @@ export class Board {
         : {}),
       ...(kind === 'note'
         ? {
-            style: { ...this.defaultStyle, fill: 'moss', stroke: 'none', corner: 4 },
+            style: { ...this.defaultStyle, fill: 'moss', stroke: 'none', corner: CARD_CORNER },
             text: { value: '', size: 'l' },
           }
         : {}),
@@ -1541,7 +1552,8 @@ export class Board {
   };
   private doubleClick = (e: MouseEvent) => {
     if (this.isUI(e.target) || Date.now() - this.touchDoubleAt < 500) return;
-    const targetId = (e.target as Element).closest<HTMLElement>('[data-ad-id]')?.dataset.adId;
+    const target = e.target instanceof Element ? e.target : undefined;
+    const targetId = target?.closest<HTMLElement>('[data-ad-id]')?.dataset.adId;
     this.activateAt(this.point(e), targetId);
   };
   private openContext(screen: Point, targetId?: string) {
@@ -1559,8 +1571,11 @@ export class Board {
     this.host.dispatchEvent(new CustomEvent('ad-context', { detail: { ...screen, id: item?.id } }));
   }
   private activateAt(screen: Point, targetId?: string) {
+    const fromDom = targetId ? this.get(targetId) : undefined;
     const item =
-      this.hit(this.stage.lens.toPage(screen), true) ?? (targetId ? this.get(targetId) : undefined);
+      (fromDom && (fromDom.kind === 'html' || fromDom.kind === 'video') ? fromDom : undefined) ??
+      this.hit(this.stage.lens.toPage(screen), true) ??
+      fromDom;
     if (item && this.isLocked(item.id)) {
       this.select([item.id]);
       return;
@@ -1570,27 +1585,38 @@ export class Board {
       this.select([]);
       return;
     }
-    if (item?.kind === 'html') {
-      const view = this.stage.world.querySelector<HTMLElement>(
-          `[data-ad-id="${CSS.escape(item.id)}"]`,
-        ),
-        el = view?.querySelector<HTMLElement>('.ad-html-content');
-      if (view && el) {
-        view.dataset.adInteractive = 'true';
-        el.tabIndex = 0;
-        el.focus();
-        const close = (event: FocusEvent) => {
-          if (event.relatedTarget instanceof Node && el.contains(event.relatedTarget)) return;
-          delete view.dataset.adInteractive;
-          el.tabIndex = -1;
-          el.removeEventListener('focusout', close);
-        };
-        el.addEventListener('focusout', close);
-      }
+    if (item?.kind === 'html' || item?.kind === 'video') {
+      this.activateEmbedded(item);
       return;
     }
-    if (item && !['image', 'path', 'line'].includes(item.kind)) this.editText(item.id);
+    if (item && !['image', 'path', 'line', 'link'].includes(item.kind)) this.editText(item.id);
     else if (!item && !this.readonly) this.add('text', this.stage.lens.toPage(screen));
+  }
+  private activateEmbedded(item: Item) {
+    const view = this.stage.world.querySelector<HTMLElement>(
+      `[data-ad-id="${CSS.escape(item.id)}"]`,
+    );
+    if (!view) return;
+    this.clearInteractive();
+    view.dataset.adInteractive = 'true';
+    if (item.kind !== 'html') return;
+    const content = view.querySelector<HTMLElement>('.ad-html-content');
+    if (!content) return;
+    content.tabIndex = 0;
+    content.focus();
+    const close = (event: FocusEvent) => {
+      if (event.relatedTarget instanceof Node && content.contains(event.relatedTarget)) return;
+      delete view.dataset.adInteractive;
+      content.tabIndex = -1;
+      content.removeEventListener('focusout', close);
+    };
+    content.addEventListener('focusout', close);
+  }
+  private clearInteractive(inside?: EventTarget | null) {
+    for (const node of this.stage.world.querySelectorAll<HTMLElement>('[data-ad-interactive]')) {
+      if (inside instanceof Node && node.contains(inside)) continue;
+      delete node.dataset.adInteractive;
+    }
   }
   private keyDown = (e: KeyboardEvent) => {
     if (this.isUI(e.target)) return;
@@ -1673,7 +1699,10 @@ export class Board {
     }
     if (key === 'enter' && this.selection.length === 1) {
       e.preventDefault();
-      this.editText(this.selection[0]);
+      const selected = this.get(this.selection[0]);
+      if (selected?.kind === 'html' || selected?.kind === 'video') this.activateEmbedded(selected);
+      else if (selected && !['image', 'path', 'line', 'link'].includes(selected.kind))
+        this.editText(selected.id);
       return;
     }
     if (key === '[' || key === ']') {
@@ -1785,17 +1814,24 @@ export class Board {
       );
       return;
     }
-    const value =
-      e.clipboardData?.getData('application/vnd.anniedrawing+json') ||
-      e.clipboardData?.getData('text/plain');
-    if (!value) return;
+    if (!e.clipboardData) return;
     e.preventDefault();
+    void this.pasteFrom(e.clipboardData);
+  };
+  private pasteFrom(data: DataTransfer | null, point?: Point) {
+    const text =
+      data?.getData('application/vnd.anniedrawing+json') ||
+      data?.getData('text/plain') ||
+      data?.getData('text/uri-list') ||
+      data?.getData('text/html') ||
+      '';
+    if (!text) return;
     try {
-      const data = JSON.parse(value);
-      if (!Array.isArray(data.items)) throw new Error('text');
-      const copies = this.copyItems(data.items, 24),
-        mediaIds = new Map(Object.keys(data.media ?? {}).map((id) => [id, mediaId()])),
-        ops: Op[] = Object.entries(data.media ?? {}).map(([id, media]) => ({
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed.items)) throw new Error('t');
+      const copies = this.copyItems(parsed.items, 24),
+        mediaIds = new Map(Object.keys(parsed.media ?? {}).map((id) => [id, mediaId()])),
+        ops: Op[] = Object.entries(parsed.media ?? {}).map(([id, media]) => ({
           op: 'media.set',
           id: mediaIds.get(id)!,
           media: media as AnnieDoc['media'][string],
@@ -1808,41 +1844,30 @@ export class Board {
       else
         this.host.dispatchEvent(new CustomEvent('ad-error', { detail: result.errors[0]?.message }));
     } catch {
-      const p = this.view.center;
-      const result = this.apply(
-        [
-          {
-            op: 'add',
-            page: this.pageId,
-            item: {
-              kind: 'text',
-              x: p.x,
-              y: p.y,
-              w: 300,
-              h: 100,
-              text: { value, size: TEXT_SIZE },
-            },
-          },
-        ],
-        { origin: 'user', label: 'Paste text' },
+      void import('./input/urlPaste').then(({ pastePlain }) =>
+        pastePlain(this as never, text, point),
       );
-      if (result.ok) this.select(result.created);
     }
-  };
+  }
   private drop = (e: DragEvent) => {
     if (this.readonly) return;
     e.preventDefault();
     const p = this.stage.lens.toPage(this.point(e));
-    for (const file of e.dataTransfer?.files ?? [])
-      void (async () => {
-        try {
-          if (file.name.endsWith('.annie') || file.type === 'application/json')
-            this.load(JSON.parse(await file.text()));
-          else await this.addImage(file, p);
-        } catch (error) {
-          this.host.dispatchEvent(new CustomEvent('ad-error', { detail: String(error) }));
-        }
-      })();
+    const files = [...(e.dataTransfer?.files ?? [])];
+    if (files.length) {
+      for (const file of files)
+        void (async () => {
+          try {
+            if (file.name.endsWith('.annie') || file.type === 'application/json')
+              this.load(JSON.parse(await file.text()));
+            else await this.addImage(file, p);
+          } catch (error) {
+            this.host.dispatchEvent(new CustomEvent('ad-error', { detail: String(error) }));
+          }
+        })();
+      return;
+    }
+    if (e.dataTransfer) void this.pasteFrom(e.dataTransfer, p);
   };
   private simplify(
     points: [number, number, number?][],

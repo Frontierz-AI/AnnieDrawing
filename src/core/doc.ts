@@ -19,6 +19,7 @@ import { resolveEndpoint } from '../geo/router';
 import { placeItem } from '../agent/place';
 import { queryDoc } from '../agent/query';
 import { describeDoc } from '../agent/describe';
+import { normalizeHref, parseVideo } from './links';
 interface Location {
   item: Item;
   list: Item[];
@@ -156,6 +157,11 @@ function validateDoc(
           throw new Error(`Connector ${item.id} needs both from and to endpoints.`);
         if (item.kind === 'image' && (!item.media || !doc.media[item.media]))
           throw new Error(`Image ${item.id} references missing media ${item.media ?? '(unset)'}.`);
+        if (item.kind === 'video' || item.kind === 'link' || item.href !== undefined) {
+          if (!normalizeHref(item.href)) throw new Error(`Bad href (${item.id}).`);
+          if (item.kind === 'video' && !parseVideo(item.href))
+            throw new Error(`Bad video (${item.id}).`);
+        }
         const customSchema = options.kinds?.find((kind) => kind.kind === item.kind)?.schema;
         if (customSchema) {
           const customError = schemaError(customSchema as Parameters<typeof schemaError>[0], item);
@@ -207,6 +213,13 @@ function validateDoc(
       );
   }
 }
+function cleanHref(item: Item): void {
+  if (item.href === undefined) return;
+  const href = normalizeHref(item.href);
+  if (!href) throw new Error(`Bad href (${item.id}).`);
+  item.href = href;
+  item.children?.forEach(cleanHref);
+}
 function sanitizeAgentItems(item: Item, sanitizeHTML?: DocOptions['sanitizeHTML']): void {
   if (item.html !== undefined)
     item.html = sanitizeHTML
@@ -243,6 +256,7 @@ function perform(
   if (op.op === 'add') {
     let item = normalizeItem(op.item, kindDefaults);
     if (origin !== 'user') sanitizeAgentItems(item, options.sanitizeHTML);
+    cleanHref(item);
     const parentId = op.parent ?? op.place?.inside,
       parent = parentId ? requireItem(doc, parentId) : undefined;
     if (parent && parent.item.kind !== 'group')
@@ -289,6 +303,11 @@ function perform(
         throw new Error(`Required field ${field} cannot be deleted.`);
     if (patch.children)
       patch.children = patch.children.map((child) => normalizeItem(child, kindDefaults));
+    if (typeof patch.href === 'string') {
+      const href = normalizeHref(patch.href);
+      if (!href) throw new Error(`Bad href (${op.id}).`);
+      patch.href = href;
+    }
     if (origin !== 'user') {
       if (typeof patch.html === 'string')
         patch.html = options.sanitizeHTML

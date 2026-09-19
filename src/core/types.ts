@@ -18,6 +18,8 @@ export type ItemKind =
   | 'text'
   | 'note'
   | 'image'
+  | 'video'
+  | 'link'
   | 'group'
   | 'html'
   | (string & {});
@@ -72,6 +74,8 @@ export interface Item {
   autoWidth?: boolean;
   media?: string;
   crop?: Box;
+  href?: string;
+  description?: string;
   html?: string;
   mount?: string;
   [key: string]: unknown;
