@@ -64,7 +64,7 @@ board.toJSON(); // portable document
 
 `query` filters combine with AND. Fields: `kind` (string or string array), `text` (substring or JS `RegExp`; JSON tools send a string), `within`, `inside`, `connectedTo`, `direction` (`in` / `out` / `both`, default `both`), `data`, `hidden`, `locked`, `page`. `text` matches `item.text.value` and `item.name`. A string is case-insensitive.
 
-`get`, `query`, `read`, and `toJSON` return copies. After `apply`, check `result.ok`, then read the affected IDs. `created` lists new IDs.
+`get`, `query`, `read`, and `toJSON` return copies. After `apply`, check `result.ok`, then read `result.created`. Those are the stored ids.
 
 DOM nodes may show `[data-ad-id]` and `[data-ad-kind]`. Do not treat DOM edits as a write API.
 
@@ -91,7 +91,7 @@ Operations: `add`, `set`, `remove`, `order`, `reparent`, `page.add`, `page.set`,
 
 `add` accepts `page`, `parent`, `index`, and `place`. `place` needs exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`. Default `gap` is 32. Default `align` is `middle`. `inside` requires a `group`. Kind aliases: `rectangle` stores `rect`; `arrow` stores `connector` with an end arrow. `from` / `to` accept `{ item, side }`, `{ x, y }`, or a string item id.
 
-`OVERLAPS_EXISTING` is a warning. The batch still committed.
+`OVERLAPS_EXISTING` and `ID_REMAPPED` are warnings. The batch still committed. An `agent:` create that reuses an id is stored as `id_1`, then `_2`. Same-batch `place`, parent, and connector refs follow the stored id. `get` with the id you sent returns the older item. User and API origins still reject duplicates.
 
 ```js
 const ops = [
@@ -140,8 +140,7 @@ const result = board.apply(ops, {
   label: 'Add cache flow',
 });
 if (!result.ok) throw new Error(JSON.stringify(result.errors));
-board.get('i_api');
-board.get('i_cache');
+for (const id of result.created) board.get(id);
 board.describe({ detail: 'normal' });
 ```
 
@@ -329,7 +328,7 @@ Optional wrapper around the same APIs. Import `toolDefs` and `runTool` from `ann
 | `board_describe` | Text with IDs. Start here.                                                 |
 | `board_read`     | Deep JSON copy. Headless accepts only `scope: 'doc'`.                      |
 | `board_query`    | Same filters as `query`.                                                   |
-| `board_apply`    | Atomic ops. `runTool` forces an `agent:` origin (`agent:tool` if omitted). |
+| `board_apply`    | Atomic ops. `runTool` forces an `agent:` origin (`agent:tool` if omitted). Duplicate create ids become `id_1`. |
 | `board_snapshot` | Browser PNG. Defaults: viewport, scale 2, labels on.                       |
 | `board_view_fit` | Browser camera. Optional `ids`.                                            |
 
@@ -341,6 +340,6 @@ Optional wrapper around the same APIs. Import `toolDefs` and `runTool` from `ann
 
 Browser `origin: 'user'` rejects locked targets with `LOCKED`. Programmatic and headless calls can still edit locked items; leave them alone unless the task includes them. `board.isLocked(id)` includes group protection.
 
-Agent-origin creates on a browser board show a visiting cursor. Pass `agentName` to label it. The cursor visits the first on-screen shapes, then reveals the rest together. A person can keep editing during that walk. The document, exports, and history are complete immediately. Do not sleep or split a batch to time the animation. Call `view.fit` only when a camera change is wanted.
+Agent-origin creates on a browser board show a visiting cursor. Pass `agentName` to label it. The cursor visits the first on-screen shapes, then reveals the rest together. A person can keep editing during that walk. The document, exports, and history are complete immediately. Do not sleep or split a batch to time the animation. After the arrival, created ids on the current page are fitted if they sit outside the viewport. Pass `reveal: 'none'` to skip that. Call `view.fit` immediately after `apply` when the cursor should walk in the new viewport.
 
 Origin is provenance, not authorization.

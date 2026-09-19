@@ -58,7 +58,7 @@ export interface BoardOptions {
    * `hidden`: default undo/redo skip origins that start with `agent:`.
    */
   agentHistory?: 'shared' | 'hidden';
-  /** Default reveal for origins that start with `agent:`. Default `none`. */
+  /** Default reveal for origins that start with `agent:`. Default `fit`. */
   agentReveal?: 'none' | 'fit';
   /** Used when origin starts with `agent:` and place.gap is omitted. Default 32. */
   agentPlaceGap?: number;
@@ -157,12 +157,13 @@ export class Board {
   private observer: ResizeObserver;
   private unfurl?: false | ((url: string) => Promise<LinkPreview | undefined>);
   private agentReveal: 'none' | 'fit';
+  private pendingReveal?: string[];
 
   constructor(host: HTMLElement, options: BoardOptions = {}) {
     this.host = host;
     this.readonly = options.readonly ?? false;
     this.agentName = options.agentName?.trim() || undefined;
-    this.agentReveal = options.agentReveal ?? 'none';
+    this.agentReveal = options.agentReveal ?? 'fit';
     this.model = createDoc(options.doc, {
       readonly: this.readonly,
       allowedImageOrigins: options.allowedImageOrigins,
@@ -388,7 +389,9 @@ export class Board {
       selection: options.selection ?? this.selection,
       ...(options.scope === 'viewport'
         ? {
-            ids: this.items.filter((item) => !item.hidden && this.visible(item)).map((item) => item.id),
+            ids: this.items
+              .filter((item) => !item.hidden && this.visible(item))
+              .map((item) => item.id),
           }
         : {}),
     });
@@ -490,19 +493,31 @@ export class Board {
         this.stage.present(result.created, name);
       }
       const reveal = options.reveal ?? (origin.startsWith('agent:') ? this.agentReveal : 'none');
-      if (reveal === 'fit') this.revealCreated(result.created);
+      if (reveal === 'fit') this.queueReveal(result.created);
     }
     return result;
+  }
+  private queueReveal(ids: string[]) {
+    this.pendingReveal = [...new Set([...(this.pendingReveal ?? []), ...ids])];
+    this.stage.whenPresentationIdle(() => this.flushReveal());
+  }
+  private flushReveal() {
+    const ids = this.pendingReveal;
+    this.pendingReveal = undefined;
+    if (!ids?.length || this.destroyed) return;
+    this.revealCreated(ids);
   }
   private revealCreated(ids: string[]) {
     const onPage = ids.filter((id) =>
       flattenItems(this.pageItems()).some((item) => item.id === id),
     );
     if (!onPage.length) return;
-    if (onPage.every((id) => {
-      const item = this.get(id);
-      return !!item && this.visible(item);
-    }))
+    if (
+      onPage.every((id) => {
+        const item = this.get(id);
+        return !!item && this.visible(item);
+      })
+    )
       return;
     this.view.fit(onPage);
   }
@@ -516,6 +531,7 @@ export class Board {
   }
   load(doc: AnnieDoc) {
     this.cancel();
+    this.pendingReveal = undefined;
     this.model.load(doc);
     this.document = this.model.toJSON({ compact: false });
     this.pageId = this.document.pages[0].id;
@@ -526,6 +542,7 @@ export class Board {
   }
   clear() {
     this.cancel();
+    this.pendingReveal = undefined;
     this.model.clear();
     this.document = this.model.toJSON({ compact: false });
     this.pageId = this.document.pages[0].id;
@@ -554,6 +571,7 @@ export class Board {
   setPage(id: string) {
     if (!this.document.pages.some((page) => page.id === id)) return;
     this.cancel();
+    this.pendingReveal = undefined;
     this.pageId = id;
     this.refreshGeometry();
     this.enteredGroup = undefined;
@@ -604,6 +622,7 @@ export class Board {
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.pendingReveal = undefined;
     this.cancel();
     cancelAnimationFrame(this.frame);
     this.observer.disconnect();

@@ -493,3 +493,76 @@ test('connectors wait while the first shapes appear one after another', async ({
   await expect(page.locator('[data-ad-id="c-0"]')).toBeVisible();
   await expect(page.locator('.ad-agent-cursor,.ad-agent-pending')).toHaveCount(0);
 });
+
+test('agent creates recen­ter after the arrival to cover what was added', async ({ page }) => {
+  await ready(page);
+  const before = await page.evaluate(() => {
+    const board = window.__anniedrawing![0];
+    board.stage.lens.set({ x: 0, y: 0, zoom: 1 });
+    board.apply(
+      [{ op: 'add', item: { id: 'far', kind: 'rect', x: 8000, y: 6000, w: 160, h: 100 } }],
+      { origin: 'agent:planner' },
+    );
+    return { ...board.stage.lens.state };
+  });
+  expect(before).toEqual({ x: 0, y: 0, zoom: 1 });
+  await expect(page.locator('.ad-agent-cursor,.ad-agent-pending')).toHaveCount(0);
+  const moved = await page.evaluate(() => {
+    const board = window.__anniedrawing![0];
+    const item = board.get('far')!;
+    const viewport = board.stage.lens.viewport();
+    return {
+      camera: { ...board.stage.lens.state },
+      framed:
+        item.x + item.w >= viewport.x &&
+        item.y + item.h >= viewport.y &&
+        item.x <= viewport.x + viewport.w &&
+        item.y <= viewport.y + viewport.h,
+    };
+  });
+  expect(moved.camera.x !== before.x || moved.camera.y !== before.y).toBe(true);
+  expect(moved.framed).toBe(true);
+  const held = await page.evaluate(() => {
+    const board = window.__anniedrawing![0];
+    const camera = { ...board.stage.lens.state };
+    const center = board.view.center;
+    board.apply(
+      [
+        {
+          op: 'add',
+          item: { id: 'near', kind: 'rect', x: center.x - 40, y: center.y - 30, w: 80, h: 60 },
+        },
+      ],
+      { origin: 'agent:planner' },
+    );
+    return camera;
+  });
+  await expect(page.locator('.ad-agent-cursor,.ad-agent-pending')).toHaveCount(0);
+  expect(await page.evaluate(() => ({ ...window.__anniedrawing![0].stage.lens.state }))).toEqual(
+    held,
+  );
+});
+
+test('agentReveal none keeps the camera after an off-screen create', async ({ page }) => {
+  await ready(page);
+  await page.evaluate(async () => {
+    const { createBoard } = await import('/src/board.ts' as string);
+    window.__anniedrawing![0].destroy();
+    const board = createBoard(document.getElementById('app')!, {
+      agentReveal: 'none',
+      ui: false,
+      exposeGlobal: true,
+    });
+    board.stage.lens.set({ x: 0, y: 0, zoom: 1 });
+    board.apply(
+      [{ op: 'add', item: { id: 'far', kind: 'rect', x: 8000, y: 6000, w: 160, h: 100 } }],
+      { origin: 'agent:planner' },
+    );
+  });
+  await expect(page.locator('.ad-agent-cursor,.ad-agent-pending')).toHaveCount(0);
+  expect(await page.evaluate(() => ({ ...window.__anniedrawing![0].stage.lens.state }))).toEqual({
+    x: 0,
+    y: 0,
+    zoom: 1,
+  });
+});

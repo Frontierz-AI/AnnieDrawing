@@ -50,7 +50,7 @@ Page edits use the current `page.*` operations and `page` destination property:
 }
 ```
 
-`board_snapshot` and `board_view_fit` return an error in headless mode because they require a browser. Other tools use the same model and schemas as the library. An unsuccessful `board_apply` result becomes a tool result with `isError: true`.
+`board_snapshot` and `board_view_fit` return an error in headless mode because they require a browser. Other tools use the same model and schemas as the library. An unsuccessful `board_apply` result becomes a tool result with `isError: true`. A successful agent apply that reuses an item id still commits; the stored id is `id_1` (then `_2`), the result includes `ID_REMAPPED`, and `created` lists the stored ids.
 
 ## Connect a live board
 

@@ -86,17 +86,22 @@ const result = board.apply(ops, {
   label: 'Add cache flow',
 });
 if (!result.ok) throw new Error(JSON.stringify(result.errors));
-board.view.fit(['i_api', 'i_cache']);
+for (const id of result.created) board.get(id);
 board.describe({ detail: 'normal' });
 ```
 
-The IDs in this example are readable placeholders. Check existing IDs or generate unique ones. A dry run validates the batch. It does not reserve identifiers or block edits that happen before the real call. `created` lists added IDs. `warnings` are advisory. `OVERLAPS_EXISTING` means a new item intersects another item; the batch still committed. A failed batch applies nothing. `lenient: true` on `apply` (not on `runTool`) skips invalid operations and commits the rest as one transaction.
+After a successful apply, use `result.created` for the stored ids. Prefer unique ids so those match what you sent. If they do not, the batch still committed:
+
+- `OVERLAPS_EXISTING`: a new item intersects another item.
+- `ID_REMAPPED`: an `agent:` create id was already in the document or earlier in this batch. The item is stored as `id_1`, then `_2`, and so on. Same-batch `place`, parent, and connector refs are rewritten to the stored ids. `get` with the id you sent returns the older item. User and API origins still reject duplicate ids.
+
+A dry run validates. It does not reserve identifiers or block edits that happen before the real call. A failed batch applies nothing. `lenient: true` on `apply` (not on `runTool`) skips invalid operations and commits the rest as one transaction.
 
 `place` requires exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`. Default `gap` is 32 (`agentPlaceGap` for `agent:` origins when `gap` is omitted). Default `align` is `middle`. `inside` works only on a `group`. Omitted `w` and `h` use the kind's default size. Do not set `merge: true` on agent batches unless you intend to fold this commit into the previous history entry with the same origin and label.
 
 In the browser, a successful `apply` with an `agent:` origin shows a lilac cursor entering from outside the viewport. It visits the first on-screen shapes one after another, then reveals the rest together, including connectors. Pass `agentName` to label the cursor, or set `createBoard({ agentName })` so a tool call cannot pick the label. Without a name the cursor is unlabeled. Put related items in one batch. Do not split a batch to choreograph the walk.
 
-The returned result, JSON, exports, and history are complete while that presentation runs. Do not sleep or split an atomic batch to time the animation. Updates to existing items stay immediate. `reveal: 'fit'` (or `agentReveal: 'fit'`) pans to created ids on the current page when they sit outside the viewport. Call `view.fit` immediately after `apply` when a camera change is wanted and `reveal` is not set. A person can keep editing; pending items are not hittable. Reduced motion and a hidden tab reveal pending items immediately. Set `agentPresence: false` on `createBoard` to skip the presentation.
+The returned result, JSON, exports, and history are complete while that presentation runs. Do not sleep or split an atomic batch to time the animation. Updates to existing items stay immediate. When the arrival finishes, created ids on the current page are fitted if they sit outside the viewport (`reveal: 'fit'`, the default for `agent:` origins). Pass `reveal: 'none'` to leave the camera still. Call `view.fit` immediately after `apply` when the cursor should walk in the new viewport. A person can keep editing; pending items are not hittable. Reduced motion and a hidden tab reveal pending items immediately. Set `agentPresence: false` on `createBoard` to skip the presentation.
 
 ## Patch
 
@@ -149,4 +154,4 @@ The [MCP example](../examples/mcp/README.md) exposes the same tools over stdio. 
 - An origin records who made an edit. It does not grant access. The host application owns authorization.
 - Readonly boards reject edits. Non-user operations are still validated and size-limited.
 - Do not attach a bridge or send drawings to an AI provider unless the user authorized that service and purpose.
-- Keep batches small enough for a person to understand and undo. Do not report success until `result.ok` is true and the affected items have been read back.
+- Keep batches small enough for a person to understand and undo. Do not report success until `result.ok` is true. Then read `result.created` (not only the ids you sent) and the affected items.

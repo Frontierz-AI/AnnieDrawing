@@ -111,6 +111,34 @@ describe('agent tools and spatial editing', () => {
     expect(doc.undo({ origin: 'agent:tool' })).toBe(true);
     expect(doc.query()).toEqual([]);
   });
+  it('places a second copy when the same create ids are reused', async () => {
+    const doc = createDoc();
+    const ops = [
+      { op: 'add' as const, item: { id: 'api', kind: 'rect', x: 0, y: 0, w: 160, h: 100 } },
+      {
+        op: 'add' as const,
+        item: { id: 'cache', kind: 'rect', w: 160, h: 100 },
+        place: { rightOf: 'api', gap: 60 },
+      },
+      {
+        op: 'add' as const,
+        item: { id: 'link', kind: 'connector', from: { item: 'api' }, to: { item: 'cache' } },
+      },
+    ];
+    expect(await runTool(doc, 'board_apply', { ops })).toMatchObject({
+      ok: true,
+      created: ['api', 'cache', 'link'],
+    });
+    const retry = await runTool(doc, 'board_apply', { ops });
+    expect(retry).toMatchObject({
+      ok: true,
+      created: ['api_1', 'cache_1', 'link_1'],
+    });
+    expect(doc.get('link_1')).toMatchObject({
+      from: { item: 'api_1' },
+      to: { item: 'cache_1' },
+    });
+  });
   it('prevents callers from bypassing agent safety by claiming user origin', async () => {
     const doc = createDoc();
     const result = await runTool(doc, 'board_apply', {

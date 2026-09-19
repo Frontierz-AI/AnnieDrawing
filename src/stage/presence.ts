@@ -27,6 +27,7 @@ export class AgentPresence {
 
   private maxStops: number;
   private durationScale: number;
+  private idle = new Set<() => void>();
 
   constructor(
     private root: HTMLElement,
@@ -41,6 +42,18 @@ export class AgentPresence {
 
   holds(element: HTMLElement) {
     return this.pending.has(element);
+  }
+
+  busy() {
+    return this.running || this.frame !== 0 || this.pending.size > 0;
+  }
+
+  whenIdle(callback: () => void) {
+    if (!this.busy()) {
+      callback();
+      return;
+    }
+    this.idle.add(callback);
   }
 
   enqueue(placements: Placement[], name?: string) {
@@ -66,8 +79,10 @@ export class AgentPresence {
 
   /** Drop items that left the document; keep the walk going for what remains. */
   prune() {
+    let dropped = false;
     for (const element of [...this.pending]) {
       if (element.isConnected) continue;
+      dropped = true;
       this.restore.get(element)?.();
       this.restore.delete(element);
       this.pending.delete(element);
@@ -77,7 +92,7 @@ export class AgentPresence {
       return placement.elements.length > 0;
     };
     this.queue = this.queue.filter(keep);
-    if (!this.pending.size) this.clear();
+    if (!this.pending.size && (dropped || (!this.running && !this.frame))) this.clear();
   }
 
   clear() {
@@ -98,6 +113,9 @@ export class AgentPresence {
     this.cursor = undefined;
     this.name = undefined;
     this.running = false;
+    const callbacks = [...this.idle];
+    this.idle.clear();
+    for (const callback of callbacks) callback();
   }
 
   destroy() {
@@ -249,8 +267,7 @@ export class AgentPresence {
         deferred.push(placement);
         continue;
       }
-      const last =
-        ++stops >= this.maxStops || !this.queue.some((entry) => this.visitable(entry));
+      const last = ++stops >= this.maxStops || !this.queue.some((entry) => this.visitable(entry));
       if (last) placement.elements.push(...this.take(deferred), ...this.take(this.queue));
       const target = this.center(placement.box);
       if (!this.cursor) {
