@@ -610,7 +610,8 @@
           <span class="number">1</span>
           <h2>Installation and the local demo</h2>
           <p>
-            Development and headless examples require Node.js 24 or newer. From a source checkout:
+            Developing this repository, installing it from git, and running the MCP example need
+            Node.js 24 or newer. The published library is ES2022. From a source checkout:
           </p>
           <div class="code">
             <button class="copy" type="button" aria-label="Copy install commands">Copy</button>
@@ -621,7 +622,8 @@ npm run dev</code></pre>
             Vite listens on port 5173 by default. Open
             <a href="../">http://127.0.0.1:5173</a> for the editor. If that port is taken, the
             server prints the next free address. <code>npm run check</code> runs TypeScript, unit
-            tests, the library build, the gzipped size budget, and dependency license review.
+            tests, the library build, the gzipped size budget, dependency license review, and
+            production-dependency audit.
           </p>
           <p>
             Until a release is published, build with <code>npm run build</code> and install the
@@ -676,9 +678,18 @@ board.apply([{ op: 'add', item: {
             also offers AnnieDoc.
           </div>
           <p>
+            For an embed next to a live agent, import <code>createFellowBoard</code> from
+            <code>anniedrawing/fellow</code>. It hides chrome, skips the global hook, skips unfurl,
+            keeps agent work off ordinary undo, and fits the camera to new agent items.
+            <code>createBoard</code> leaves <code>window.__anniedrawing</code> off unless
+            <code>exposeGlobal: true</code>. This demo sets that option so agents can find the
+            board.
+          </p>
+          <p>
             For Node.js or workers, import <code>createDoc</code> from
             <code>anniedrawing/core</code>. It exposes the same document operations without creating
-            DOM nodes.
+            DOM nodes. <code>board.changesSince(since)</code> and
+            <code>describe({ since })</code> return a session delta without re-reading the scene.
           </p>
         </section>
         <section class="chapter" id="editor">
@@ -788,9 +799,9 @@ board.apply([{ op: 'add', item: {
           <h2>Agents</h2>
           <p>
             The document is JSON with stable item IDs. An agent can describe the scene, query items,
-            and apply a batch. Every batch succeeds together or changes nothing. The demo registers
-            live boards on <code>window.__anniedrawing</code> unless the host sets
-            <code>exposeGlobal: false</code>.
+            and apply a batch. Every batch succeeds together or changes nothing. This demo sets
+            <code>exposeGlobal: true</code> so the board is on <code>window.__anniedrawing</code>.
+            Other hosts must pass that option.
           </p>
           <div class="code">
             <button class="copy" type="button" aria-label="Copy live agent example">Copy</button>
@@ -819,7 +830,9 @@ console.log(board.describe())</code></pre>
             <code>anniedrawing/agent</code>. <code>runTool</code> stores
             <code>board_apply</code> under an <code>agent:</code> origin. Headless
             <code>board_read</code> is whole-document only. <code>board_snapshot</code> defaults to
-            labeled viewport PNGs.
+            labeled viewport PNGs. Hosts that need a smaller raster can call
+            <code>board.export('jpeg')</code> or <code>board.export('webp')</code> with
+            <code>maxSide</code> and <code>maxBytes</code>.
           </p>
           <div class="callout">
             Read before editing. Check <code>result.ok</code>, then read the affected items. Board
@@ -859,7 +872,7 @@ console.log(board.describe())</code></pre>
                 pass <code>ui.export</code> with <code>json</code> to add AnnieDoc, or
                 <code>false</code> to hide Export. SVG is vector. PNG defaults to 2× resolution.
                 Pass <code>labels: true</code> when a vision model needs item IDs in the image.
-                Programmatic <code>board.export</code> always accepts JSON, SVG, and PNG.
+                Programmatic <code>board.export</code> accepts JSON, SVG, PNG, JPEG, and WebP.
               </p>
             </div>
           </div>
@@ -869,7 +882,8 @@ console.log(board.describe())</code></pre>
 const vector = await board.export('svg', { padding: 32 })
 const image = await board.export('png', {
   scope: 'viewport', scale: 2, labels: true,
-})</code></pre>
+})
+const compact = await board.export('jpeg', { maxSide: 1280, maxBytes: 245760 })</code></pre>
           </div>
           <p class="muted">
             Browser storage is not a backup service. Remote images are subject to CORS. Custom HTML
@@ -892,9 +906,9 @@ const image = await board.export('png', {
             <div>
               <h3>HTML</h3>
               <p>
-                Pass an explicit sanitizer when the application needs HTML content. Plain text never
-                goes through HTML parsing. A sanitizer is not a sandbox. Opening a drawing never
-                loads an executable callback.
+                Pass an explicit sanitizer when the application needs HTML content. Identity
+                functions are rejected. Plain text never goes through HTML parsing. A sanitizer is
+                not a sandbox. Opening a drawing never loads an executable callback.
               </p>
             </div>
           </div>
@@ -917,9 +931,9 @@ npm run test:e2e
 npm run test:perf</code></pre>
           </div>
           <p>
-            Before a public release, follow the checklist, inspect the package, verify the
-            publishing destinations, and configure private security reporting. Publication remains a
-            maintainer action.
+            Report vulnerabilities and conduct concerns privately to
+            <a href="mailto:pau@frontierz.com">pau@frontierz.com</a>. Do not file security reports
+            as public issues. Publication to npm remains a maintainer action.
           </p>
           <div class="link-row">
             <a class="pill" href="contributing.md">Contributing</a

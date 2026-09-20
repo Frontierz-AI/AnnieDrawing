@@ -11,7 +11,7 @@
 | `anniedrawing/fellow`    | `createFellowBoard` embed preset                                                   |
 | `anniedrawing/style.css` | Editor styles                                                                      |
 
-Use Node.js 24 or newer for development and headless examples. Browser hosts need Pointer Events, SVG, ResizeObserver, and `structuredClone`. All JavaScript exports are ESM.
+Use Node.js 24 or newer to develop this repository and to install it from git. The published library is ES2022. Browser hosts need Pointer Events, SVG, ResizeObserver, and `structuredClone`. All JavaScript exports are ESM.
 
 ## createBoard and createDoc
 
@@ -26,7 +26,7 @@ const board = createBoard(host, {
     pages: true, // false hides page chips
   },
   autosaveKey: 'my-diagram', // opt-in browser persistence
-  exposeGlobal: true, // default on; window.__anniedrawing is an array
+  exposeGlobal: false, // true registers window.__anniedrawing; the demo sets true
   agentName: 'Alex', // cursor label when apply omits agentName
   agentHistory: 'shared', // 'hidden' skips agent: origins on default undo
   agentReveal: 'fit', // 'none' skips the post-arrival camera fit
@@ -44,19 +44,20 @@ board.destroy();
 
 The host must have nonzero width and height. `destroy()` releases the board's listeners, views, subscriptions, and global registration. Dispose application integrations with their own cleanup functions. The library does not ship a font file. The demo loads Nunito. The library CSS uses system fallbacks. `BoardOptions`, `UiOptions`, and `UiExportFormat` are exported from `anniedrawing`.
 
-| Option      | Default         | Meaning                                                                                                     |
-| ----------- | --------------- | ----------------------------------------------------------------------------------------------------------- |
-| `theme`     | `'light'`       | `'light'`, `'dark'`, or `'auto'` (follows `prefers-color-scheme`). Change later with `setTheme`.            |
-| `ui`        | `true`          | `false` omits editor chrome. An object keeps the tools and sets the header.                                 |
-| `ui.menu`   | `true`          | AnnieDrawing control: open a drawing, grid, appearance, documentation.                                      |
-| `ui.export` | `['png','svg']` | `false` hides Export. `'png'`, `'svg'`, and `'json'` (AnnieDoc `.annie`). One format downloads immediately. |
-| `ui.pages`  | `true`          | `false` hides page chips. `page.add` and `setPage` still work.                                              |
+| Option         | Default         | Meaning                                                                                                     |
+| -------------- | --------------- | ----------------------------------------------------------------------------------------------------------- |
+| `theme`        | `'light'`       | `'light'`, `'dark'`, or `'auto'` (follows `prefers-color-scheme`). Change later with `setTheme`.            |
+| `ui`           | `true`          | `false` omits editor chrome. An object keeps the tools and sets the header.                                 |
+| `ui.menu`      | `true`          | AnnieDrawing control: open a drawing, grid, appearance, documentation.                                      |
+| `ui.export`    | `['png','svg']` | `false` hides Export. `'png'`, `'svg'`, and `'json'` (AnnieDoc `.annie`). One format downloads immediately. |
+| `ui.pages`     | `true`          | `false` hides page chips. `page.add` and `setPage` still work.                                              |
+| `exposeGlobal` | `false`         | `true` registers the board on `window.__anniedrawing`. The local demo sets this.                            |
 
-`ui: true` is the same as `{ menu: true, export: ['png', 'svg'], pages: true }`. Two or more export formats open a menu. The local demo passes `export: ['png', 'svg', 'json']`. Programmatic `board.export()` still supports every format even when the Export control hides one.
+`ui: true` is the same as `{ menu: true, export: ['png', 'svg'], pages: true }`. Two or more export formats open a menu. The local demo passes `export: ['png', 'svg', 'json']`. Programmatic `board.export()` still supports JSON, SVG, PNG, JPEG, and WebP even when the Export control hides a format.
 
 `createFellowBoard(host, { fellowName, theme, ... })` from `anniedrawing/fellow` applies embed defaults. Explicit options override them.
 
-`createDoc(initial?, { readonly?, allowedImageOrigins?, sanitizeHTML?, kinds?, agentHistory?, agentPlaceGap? })` provides the model without creating DOM nodes. It returns `apply`, `get`, `query`, `describe`, `kindsSince`, `changesSince`, `toJSON`, `undo`, `redo`, `load`, `clear`, `on`, `revision`, `canUndo`, `canRedo`, `itemSignal`, `fieldSignal`, and `childrenSignal`. `anniedrawing/core` also exports `applyDraft`, `translateItem`, `copyItems`, `detachMissingEndpoints`, `allItems`, and `clipboardText` for hosts that implement clipboard or preview layers. `applyDraft` merges nested `style`, `text`, and `data`. `clipboardText` reads the first non-comment `text/uri-list` line, then `text/plain`.
+`createDoc(initial?, { readonly?, allowedImageOrigins?, sanitizeHTML?, kinds?, agentHistory?, agentPlaceGap? })` provides the model without creating DOM nodes. `allowedImageOrigins` gates remote images on non-`user` origins. User paste, import, and `load()` are not gated. `sanitizeHTML` is required to render HTML as HTML and must strip a script/event-handler probe. It returns `apply`, `get`, `query`, `describe`, `kindsSince`, `changesSince`, `toJSON`, `undo`, `redo`, `load`, `clear`, `on`, `revision`, `canUndo`, `canRedo`, `itemSignal`, `fieldSignal`, and `childrenSignal`. `anniedrawing/core` also exports `applyDraft`, `translateItem`, `copyItems`, `detachMissingEndpoints`, `allItems`, and `clipboardText` for hosts that implement clipboard or preview layers. `applyDraft` merges nested `style`, `text`, and `data`. `clipboardText` reads the first non-comment `text/uri-list` line, then `text/plain`.
 
 ## Signals
 
@@ -123,9 +124,9 @@ Supported operations: `add`, `set`, `remove`, `order`, `reparent`, `page.add`, `
 
 `result.created` is the stored ids for that batch. Warnings do not roll back:
 
-| Code                | Meaning                                                                                                                                                          |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OVERLAPS_EXISTING` | A new item intersects another item.                                                                                                                              |
+| Code                | Meaning                                                                                                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `OVERLAPS_EXISTING` | A new item intersects another item.                                                                                                                                      |
 | `ID_REMAPPED`       | An `agent:` create reused an id. Stored as `id_1`, then `_2`. Same-batch refs follow it. `get` with the id you sent returns the older item. User/API origins still fail. |
 
 `merge: true` appends to the last history entry when that entry has the same `origin` and `label`. Each committed apply still increments `revision` once. History keeps at most 100 entries. The session log keeps 500 slices.

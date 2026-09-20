@@ -26,7 +26,9 @@ export async function exportRaster(
     );
   let scale = options.scale ?? 2;
   if (!Number.isFinite(scale) || scale <= 0 || scale > 8)
-    throw new Error(`${format.toUpperCase()} scale must be greater than zero and no greater than 8.`);
+    throw new Error(
+      `${format.toUpperCase()} scale must be greater than zero and no greater than 8.`,
+    );
   const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
   try {
     const image = new Image();
@@ -58,12 +60,15 @@ export async function exportRaster(
       const width = Math.max(1, Math.ceil(naturalWidth * nextScale));
       const height = Math.max(1, Math.ceil(naturalHeight * nextScale));
       if (width > 16384 || height > 16384 || width * height > 64_000_000)
-        throw new Error(`${format.toUpperCase()} is too large. Export a smaller selection or reduce the scale.`);
+        throw new Error(
+          `${format.toUpperCase()} is too large. Export a smaller selection or reduce the scale.`,
+        );
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
       const context = canvas.getContext('2d');
-      if (!context) throw new Error(`This browser does not support ${format.toUpperCase()} export.`);
+      if (!context)
+        throw new Error(`This browser does not support ${format.toUpperCase()} export.`);
       context.drawImage(image, 0, 0, width, height);
       return await new Promise<Blob>((resolve, reject) => {
         try {

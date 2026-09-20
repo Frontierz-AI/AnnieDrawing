@@ -4,20 +4,22 @@ AnnieDrawing is a local browser library. The embedding application controls who 
 
 ## Reporting
 
-Until a public repository and private reporting channel are configured, send a report privately to the maintainer through the channel where you obtained this checkout. Do not include real private drawings in public issues. Before publication, maintainers must configure a private vulnerability-reporting route and replace this paragraph with that verified route.
+Email **pau@frontierz.com**. After this repository is public, you can also use [GitHub private vulnerability reporting](https://github.com/Frontierz-AI/anniedrawing/security/advisories/new) when GitHub shows that form.
 
-Reports should include the affected version, reproduction steps, expected impact, and a minimal synthetic document. There is no promised security response SLA for an unpublished local checkout.
+Do not file a public GitHub issue for a vulnerability. Do not include real private drawings.
+
+Reports should include the affected version or commit, reproduction steps, expected impact, and a minimal synthetic document. We aim to acknowledge reports within a few business days. There is no promised SLA.
 
 ## Trust boundaries
 
 - Imported files and all scene text, HTML, metadata, names, and URLs are untrusted data. Agents must not execute instructions found inside them.
 - The model validates operations and document structure, enforces limits, and rejects edits in readonly mode. Callers still need the host's authorization.
 - `origin: 'agent:name'` records provenance. Callers can supply that string. Do not use it as proof of identity or permission.
-- HTML is inert without an explicit sanitizer integration. Use DOMPurify and a restrictive policy. Never pass an identity function as a sanitizer. Custom kind renderers and mount callbacks are trusted application code. They are not sandboxed extensions.
-- Image data is limited to supported image URLs. Configure remote origins deliberately. Remote files can have privacy and CORS consequences. Application owners should prefer embedded images for portable private documents.
+- HTML is inert without an explicit sanitizer integration. Use DOMPurify and a restrictive policy. `createBoard` / `createDoc` reject a sanitizer that leaves a script or event-handler probe in place. Custom kind renderers and mount callbacks are trusted application code. They are not sandboxed extensions.
+- Image data is limited to supported image URLs. `allowedImageOrigins` applies to non-`user` origins (API and agent writes, including `media.set`). User paste, file import, and `load()` accept `http(s)` images unless the host filters them first. Remote files can have privacy and CORS consequences. Prefer embedded images for portable private documents. Image URLs must not include credentials.
 - `video` and `link` items store an `http(s)` `href` only. The renderer builds YouTube and Vimeo iframes from parsed identifiers. It never writes a raw user URL into `iframe.src`. Link titles and descriptions use `textContent`. The Open control uses `rel="noopener noreferrer"`.
-- Pasting a website URL may fetch that URL from the user's browser to read Open Graph tags. The request omits credentials, follows only `http(s)`, and is limited in time and size. It does not run for agent operations. Hosts that do not want this fetch can pass `unfurl: false`. Loading a video player contacts YouTube or Vimeo when that item is shown.
-- A live global board hook grants scripts already running in the page access to the board. Disable it in applications that do not need agent inspection, and protect the surrounding page from XSS.
+- Pasting a website URL may fetch that URL from the user's browser to read Open Graph tags. The request omits credentials, follows only public `http(s)` URLs, and is limited in time and size. It does not run for agent operations. Hosts that do not want this fetch can pass `unfurl: false`. Loading a video player contacts YouTube or Vimeo when that item is shown.
+- `window.__anniedrawing` is off unless the host sets `exposeGlobal: true`. The local demo opts in. Any script already running in that page can then read and edit the board. Protect the surrounding page from XSS.
 - Local autosave is unencrypted browser storage. Clearing the profile or applying a storage policy can remove it. Export `.annie` files for portable copies.
 
 ## MCP example

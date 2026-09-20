@@ -31,4 +31,4 @@ body:
     id: evidence
     attributes:
       label: Anything else that helps?
-      description: Console errors, screenshots or a short recording are useful. Report security vulnerabilities privately instead.
+      description: Console errors, screenshots or a short recording are useful. Report security vulnerabilities privately to pau@frontierz.com, not in a public issue.

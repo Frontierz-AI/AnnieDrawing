@@ -496,38 +496,62 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     });
     return pick;
   }
+  let fittingPages = false;
   function fitPageTabs() {
-    const tabs = [...pageTabs.querySelectorAll<HTMLButtonElement>('button')];
-    tabs.forEach((tab) => {
-      tab.hidden = false;
-      tab.style.maxWidth = '';
-    });
-    overflow.hidden = true;
-    const widths = tabs.map((tab) => tab.getBoundingClientRect().width);
-    const needed = widths.reduce((sum, width) => sum + width + 4, 0) + newPage.offsetWidth + 14;
-    const room =
-      pagesBar.offsetTop === footerRight.offsetTop
-        ? footer.clientWidth - footerRight.offsetWidth - 16
-        : pagesBar.clientWidth;
-    const cap = Math.min(room, 520);
-    if (needed <= cap) return;
-    const available = cap - newPage.offsetWidth - 14;
-    overflow.hidden = false;
-    let remaining = Math.max(40, available - overflow.offsetWidth - 4);
-    const selected = tabs.findIndex((tab) => tab.getAttribute('aria-selected') === 'true');
-    for (const index of [
-      selected,
-      ...tabs.map((_, index) => index).filter((index) => index !== selected),
-    ]) {
-      if (index < 0) continue;
-      const tab = tabs[index];
-      if (index === selected) {
-        tab.style.maxWidth = `${remaining}px`;
-        remaining -= Math.min(remaining, widths[index]) + 4;
-      } else {
-        tab.hidden = widths[index] > remaining;
-        if (!tab.hidden) remaining -= widths[index] + 4;
+    if (fittingPages) return;
+    fittingPages = true;
+    const probe = el('div', 'ad-page-tabs');
+    try {
+      const tabs = [...pageTabs.querySelectorAll<HTMLButtonElement>('button')];
+      probe.style.cssText =
+        'position:absolute;visibility:hidden;pointer-events:none;width:max-content';
+      const samples = tabs.map((tab) => {
+        const sample = tab.cloneNode(true) as HTMLButtonElement;
+        sample.hidden = false;
+        sample.style.maxWidth = '';
+        return sample;
+      });
+      const overflowSample = overflow.cloneNode(true) as HTMLButtonElement;
+      overflowSample.hidden = false;
+      probe.append(...samples, overflowSample);
+      ui.append(probe);
+      const widths = samples.map((sample) => sample.getBoundingClientRect().width);
+      const overflowWidth = overflowSample.offsetWidth;
+      probe.remove();
+      const needed = widths.reduce((sum, width) => sum + width + 4, 0) + newPage.offsetWidth + 14;
+      const room =
+        pagesBar.offsetTop === footerRight.offsetTop
+          ? footer.clientWidth - footerRight.offsetWidth - 16
+          : pagesBar.clientWidth;
+      const cap = Math.min(room, 520);
+      const hideOverflow = needed <= cap;
+      const nextHidden = tabs.map(() => false);
+      const nextMax = tabs.map(() => '');
+      if (!hideOverflow) {
+        let remaining = Math.max(40, cap - newPage.offsetWidth - 14 - overflowWidth - 4);
+        const selected = tabs.findIndex((tab) => tab.getAttribute('aria-selected') === 'true');
+        for (const index of [
+          selected,
+          ...tabs.map((_, index) => index).filter((index) => index !== selected),
+        ]) {
+          if (index < 0) continue;
+          if (index === selected) {
+            nextMax[index] = `${remaining}px`;
+            remaining -= Math.min(remaining, widths[index]) + 4;
+          } else {
+            nextHidden[index] = widths[index] > remaining;
+            if (!nextHidden[index]) remaining -= widths[index] + 4;
+          }
+        }
       }
+      overflow.hidden = hideOverflow;
+      tabs.forEach((tab, index) => {
+        tab.hidden = nextHidden[index];
+        tab.style.maxWidth = nextMax[index];
+      });
+    } finally {
+      probe.remove();
+      fittingPages = false;
     }
   }
   function renderPages() {
@@ -541,7 +565,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   }
   const pagesObserver = new ResizeObserver(fitPageTabs);
   if (options.pages !== false) {
-    pagesObserver.observe(pagesBar);
+    pagesObserver.observe(ui);
     unsubs.push(() => pagesObserver.disconnect());
   }
   function addPage() {

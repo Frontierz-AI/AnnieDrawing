@@ -1,6 +1,7 @@
 import {
   hostnameOf,
   IMAGE_DATA_URL,
+  isPublicHttpUrl,
   normalizeHref,
   parseVideo,
   type LinkPreview,
@@ -95,11 +96,22 @@ export function parseLinkPreview(html: string, base: string): LinkPreview {
 
 export async function unfurlPage(href: string): Promise<LinkPreview | undefined> {
   const url = normalizeHref(href);
-  if (!url || url.startsWith('data:') || typeof fetch !== 'function') return;
-  const response = await fetch(url, { credentials: 'omit', headers: { Accept: 'text/html' } });
-  const type = response.headers.get('content-type') ?? '';
-  if (!response.ok || (type && !/html|xml/i.test(type))) return;
-  return parseLinkPreview((await response.text()).slice(0, 200000), response.url || url);
+  if (!url || url.startsWith('data:') || typeof fetch !== 'function' || !isPublicHttpUrl(url))
+    return;
+  try {
+    const response = await fetch(url, {
+      credentials: 'omit',
+      headers: { Accept: 'text/html' },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(4000),
+    });
+    const type = response.headers.get('content-type') ?? '';
+    if (!response.ok || (type && !/html|xml/i.test(type))) return;
+    if (!isPublicHttpUrl(response.url || url)) return;
+    return parseLinkPreview((await response.text()).slice(0, 200000), response.url || url);
+  } catch {
+    return;
+  }
 }
 
 export function displayUrl(href: string): string {

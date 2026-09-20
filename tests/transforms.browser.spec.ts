@@ -11,7 +11,10 @@ async function fixture(page: Page, items: NewItem[], selection: string[]) {
         '<main id="transform-fixture" style="position:fixed;inset:0"></main>';
       const modulePath = '/src/board.ts';
       const { createBoard } = await import(modulePath);
-      const board = createBoard(document.querySelector('#transform-fixture'), { ui: false });
+      const board = createBoard(document.querySelector('#transform-fixture'), {
+        ui: false,
+        exposeGlobal: true,
+      });
       board.apply(items.map((item) => ({ op: 'add', item })));
       board.setGrid(false);
       board.stage.lens.set({ x: 0, y: 0, zoom: 1 });

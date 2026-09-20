@@ -15,7 +15,7 @@ const board = createBoard(host, {
 });
 ```
 
-The host and its custom callbacks remain responsible for rendering policy. A sanitizer is not a sandbox. For agent-origin changes, the model runs the supplied sanitizer before committing HTML. Without one it escapes markup. The renderer runs the supplied sanitizer again at the DOM boundary. Mount IDs from agent changes are removed. Keep interactive embeds narrow. Do not store executable callbacks in `.annie` JSON.
+The host and its custom callbacks remain responsible for rendering policy. A sanitizer is not a sandbox. `createBoard` / `createDoc` reject a sanitizer that leaves a script or event-handler probe in place. For agent-origin changes, the model runs the supplied sanitizer before committing HTML. Without one it escapes markup. The renderer runs the supplied sanitizer again at the DOM boundary. Mount IDs from agent changes are removed. Keep interactive embeds narrow. Do not store executable callbacks in `.annie` JSON.
 
 Built-in `video` and `link` items are not HTML. They store an `href` and optional title, description, and preview media. The renderer builds the YouTube or Vimeo iframe and the link card. Pasting those URLs into an `html` item does not produce the same result.
 

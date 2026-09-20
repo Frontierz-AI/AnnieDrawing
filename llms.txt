@@ -5,7 +5,7 @@ Operate a board through JavaScript. The JSON document is the source of truth. Pe
 Kind catalog: 1
 
 ```js
-const board = window.__anniedrawing[0]; // or createDoc()
+const board = window.__anniedrawing[0]; // demo; hosts pass exposeGlobal: true
 board.kindsSince();     // all built-in kinds; pass a previous version for only what is new
 board.describe();       // text with IDs; call anytime to see what is on the board
 board.describe({ since });

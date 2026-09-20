@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { clipboardText } from '../src/core/clipboard';
-import { hostnameOf, normalizeHref, parseVideo, videoEmbed } from '../src/core/links';
+import {
+  hostnameOf,
+  isPublicHttpUrl,
+  normalizeHref,
+  parseVideo,
+  videoEmbed,
+} from '../src/core/links';
 import {
   classifyPaste,
   decodeEntities,
@@ -9,6 +15,7 @@ import {
   linkFallback,
   parseLinkPreview,
   prettyTitle,
+  unfurlPage,
 } from '../src/core/paste';
 import { CARD_CORNER, createDoc } from '../src/core';
 import { shapePath } from '../src/stage/paint';
@@ -179,5 +186,21 @@ describe('video and link documents', () => {
     });
     expect(CARD_CORNER).toBe(12);
     expect(path.startsWith(`M${CARD_CORNER},0`)).toBe(true);
+  });
+});
+
+describe('public http(s) URLs', () => {
+  it('allows ordinary sites and rejects loopback, private, and credentialed URLs', () => {
+    expect(isPublicHttpUrl('https://example.com/x')).toBe(true);
+    expect(isPublicHttpUrl('http://127.0.0.1:5173/__ad-unfurl')).toBe(false);
+    expect(isPublicHttpUrl('http://localhost/meta')).toBe(false);
+    expect(isPublicHttpUrl('http://192.168.1.9/router')).toBe(false);
+    expect(isPublicHttpUrl('http://169.254.169.254/latest')).toBe(false);
+    expect(isPublicHttpUrl('http://10.0.0.4/internal')).toBe(false);
+    expect(isPublicHttpUrl('https://user:token@example.com/x')).toBe(false);
+  });
+  it('does not fetch loopback addresses when unfurling', async () => {
+    expect(await unfurlPage('http://127.0.0.1/')).toBeUndefined();
+    expect(await unfurlPage('http://localhost:5173/docs')).toBeUndefined();
   });
 });

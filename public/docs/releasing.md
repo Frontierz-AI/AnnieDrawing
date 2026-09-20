@@ -1,14 +1,13 @@
 # Release checklist
 
-The checkout is prepared for an open-source release. Publication is a maintainer action. Do not infer npm ownership, a GitHub URL, hosting configuration, trademark permission, or a private contact address from the package name.
+Publication is a maintainer action. The repository URL, issue tracker, and private contacts are pau@frontierz.com plus this GitHub project. Do not infer npm ownership from the package name.
 
-## Before the first public release
+## Before publishing a version
 
-- Confirm the repository owner and the public remote. Add the verified `repository`, `bugs`, and `homepage` fields to `package.json`.
 - Confirm access to the intended npm package name and organization. Check the intended release version and update the changelog.
-- Configure a private security-reporting channel and a community contact. Replace the temporary directions in `SECURITY.md` and `CODE_OF_CONDUCT.md` with those verified routes.
+- Keep SECURITY.md and CODE_OF_CONDUCT.md pointed at pau@frontierz.com, and keep GitHub private vulnerability reporting enabled.
 - Review the license, third-party notices, DCO requirements, and provenance. Keep full dependency and font notices in distributed bundles where required.
-- Enable branch protections and required CI and DCO checks. The repository workflow cannot enable hosting-side settings on its own.
+- Keep branch protection, required CI, Dependabot, and secret scanning enabled on the public repository.
 
 ## Verify the release tree
 
@@ -26,7 +25,7 @@ npm run test:consumer
 npm pack --dry-run
 ```
 
-Inspect the tarball: compiled JavaScript, declarations, CSS, README, license, notices, and AI documentation. The package must not contain private source documents, local drawings, tokens, browser artifacts, or `node_modules`. Install the tarball into a clean consumer and exercise `anniedrawing` and `anniedrawing/core`. Validate all declared package exports.
+Inspect the tarball: compiled JavaScript, declarations, CSS, README, license, notices, changelog, and AI documentation. The package must not contain private source documents, local drawings, tokens, browser artifacts, or `node_modules`. Install the tarball into a clean consumer and exercise `anniedrawing` and `anniedrawing/core`. Validate all declared package exports.
 
 Test the demo with mouse, keyboard, and a touch device. Check cancellation, undo and redo, pages, autosave recovery, and file import and export. Test a keyboard-only first run and reduced-motion behavior. Check PNG export with embedded media, and the limits of remote images and custom HTML. Browser timing depends on the machine. Record the environment with performance results.
 

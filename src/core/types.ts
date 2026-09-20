@@ -288,7 +288,9 @@ export interface AgentPresenceOptions {
 }
 export interface DocOptions {
   readonly?: boolean;
+  /** Restricts remote images on non-`user` origins. User paste, import, and `load()` are not gated. */
   allowedImageOrigins?: string[];
+  /** Required to render HTML as HTML. Identity functions are rejected. */
   sanitizeHTML?: (html: string) => string;
   kinds?: {
     kind: string;

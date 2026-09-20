@@ -6,8 +6,6 @@ const approved = new Set([
   'BSD-2-Clause',
   'BSD-3-Clause',
   'Apache-2.0',
-  '0BSD',
-  'CC0-1.0',
   'OFL-1.1',
   '(MPL-2.0 OR Apache-2.0)',
   'MPL-2.0',

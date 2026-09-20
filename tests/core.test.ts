@@ -338,6 +338,18 @@ describe('validation and safety', () => {
       doc.apply([{ ...op, media: { ...op.media, src: 'javascript:alert(1)' } }], { origin: 'user' })
         .ok,
     ).toBe(false);
+    expect(
+      doc.apply(
+        [
+          {
+            ...op,
+            id: 'm_creds',
+            media: { ...op.media, src: 'https://user:token@images.example.test/a.png' },
+          },
+        ],
+        { origin: 'user' },
+      ).ok,
+    ).toBe(false);
   });
   it('migrates version zero, rejects future versions, and replaces history on load', () => {
     const old = { ...defaultDoc(), version: 0 } as unknown as AnnieDoc;
@@ -518,9 +530,12 @@ describe('custom kind contracts', () => {
   });
 });
 it('uses an explicitly supplied HTML sanitizer and keeps the default inert', () => {
-  const doc = createDoc(undefined, {
-    sanitizeHTML: (html) => html.replace(/<script>[\s\S]*?<\/script>/g, ''),
-  });
+  const sanitizeHTML = (html: string) =>
+    html
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  expect(() => createDoc(undefined, { sanitizeHTML: (html) => html })).toThrow(/strip active HTML/);
+  const doc = createDoc(undefined, { sanitizeHTML });
   expect(
     doc.apply(
       [

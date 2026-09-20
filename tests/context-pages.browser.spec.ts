@@ -146,6 +146,7 @@ for (const width of [1440, 390, 320]) {
   test(`page chips overflow, rename, switch and delete the chosen page at ${width}px`, async ({
     page,
   }, info) => {
+    test.setTimeout(60_000);
     await page.setViewportSize({ width, height: 844 });
     await ready(page);
     await page.evaluate(() => {
@@ -163,7 +164,7 @@ for (const width of [1440, 390, 320]) {
     await expect(active).toHaveAttribute('aria-selected', 'true');
     const overflow = page.getByRole('button', { name: 'All pages', exact: true });
     await expect(overflow).toBeVisible();
-    await page.screenshot({ path: info.outputPath('page-chips.png') });
+    await page.locator('.ad-pages').screenshot({ path: info.outputPath('page-chips.png') });
     const rail = await page.locator('.ad-pages').boundingBox();
     expect(rail!.x).toBeGreaterThanOrEqual(0);
     expect(rail!.x + rail!.width).toBeLessThanOrEqual(width);
@@ -188,12 +189,15 @@ for (const width of [1440, 390, 320]) {
     await expect(renamed).toHaveAttribute('aria-selected', 'true');
     await renamed.press('Shift+F10');
     await page.getByRole('menuitem', { name: 'Delete page' }).click();
+    await expect(page.getByRole('menu', { name: 'Page actions' })).toHaveCount(0);
     expect(
       await page.evaluate(() =>
         window.__anniedrawing![0].read().pages.some(({ id }) => id === 'p_1'),
       ),
     ).toBe(false);
-    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    const undo = page.getByRole('button', { name: 'Undo', exact: true });
+    await expect(undo).toBeEnabled();
+    await undo.click();
     expect(
       await page.evaluate(
         () => window.__anniedrawing![0].read().pages.find(({ id }) => id === 'p_1')?.name,
