@@ -23,9 +23,11 @@ The development server uses Vite's default port 5173. Open http://127.0.0.1:5173
 
 The demo stores the current drawing in the browser. That storage is local to the browser profile. Its Export control offers PNG, SVG, and AnnieDoc. Export a `.annie` file for a portable copy. New files use format version 2 and `pages`. Version 1 files with `sheets` migrate on load.
 
-## Package status
+## Install
 
-The intended package name is `anniedrawing`. This repository does not claim that name is published or available. Until a release is published, install this repository over git (`prepare` builds `dist/`), or build this checkout with `npm run build` and install the tarball from `npm pack`.
+```sh
+npm install anniedrawing
+```
 
 ```ts
 import { createFellowBoard } from 'anniedrawing/fellow';

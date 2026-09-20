@@ -1,10 +1,10 @@
 # Release checklist
 
-Publication is a maintainer action. The repository URL, issue tracker, and private contacts are pau@frontierz.com plus this GitHub project. Do not infer npm ownership from the package name.
+Publication is a maintainer action. The repository URL, issue tracker, and private contacts are pau@frontierz.com plus this GitHub project. The npm package is `anniedrawing`.
 
 ## Before publishing a version
 
-- Confirm access to the intended npm package name and organization. Check the intended release version and update the changelog.
+- Confirm access to the `anniedrawing` npm package. Check the intended release version and update the changelog.
 - Keep SECURITY.md and CODE_OF_CONDUCT.md pointed at pau@frontierz.com, and keep GitHub private vulnerability reporting enabled.
 - Review the license, third-party notices, DCO requirements, and provenance. Keep full dependency and font notices in distributed bundles where required.
 - Keep branch protection, required CI, Dependabot, and secret scanning enabled on the public repository.
@@ -29,7 +29,7 @@ Inspect the tarball: compiled JavaScript, declarations, CSS, README, license, no
 
 Test the demo with mouse, keyboard, and a touch device. Check cancellation, undo and redo, pages, autosave recovery, and file import and export. Test a keyboard-only first run and reduced-motion behavior. Check PNG export with embedded media, and the limits of remote images and custom HTML. Browser timing depends on the machine. Record the environment with performance results.
 
-Review `npm audit` and changes to locked dependencies. CI license approval does not mean the tree has no vulnerabilities. Check the generated docs and demo for private paths and unpublished claims.
+Review `npm audit` and changes to locked dependencies. CI license approval does not mean the tree has no vulnerabilities. Check the generated docs and demo for private paths.
 
 ## Publish only with authorization
 

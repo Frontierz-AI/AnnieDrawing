@@ -72,9 +72,9 @@ Version 2 uses pages in the document, scopes, and editing API. Version 1 documen
 
 Keep primary drawing tools on the sidebar: eraser after hand, image after sticky note, and line and arrow inside Shapes. Do not hide those tools behind a More overflow. On phones, including landscape, and on short tablet-width hosts, the tools move to a bottom bar and hand stays in the board menu so that bar remains tappable, unless a host hides that menu. A short desktop host keeps the tool sidebar and inspector vertically centered and tightens chrome padding and icons instead of pinning those bars to the top. The selection inspector is vertically centered like the tool sidebar. Export downloads the current page. An imported board offers PNG and SVG; AnnieDoc is opt-in through `ui.export`. The local demo offers all three. The AnnieDrawing control opens the same kind of menu for document, appearance, documentation, and GitHub, with the package version at the bottom, and hosts may hide it. Show item-specific style controls only when something is selected, with palettes opened on demand and compact line and text controls visible beside the selection. The inspector does not repeat the selected kind as a title. Page management remains in the bottom bar. Positioning and rotation follow the user's pointer. Shift constrains the move axis or resize proportions.
 
-## 2026-09-19: OSS preparation without speculative publication
+## 2026-09-19: MIT licensing and the named package
 
-Provide MIT licensing, dependency attribution, DCO checks, contribution and agent guides, verification workflows, and release steps. Do not claim an npm name is published until a maintainer actually publishes it.
+Provide MIT licensing, dependency attribution, DCO checks, contribution and agent guides, verification workflows, and release steps. The npm package name is `anniedrawing`.
 
 ## 2026-09-19: Direct controls and ordinary groups
 
