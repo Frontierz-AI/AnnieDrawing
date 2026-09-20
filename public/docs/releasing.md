@@ -33,22 +33,26 @@ Review `npm audit` and changes to locked dependencies. CI license approval does 
 
 ## Publish only with authorization
 
-After the owner authorizes the destination and version, create a signed-off release commit and tag, publish the reviewed tarball using the registry's trusted publishing or authenticated workflow, and confirm GitHub Pages deployed `site` to https://anniedrawing.com. Do not put registry tokens in repository files. Verify the installed package and published demo after release.
+After the owner authorizes the destination and version, create a signed-off release commit and tag, and publish the reviewed tarball. Do not put registry tokens in repository files. Verify the installed package and the hosted demo after release.
 
-The public site is the Vite demo (`npm run build:demo`). `.github/workflows/pages.yml` deploys it from `main`. Point the apex domain at GitHub Pages:
+The public site is the Vite demo (`npm run build:demo`). It is static files in `site/`. It does not run Node in production. Host it as its own Laravel Forge site next to the others on the Frontierz server (`docs.frontierz.com`, `rebost.ai`, `ssot.frontierz.com`). Do not attach a Forge daemon or PM2 process. Do not change the server-wide Node binary; `scripts/forge-deploy.sh` installs Node 24 under `~/.local` for this site only.
 
-```text
-A     @    185.199.108.153
-A     @    185.199.109.153
-A     @    185.199.110.153
-A     @    185.199.111.153
-AAAA  @    2606:50c0:8000::153
-AAAA  @    2606:50c0:8001::153
-AAAA  @    2606:50c0:8002::153
-AAAA  @    2606:50c0:8003::153
-CNAME www  Frontierz-AI.github.io
+In Forge, create a new site `anniedrawing.com`:
+
+1. Web directory: `/site` (not `/public`).
+2. PHP version can stay the default; PHP is unused.
+3. No queue worker, scheduler, or daemon.
+4. Deploy script:
+
+```sh
+cd /home/forge/anniedrawing.com
+git pull origin $FORGE_SITE_BRANCH
+bash scripts/forge-deploy.sh
 ```
 
-`public/CNAME` must stay `anniedrawing.com`. GitHub then serves https://anniedrawing.com and https://anniedrawing.com/docs/.
+5. Nginx `location /` should be `try_files $uri $uri/ /index.html;` like the rebost.ai static site, not a PHP front controller.
+6. Point DNS at this Forge server (currently `ssot.frontierz.com` / `165.22.207.153`), then issue the Let's Encrypt certificate in Forge.
+
+`docs.frontierz.com` already runs `server.js` under PM2 (`site-3359372`). A separate nginx `server_name` for `anniedrawing.com` does not reload or replace that process.
 
 The MCP example is a private package inside this repository. Publishing it separately requires replacing its relative `../../dist` imports with a compatible `anniedrawing` dependency and reviewing its release contents on their own.

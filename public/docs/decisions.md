@@ -54,7 +54,7 @@ Use the Frontierz palette so the demo matches the rest of the family. Use Nunito
 
 ## 2026-09-19: Demo without a backend
 
-The demo works without a backend or account. The development server uses Vite's default port 5173. The same build is published at https://anniedrawing.com. Portable JSON files are the durable exchange format. Browser autosave does not synchronize users or devices.
+The demo works without a backend or account. The development server uses Vite's default port 5173. The same static build is published at https://anniedrawing.com from Laravel Forge. Portable JSON files are the durable exchange format. Browser autosave does not synchronize users or devices.
 
 ## 2026-09-19: Live agent integration is explicit
 
