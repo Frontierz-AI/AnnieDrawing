@@ -20,6 +20,7 @@ export {
 export { itemId, pageId, mediaId } from './ids';
 export {
   LIMITS,
+  VISION_PNG,
   ItemSchema,
   PlacementSchema,
   DocumentSchema,

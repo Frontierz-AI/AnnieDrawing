@@ -1,6 +1,7 @@
 import type { Board } from '../board';
 import type { Item, Point } from '../core/types';
 import { button, icon } from './icons';
+import { GITHUB_REPO_URL, PACKAGE_VERSION } from './version';
 import { color as resolveColor, DEFAULT_FONT, fonts, fontSize, styleFor } from '../stage/paint';
 import { pageId } from '../core/ids';
 import { ANNIE_MIME } from '../porter/json';
@@ -191,19 +192,19 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
         !(event.target instanceof HTMLInputElement) &&
         ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)
       ) {
-        const buttons = [...panel.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
-        const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        const items = popoverItems(panel);
+        const current = items.indexOf(document.activeElement as HTMLElement);
         const next =
           event.key === 'Home'
             ? 0
             : event.key === 'End'
-              ? buttons.length - 1
+              ? items.length - 1
               : (current +
                   (event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : -1) +
-                  buttons.length) %
-                buttons.length;
+                  items.length) %
+                items.length;
         event.preventDefault();
-        buttons[next]?.focus();
+        items[next]?.focus();
       }
     });
     ui.append(panel);
@@ -234,7 +235,10 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
         : anchor.bottom + 10;
     panel.style.left = `${Math.max(bounds.left + 12, Math.min(left, bounds.right - width - 12))}px`;
     panel.style.top = `${Math.max(bounds.top + 12, Math.min(top, bounds.bottom - height - 12))}px`;
-    panel.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+    popoverItems(panel)[0]?.focus();
+  }
+  function popoverItems(panel: HTMLElement) {
+    return [...panel.querySelectorAll<HTMLElement>('button:not(:disabled), a[href]')];
   }
   function contextMenu(label: string, point: Point) {
     const panel = popover(undefined, label)!;
@@ -660,6 +664,62 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     input.focus();
     input.select();
   }
+  function hrefAction(kind: string) {
+    return kind === 'video' ? 'Edit Video URL' : 'Edit URL';
+  }
+  function editHref(id: string) {
+    if (board.readonly || board.isLocked(id)) return;
+    const item = board.get(id);
+    if (!item || (item.kind !== 'video' && item.kind !== 'link')) return;
+    const video = item.kind === 'video';
+    const d = dialog(video ? 'Edit video URL' : 'Edit URL');
+    const input = el('input');
+    input.type = 'text';
+    input.inputMode = 'url';
+    input.setAttribute('autocomplete', 'url');
+    input.spellcheck = false;
+    input.maxLength = 2000;
+    input.value = item.href ?? '';
+    input.setAttribute('aria-label', video ? 'Video URL' : 'URL');
+    const error = el('p', 'ad-dialog-error');
+    error.setAttribute('role', 'alert');
+    error.hidden = true;
+    const save = textButton(
+      video ? 'Save video URL' : 'Save URL',
+      () => {
+        void (async () => {
+          save.disabled = true;
+          const result = await board.setHref(id, input.value);
+          save.disabled = false;
+          if (!result.ok) {
+            const code = result.errors[0]?.code;
+            error.textContent =
+              code === 'LOCKED' || code === 'READONLY'
+                ? (result.errors[0]?.message ?? 'This cannot be edited.')
+                : video
+                  ? 'Use a YouTube or Vimeo URL.'
+                  : 'Use an http(s) URL.';
+            error.hidden = false;
+            input.setAttribute('aria-invalid', 'true');
+            input.focus();
+            return;
+          }
+          d.close();
+        })();
+      },
+      'ad-button ad-primary',
+    );
+    d.append(field(video ? 'Video URL' : 'URL', input), error, save);
+    input.addEventListener('input', () => {
+      error.hidden = true;
+      input.removeAttribute('aria-invalid');
+    });
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') d.querySelector<HTMLButtonElement>('.ad-primary')?.click();
+    });
+    input.focus();
+    input.select();
+  }
   let styleSelection = '';
   function renderStyle() {
     const locked = board.selection.some((id) => board.isLocked(id));
@@ -925,6 +985,12 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
           ),
         ),
       );
+    if (single && (item.kind === 'video' || item.kind === 'link')) {
+      const label = hrefAction(item.kind);
+      const edit = textButton(label, () => editHref(item.id), 'ad-button ad-href-edit');
+      edit.setAttribute('aria-label', label);
+      stylePanel.append(edit);
+    }
     const lock = button(
       locked ? 'Unlock selection' : 'Lock selection',
       locked ? 'lock' : 'unlock',
@@ -1114,6 +1180,16 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     add('Documentation', 'book', () => {
       window.open('./docs/index.html', '_blank', 'noopener');
     });
+    const github = el('a', 'ad-tool-option');
+    github.href = GITHUB_REPO_URL;
+    github.target = '_blank';
+    github.rel = 'noopener noreferrer';
+    github.title = 'GitHub';
+    github.innerHTML = `${icon('github')}<span>GitHub</span>`;
+    github.addEventListener('click', () => closePopover());
+    const separator = el('div', 'ad-menu-separator');
+    separator.setAttribute('role', 'separator');
+    panel.append(github, separator, el('p', 'ad-menu-version', `v${PACKAGE_VERSION}`));
     showPopover(panel, brand);
   }
   function refresh() {
@@ -1132,6 +1208,8 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     const bounds = board.stage.root.getBoundingClientRect();
     const menu = contextMenu('Element actions', { x: bounds.left + x, y: bounds.top + y });
     const locked = board.isLocked(item.id);
+    if (item.kind === 'video' || item.kind === 'link')
+      menu.add(hrefAction(item.kind), 'link', () => editHref(item.id), locked);
     if (!['image', 'path', 'line', 'group', 'html', 'video', 'link'].includes(item.kind))
       menu.add('Edit text', 'text', () => board.editText(item.id), locked);
     const order = (to: 'front' | 'back') =>

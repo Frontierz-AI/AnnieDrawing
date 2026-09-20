@@ -76,4 +76,4 @@ Older drawings that contain `frame` items load as ordinary groups. The loader ke
 
 ## Export
 
-`board.export` writes JSON (AnnieDoc), SVG, PNG, JPEG, or WebP. The editor Export control downloads the current page as PNG, SVG, or AnnieDoc. Programmatic export is not limited by that menu. See [API reference](api.md#export).
+`board.export` writes JSON (AnnieDoc), SVG, PNG, JPEG, or WebP. PNG may be truecolor or an indexed palette (`colors`, 2–256). The editor Export control downloads the current page as PNG, SVG, or AnnieDoc. Programmatic export is not limited by that menu. See [API reference](api.md#export).

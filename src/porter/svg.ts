@@ -1,5 +1,6 @@
 import { CARD_CORNER } from '../core/defaults';
 import { allItems } from '../core/item';
+import { hostnameOf, normalizeHref, parseVideo } from '../core/links';
 import type { AnnieDoc, Box, ExportOptions, Item } from '../core/types';
 import { boundsOf, flattenItems, routeConnector } from '../geo/index';
 import { createKindRegistry, type KindDef } from '../kinds/registry';
@@ -12,6 +13,7 @@ import {
   headsMarkup,
   shapeMarkup,
   labelColor,
+  round,
 } from '../stage/paint';
 
 export interface SVGExportOptions extends ExportOptions {
@@ -81,22 +83,102 @@ function textMarkup(
   return `${label}<text x="${x}" y="${y}" font-family="${esc(fontFamily(item.text.font))}" font-size="${size}" text-anchor="${connectorPoint ? 'middle' : anchor}" fill="${esc(labelColor(item, theme))}">${lines.map((line, index) => `<tspan x="${x}" dy="${index ? lineHeight : 0}">${esc(line) || '&#160;'}</tspan>`).join('')}</text>`;
 }
 
-function cardExport(item: Item, theme: 'light' | 'dark', doc: AnnieDoc): string {
-  const r = Math.min(item.style?.corner ?? CARD_CORNER, item.w / 2, item.h / 2);
-  const title = item.text?.value || item.name || item.kind;
-  const face = fonts.sans;
-  if (item.kind === 'video') {
-    const play = Math.min(item.w, item.h) * 0.16,
-      cx = item.w / 2,
-      cy = item.h / 2;
-    return `<rect width="${item.w}" height="${item.h}" rx="${r}" fill="#103639"/><path d="M${cx - play * 0.35} ${cy - play}L${cx + play * 0.75} ${cy}L${cx - play * 0.35} ${cy + play}Z" fill="#fff"/><text x="14" y="${item.h - 16}" fill="#fff" font-family="${esc(face)}" font-size="13">${esc(title)}</text>`;
+function fitLine(value: string, width: number, size: number): string {
+  const max = Math.max(1, Math.floor(width / (size * 0.52)));
+  const text = value.trim();
+  return text.length <= max ? text : `${text.slice(0, Math.max(1, max - 1))}…`;
+}
+
+function hrefLine(href?: string): string {
+  const url = normalizeHref(href);
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    const path = decodeURIComponent(parsed.pathname).replace(/\/$/, '');
+    const line = `${hostnameOf(url)}${path}`;
+    return parsed.search && line.length < 36 ? `${line}${parsed.search}` : line;
+  } catch {
+    return url.replace(/^https?:\/\//, '').replace(/\/$/, '');
   }
+}
+
+function cardTitle(item: Item, href?: string): string {
+  const written = item.text?.value?.trim() || item.name?.trim();
+  if (written && written.toLowerCase() !== item.kind) return written;
+  if (href) {
+    const name = hostnameOf(href).split('.')[0] ?? '';
+    if (name) return name[0].toUpperCase() + name.slice(1);
+  }
+  return item.kind === 'video' ? 'Video' : 'Link';
+}
+
+function cardLink(href: string | undefined, inner: string): string {
+  const url = normalizeHref(href);
+  return url
+    ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none">${inner}</a>`
+    : inner;
+}
+
+function cardExport(item: Item, theme: 'light' | 'dark', doc: AnnieDoc, index: number): string {
+  const r = Math.min(item.style?.corner ?? CARD_CORNER, item.w / 2, item.h / 2);
+  const w = item.w,
+    h = item.h,
+    uid = `adx${index}`,
+    face = fonts.sans,
+    href = item.href,
+    title = cardTitle(item, href),
+    url = hrefLine(href),
+    pad = Math.max(10, Math.min(14, w * 0.04));
+  const clip = `<defs><clipPath id="${uid}p"><rect width="${w}" height="${h}" rx="${r}"/></clipPath></defs>`;
+  if (item.kind === 'video') {
+    const video = parseVideo(href);
+    const provider = video?.provider === 'vimeo' ? 'Vimeo' : video ? 'YouTube' : '';
+    const play = Math.min(w, h) * 0.11,
+      poster = h >= 96 ? h * 0.58 : h,
+      cx = w / 2 + play * 0.06,
+      cy = h / 2;
+    const label = fitLine(title, w - pad * 2, 15);
+    const source = fitLine(url, w - pad * 2, 12);
+    return `${clip}<defs>
+        <linearGradient id="${uid}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#16494c"/><stop offset="1" stop-color="#103639"/></linearGradient>
+        <radialGradient id="${uid}s" cx="50%" cy="50%" r="58%"><stop offset="0" stop-color="#05D9AB" stop-opacity=".2"/><stop offset="1" stop-color="#103639" stop-opacity="0"/></radialGradient>
+        <linearGradient id="${uid}c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#103639" stop-opacity="0"/><stop offset="1" stop-color="#103639" stop-opacity=".92"/></linearGradient>
+      </defs>${cardLink(
+        href,
+        `<g clip-path="url(#${uid}p)">
+        <rect width="${w}" height="${h}" fill="url(#${uid}g)"/><rect width="${w}" height="${h}" fill="url(#${uid}s)"/>
+        <circle cx="${round(w / 2)}" cy="${round(cy)}" r="${round(play * 1.7)}" fill="#fff" fill-opacity=".1"/>
+        <path d="M${round(cx - play * 0.36)} ${round(cy - play * 0.7)}L${round(cx + play * 0.7)} ${round(cy)}L${round(cx - play * 0.36)} ${round(cy + play * 0.7)}Z" fill="#fff"/>
+        ${h >= 96 ? `<rect y="${round(poster)}" width="${w}" height="${round(h - poster)}" fill="url(#${uid}c)"/>` : ''}
+        ${provider && h >= 120 ? `<text x="${pad}" y="${pad + 10}" fill="#05D9AB" font-family="${esc(face)}" font-size="11" font-weight="700">${provider}</text>` : ''}
+        <text x="${pad}" y="${h - (source ? 28 : 16)}" fill="#fff" font-family="${esc(face)}" font-size="15" font-weight="700">${esc(label)}</text>
+        ${source ? `<text x="${pad}" y="${h - 12}" fill="#B6C5C1" font-family="${esc(face)}" font-size="12">${esc(source)}</text>` : ''}
+      </g>`,
+      )}`;
+  }
+  const mediaH = h >= 118 ? Math.min(h * 0.48, h - 62) : 0;
   const media = item.media ? doc.media[item.media] : undefined;
-  const imageH = Math.min(item.h * 0.52, 168);
-  const preview = media
-    ? `<image width="${item.w}" height="${imageH}" href="${esc(media.src)}" preserveAspectRatio="xMidYMid slice"/>`
-    : `<rect width="${item.w}" height="${imageH}" fill="#8F93F91a"/><text x="${item.w / 2}" y="${imageH / 2 + 8}" text-anchor="middle" fill="#8F93F9" font-family="${esc(face)}" font-size="28">${esc(title.slice(0, 1).toUpperCase())}</text>`;
-  return `<rect width="${item.w}" height="${item.h}" rx="${r}" fill="${color('paper', theme)}"/>${preview}<text x="14" y="${imageH + 28}" fill="${color('ink', theme)}" font-family="${esc(face)}" font-size="16">${esc(title)}</text><text x="${item.w - 14}" y="${item.h - 16}" text-anchor="end" fill="${color('teal', theme)}" font-family="${esc(face)}" font-size="12">Open</text>`;
+  const mark = title.trim().slice(0, 1).toUpperCase() || '•';
+  const preview = !mediaH
+    ? ''
+    : media
+      ? `<image width="${w}" height="${mediaH}" href="${esc(media.src)}" preserveAspectRatio="xMidYMid slice"/>`
+      : `<rect width="${w}" height="${mediaH}" fill="#8F93F914"/><text x="${w / 2}" y="${mediaH / 2 + 11}" text-anchor="middle" fill="#8F93F9" font-family="${esc(face)}" font-size="${Math.min(34, mediaH * 0.28)}" font-weight="700">${esc(mark)}</text>`;
+  const body = mediaH ? mediaH + 20 : 24;
+  const label = fitLine(title, w - pad * 2, 15);
+  const source = fitLine(url, w - pad * 2, 12);
+  const note =
+    item.description && h - mediaH > 78 ? fitLine(item.description, w - pad * 2, 12) : '';
+  const edge = theme === 'dark' ? '#ffffff14' : '#10363914';
+  return `${clip}${cardLink(
+    href,
+    `<g clip-path="url(#${uid}p)">
+      <rect width="${w}" height="${h}" fill="${color('paper', theme)}"/>${preview}
+      <text x="${pad}" y="${body}" fill="${color('ink', theme)}" font-family="${esc(face)}" font-size="15" font-weight="700">${esc(label)}</text>
+      ${source ? `<text x="${pad}" y="${body + 18}" fill="${color('slate', theme)}" font-family="${esc(face)}" font-size="12">${esc(source)}</text>` : ''}
+      ${note ? `<text x="${pad}" y="${body + 36}" fill="${color('slate', theme)}" font-family="${esc(face)}" font-size="12">${esc(note)}</text>` : ''}
+    </g><rect width="${w}" height="${h}" rx="${r}" fill="none" stroke="${edge}"/>`,
+  )}`;
 }
 
 /** Create a portable SVG without scripts, foreignObject, or a DOM dependency. */
@@ -172,11 +254,12 @@ export function exportSVG(doc: AnnieDoc, items: Item[], options: SVGExportOption
         markup = `<defs><clipPath id="${clip}"><rect width="${item.w}" height="${item.h}" rx="${radius}"/></clipPath></defs><g clip-path="url(#${clip})">${clipped}</g>`;
       }
     } else if (item.kind === 'video' || item.kind === 'link') {
-      markup = cardExport(item, theme, doc);
+      markup = cardExport(item, theme, doc, itemIndex);
     } else if (!['text', 'group'].includes(item.kind)) {
       markup = `<rect width="${item.w}" height="${item.h}" rx="8" fill="${color('paper', theme)}" stroke="#8F93F9" stroke-dasharray="5 4"/><text x="12" y="24" fill="${color('ink', theme)}" font-family="${esc(fonts.sans)}" font-size="14">${esc(item.kind === 'html' ? 'HTML content' : `Unknown kind: ${item.kind}`)}</text>`;
     }
-    markup += textMarkup(item, theme, connector?.midpoint);
+    if (item.kind !== 'video' && item.kind !== 'link')
+      markup += textMarkup(item, theme, connector?.midpoint);
     if (options.labels) {
       const x = connector ? connector.bounds.x : 0,
         y = connector ? connector.bounds.y - 22 : -22;

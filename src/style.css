@@ -308,11 +308,25 @@
   border-radius: 10px;
   background: transparent;
   color: var(--ad-ui-text);
+  font: inherit;
   font-weight: 650;
   text-align: left;
+  text-decoration: none;
+  cursor: pointer;
 }
 .ad-tool-option:hover {
   background: var(--ad-ui-surface);
+}
+.ad-tool-option:focus:not(:focus-visible) {
+  outline: none;
+}
+.ad-menu-version {
+  margin: 0;
+  padding: 6px 12px 4px;
+  color: var(--ad-ui-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 .ad-tool-option[aria-pressed='true'] {
   background: #05d9ab25;
@@ -500,6 +514,16 @@
 .ad-segment svg {
   width: 20px;
   height: 20px;
+}
+.ad-href-edit {
+  width: 100%;
+  margin-bottom: 12px;
+}
+.ad-dialog-error {
+  color: #c14745;
+  font-size: 13px;
+  font-weight: 650;
+  margin: -4px 0 12px;
 }
 .ad-selection-actions {
   display: flex;
@@ -1001,6 +1025,10 @@
   }
   .ad-tool-option {
     min-height: 48px;
+  }
+  .ad-menu-version {
+    font-size: 14px;
+    padding-block: 8px;
   }
   .ad-dialog {
     font-size: 16px;

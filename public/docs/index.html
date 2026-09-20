@@ -705,10 +705,12 @@ board.apply([{ op: 'add', item: {
             Use the hand tool or hold Space to pan. Zoom with the controls or a trackpad gesture.
             Fit the view with <kbd>2</kbd>. Hold Shift to keep a resize proportional. Select an item
             to open its inspector. Fill, Line, and Color choose colors. Line also sets thickness and
-            pattern. Text-capable shapes show size, alignment, and font. More arrangement options
-            opens align, distribute, group, and stacking. Pages lists pages. The AnnieDrawing menu
-            holds appearance and documentation unless the host hides it. This demo's Export control
-            offers PNG, SVG, and AnnieDoc; an imported board defaults to PNG and SVG.
+            pattern. Text-capable shapes show size, alignment, and font. A selected video or link
+            card can change its URL from the inspector. More arrangement options opens align,
+            distribute, group, and stacking. Pages lists pages. The AnnieDrawing menu holds
+            appearance, documentation, GitHub, and the package version unless the host hides it.
+            This demo's Export control offers PNG, SVG, and AnnieDoc; an imported board defaults to
+            PNG and SVG.
           </p>
           <div class="shortcut-grid">
             <div class="shortcut"><span>Select / move</span><kbd>V</kbd></div>
@@ -830,7 +832,9 @@ console.log(board.describe())</code></pre>
             <code>anniedrawing/agent</code>. <code>runTool</code> stores
             <code>board_apply</code> under an <code>agent:</code> origin. Headless
             <code>board_read</code> is whole-document only. <code>board_snapshot</code> defaults to
-            labeled viewport PNGs. Hosts that need a smaller raster can call
+            a labeled 32-color viewport PNG with a 240 KiB budget. The same defaults apply to
+            <code>board.export('png', { labels: true })</code>. SVG is markup, not a vision
+            snapshot. Hosts that need a lossy raster can still call
             <code>board.export('jpeg')</code> or <code>board.export('webp')</code> with
             <code>maxSide</code> and <code>maxBytes</code>.
           </p>
@@ -870,9 +874,10 @@ console.log(board.describe())</code></pre>
               <p>
                 The Export control downloads the current page. An imported board offers PNG and SVG;
                 pass <code>ui.export</code> with <code>json</code> to add AnnieDoc, or
-                <code>false</code> to hide Export. SVG is vector. PNG defaults to 2× resolution.
-                Pass <code>labels: true</code> when a vision model needs item IDs in the image.
-                Programmatic <code>board.export</code> accepts JSON, SVG, PNG, JPEG, and WebP.
+                <code>false</code> to hide Export. SVG is vector. PNG downloads stay truecolor at 2×
+                resolution. Pass <code>labels: true</code> and <code>colors: 32</code> when a vision
+                model needs item IDs in a compact image. Programmatic <code>board.export</code>
+                accepts JSON, SVG, PNG, JPEG, and WebP.
               </p>
             </div>
           </div>
@@ -881,7 +886,7 @@ console.log(board.describe())</code></pre>
             <pre><code>const editable = await board.export('json', { scope: 'doc' })
 const vector = await board.export('svg', { padding: 32 })
 const image = await board.export('png', {
-  scope: 'viewport', scale: 2, labels: true,
+  scope: 'viewport', scale: 2, labels: true, colors: 32, maxBytes: 245760,
 })
 const compact = await board.export('jpeg', { maxSide: 1280, maxBytes: 245760 })</code></pre>
           </div>

@@ -1,6 +1,6 @@
 {
   "name": "anniedrawing-mcp",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Local stdio MCP tools for an AnnieDrawing document or live browser board",
   "private": true,
   "type": "module",

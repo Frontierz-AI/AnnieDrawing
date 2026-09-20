@@ -272,6 +272,7 @@ export interface ExportOptions {
   scale?: number;
   background?: string | boolean;
   padding?: number;
+  /** Adds item IDs. PNG then defaults to 32-color indexed and a 240 KiB budget. */
   labels?: boolean;
   /** Longest output side in CSS pixels. Ignored for json/svg. */
   maxSide?: number;
@@ -279,6 +280,8 @@ export interface ExportOptions {
   maxBytes?: number;
   /** Starting JPEG/WebP quality, 0.1–1. Default 0.85. */
   quality?: number;
+  /** PNG only. Quantize to at most this many colors (2–256) and write an indexed PNG. */
+  colors?: number;
 }
 export interface AgentPresenceOptions {
   /** On-screen non-connector stops before the rest appear together. Default 8. */

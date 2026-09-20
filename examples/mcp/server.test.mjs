@@ -81,7 +81,9 @@ test('stdio MCP negotiates, validates atomic edits and returns a readable docume
   const c = client();
   t.after(() => c.close());
   assert.equal((await c.request('tools/list')).error.code, -32002);
-  assert.equal((await c.initialize()).result.protocolVersion, '2025-06-18');
+  const started = await c.initialize();
+  assert.equal(started.result.protocolVersion, '2025-06-18');
+  assert.deepEqual(started.result.serverInfo, { name: 'anniedrawing-mcp', version: '0.1.0' });
   const tools = (await c.request('tools/list')).result.tools;
   assert.equal(tools.length, 6);
   assert(tools.every((tool) => tool.name && tool.inputSchema?.type === 'object'));

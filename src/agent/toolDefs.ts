@@ -10,7 +10,7 @@ import type {
   Query,
   Scope,
 } from '../core/types';
-import { DescribeSchema, OpsSchema, QuerySchema } from '../core/schema';
+import { DescribeSchema, OpsSchema, QuerySchema, VISION_PNG } from '../core/schema';
 const scope = v.optional(v.picklist(['doc', 'page', 'selection', 'viewport']));
 const ReadSchema = v.object({ scope });
 const ApplySchema = v.object({
@@ -22,9 +22,14 @@ const ApplySchema = v.object({
   reveal: v.optional(v.picklist(['none', 'fit'])),
 });
 const SnapshotSchema = v.object({
-  scope,
-  scale: v.optional(v.pipe(v.number(), v.minValue(0.1), v.maxValue(4))),
-  labels: v.optional(v.boolean()),
+  scope: v.optional(v.picklist(['doc', 'page', 'selection', 'viewport']), 'viewport'),
+  scale: v.optional(v.pipe(v.number(), v.minValue(0.1), v.maxValue(4)), 2),
+  labels: v.optional(v.boolean(), true),
+  colors: v.optional(
+    v.pipe(v.number(), v.integer(), v.minValue(2), v.maxValue(256)),
+    VISION_PNG.colors,
+  ),
+  maxBytes: v.optional(v.pipe(v.number(), v.minValue(1)), VISION_PNG.maxBytes),
 });
 const FitSchema = v.object({ ids: v.optional(v.array(v.string())) });
 export const toolSchemas = {
@@ -44,7 +49,7 @@ const descriptions: Record<keyof typeof toolSchemas, string> = {
   board_apply:
     'Atomically apply drawing operations. Supply IDs when later operations reference new items. Relative placement avoids coordinate guessing. Use dryRun to validate before editing.',
   board_snapshot:
-    'Export a PNG image of a live browser board. Item ID labels let a vision model refer back to the document. Requires a board with export support.',
+    'Export a labeled PNG of a live browser board for vision models. Defaults to the viewport, item ID labels, a 32-color indexed PNG, and a 240 KiB budget. Requires a board with export support.',
   board_view_fit:
     'Fit the live board camera to all content or the supplied item IDs. Requires a live browser board.',
 };
@@ -53,11 +58,25 @@ export interface ToolDefinition {
   description: string;
   inputSchema: Record<string, unknown>;
 }
-export const toolDefs: ToolDefinition[] = Object.entries(toolSchemas).map(([name, schema]) => ({
-  name,
-  description: descriptions[name as keyof typeof toolSchemas],
-  inputSchema: toJsonSchema(schema, { errorMode: 'ignore' }) as unknown as Record<string, unknown>,
-}));
+export const toolDefs: ToolDefinition[] = Object.entries(toolSchemas).map(([name, schema]) => {
+  const inputSchema = toJsonSchema(schema, { errorMode: 'ignore' }) as unknown as Record<
+    string,
+    unknown
+  >;
+  if (name === 'board_snapshot') {
+    const properties = (inputSchema.properties ?? {}) as Record<string, Record<string, unknown>>;
+    properties.scope = { ...properties.scope, default: 'viewport' };
+    properties.scale = { ...properties.scale, default: 2 };
+    properties.labels = { ...properties.labels, default: true };
+    properties.colors = { ...properties.colors, default: VISION_PNG.colors };
+    properties.maxBytes = { ...properties.maxBytes, default: VISION_PNG.maxBytes };
+  }
+  return {
+    name,
+    description: descriptions[name as keyof typeof toolSchemas],
+    inputSchema,
+  };
+});
 export interface AgentBoard {
   get: DocModel['get'];
   query: DocModel['query'];
@@ -142,6 +161,8 @@ export async function runTool(
         scope: (args.scope as Scope) ?? 'viewport',
         scale: (args.scale as number) ?? 2,
         labels: args.labels !== false,
+        colors: (args.colors as number) ?? VISION_PNG.colors,
+        maxBytes: (args.maxBytes as number) ?? VISION_PNG.maxBytes,
       });
     }
     if (name === 'board_view_fit') {

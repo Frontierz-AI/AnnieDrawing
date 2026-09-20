@@ -314,10 +314,10 @@ board.view.fit();
 board.view.fit(['i_api', 'i_cache']);
 board.export('json', { scope: 'doc' });
 board.export('svg', { scope: 'page', padding: 32 });
-board.export('png', { scope: 'viewport', scale: 2, labels: true });
+board.export('png', { scope: 'viewport', scale: 2, labels: true, colors: 32 });
 ```
 
-PNG `labels: true` draws item IDs for vision models.
+PNG `labels: true` draws item IDs for vision models and defaults to a 32-color indexed PNG with a 240 KiB budget. Pass `colors` (2–256) to change the palette. The Export control stays truecolor.
 
 ## Agent tools
 
@@ -329,7 +329,7 @@ Optional wrapper around the same APIs. Import `toolDefs` and `runTool` from `ann
 | `board_read`     | Deep JSON copy. Headless accepts only `scope: 'doc'`.                                                          |
 | `board_query`    | Same filters as `query`.                                                                                       |
 | `board_apply`    | Atomic ops. `runTool` forces an `agent:` origin (`agent:tool` if omitted). Duplicate create ids become `id_1`. |
-| `board_snapshot` | Browser PNG. Defaults: viewport, scale 2, labels on.                                                           |
+| `board_snapshot` | Browser PNG. Defaults: viewport, scale 2, labels on, 32 colors, 240 KiB.                                       |
 | `board_view_fit` | Browser camera. Optional `ids`.                                                                                |
 
 `board_snapshot` and `board_view_fit` need a live board.

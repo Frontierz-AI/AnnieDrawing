@@ -15,5 +15,6 @@ export {
   DescribeSchema,
   PlacementSchema,
   LIMITS,
+  VISION_PNG,
 } from '../core/schema';
 export type { Op, Query, DescribeOptions, Placement, ApplyResult } from '../core/types';

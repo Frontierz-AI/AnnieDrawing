@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { clipboardText } from '../src/core/clipboard';
 import {
   hostnameOf,
@@ -18,7 +18,26 @@ import {
   unfurlPage,
 } from '../src/core/paste';
 import { CARD_CORNER, createDoc } from '../src/core';
+import { updateHref, type PasteHost } from '../src/input/urlPaste';
 import { shapePath } from '../src/stage/paint';
+import type { ApplyOptions, ApplyResult, Item, Op } from '../src/core/types';
+
+function pasteHost(
+  doc: ReturnType<typeof createDoc>,
+  unfurl: PasteHost['unfurl'] = false,
+): PasteHost {
+  return {
+    pageId: doc.toJSON().pages[0].id,
+    items: [],
+    destroyed: false,
+    unfurl,
+    view: { center: { x: 0, y: 0 } },
+    host: { dispatchEvent() {} } as unknown as HTMLElement,
+    apply: (ops: Op[], options?: ApplyOptions): ApplyResult => doc.apply(ops, options),
+    select() {},
+    get: (id: string): Item | undefined => doc.get(id),
+  };
+}
 
 describe('paste URL classification', () => {
   it('recognises YouTube, Vimeo, image and ordinary links', () => {
@@ -174,6 +193,49 @@ describe('video and link documents', () => {
       doc.apply([{ op: 'set', id: 'i_link', patch: { href: 'javascript:alert(1)' } }]).ok,
     ).toBe(false);
     expect(doc.get('i_link')!.href).toBe('https://example.com/x');
+  });
+  it('replaces a video or link href and rejects a non-embed video URL', async () => {
+    const doc = createDoc();
+    expect(
+      doc.apply([
+        {
+          op: 'add',
+          item: { id: 'i_vid', kind: 'video', href: 'https://youtu.be/dQw4w9WgXcQ' },
+        },
+        {
+          op: 'add',
+          item: {
+            id: 'i_link',
+            kind: 'link',
+            href: 'https://example.com/x',
+            text: { value: 'Example' },
+            media: 'm_old',
+          },
+        },
+      ]).ok,
+    ).toBe(true);
+    const host = pasteHost(doc);
+    expect(updateHref(host, 'i_vid', 'https://vimeo.com/123456789').ok).toBe(true);
+    expect(doc.get('i_vid')!.href).toBe('https://vimeo.com/123456789');
+    expect(updateHref(host, 'i_vid', 'https://example.com/article').ok).toBe(false);
+    expect(doc.get('i_vid')!.href).toBe('https://vimeo.com/123456789');
+    expect(updateHref(host, 'i_link', 'founderz.com/notes').ok).toBe(true);
+    expect(doc.get('i_link')).toMatchObject({
+      href: 'https://founderz.com/notes',
+      name: 'founderz.com',
+      description: 'founderz.com/notes',
+      text: { value: 'Founderz' },
+    });
+    expect(doc.get('i_link')!.media).toBeUndefined();
+    expect(updateHref(host, 'i_link', 'javascript:alert(1)').ok).toBe(false);
+    let fetched = '';
+    const previewHost = pasteHost(doc, async (url) => {
+      fetched = url;
+      return { title: 'Fetched title' };
+    });
+    expect(updateHref(previewHost, 'i_link', 'https://example.com/next').ok).toBe(true);
+    await vi.waitFor(() => expect(doc.get('i_link')!.text?.value).toBe('Fetched title'));
+    expect(fetched).toBe('https://example.com/next');
   });
   it('uses the shared card corner for sticky notes', () => {
     const path = shapePath({

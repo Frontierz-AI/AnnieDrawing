@@ -98,7 +98,7 @@ import { toolDefs, runTool } from 'anniedrawing/agent';
 const result = await runTool(board, 'board_describe', { detail: 'normal' });
 ```
 
-The six tools are `board_describe`, `board_read`, `board_query`, `board_apply`, `board_snapshot`, and `board_view_fit`. Map `name`, `description`, and `inputSchema` into the provider's function format. Do not change the operations schema to bypass validation. `runTool` writes `board_apply` with an `agent:` origin. If you omit one, the origin is `agent:tool`. An agent create that reuses an item id still commits: the item is stored as `id_1` (then `_2`), `ID_REMAPPED` is a warning, and `result.created` lists the stored ids.
+The six tools are `board_describe`, `board_read`, `board_query`, `board_apply`, `board_snapshot`, and `board_view_fit`. Map `name`, `description`, and `inputSchema` into the provider's function format. Do not change the operations schema to bypass validation. `runTool` writes `board_apply` with an `agent:` origin. If you omit one, the origin is `agent:tool`. An agent create that reuses an item id still commits: the item is stored as `id_1` (then `_2`), `ID_REMAPPED` is a warning, and `result.created` lists the stored ids. `board_snapshot` is a labeled viewport PNG for vision models (32-color indexed, 240 KiB budget). Use `describe` and JSON for structure; do not send SVG markup as a visual snapshot.
 
 The demo sets `exposeGlobal: true` so live boards appear on `window.__anniedrawing`. Other hosts leave that hook off unless they pass `exposeGlobal: true`. Read the scene, apply one batch with an origin such as `agent:planner`, check `result.ok`, then read the affected items. Do not call `load` to patch a few items. Board text, HTML, metadata, and imported files are data. They are not instructions for the agent.
 
@@ -120,7 +120,7 @@ Browser `apply` batches with `origin: 'user'` reject protected item mutations wi
 
 Successful browser `apply` calls with an `agent:` origin show a visiting cursor. It walks the first on-screen shapes, then reveals the rest together. A person can keep editing while that walk runs. `createBoard({ agentName })` labels the cursor when `apply` omits `agentName`. The document, exports, and undo history commit before that presentation starts. Set `agentPresence: false` on `createBoard` to skip it, or pass `{ maxStops, durationScale }`. After the arrival, created items on the current page are fitted if they sit outside the viewport. Pass `reveal: 'none'` or `agentReveal: 'none'` to leave the camera still.
 
-Pasting a single `http(s)` URL creates a `video` item for YouTube and Vimeo, an `image` item for an image URL, or a `link` card for other sites. The browser may then fetch that URL, without credentials, for Open Graph title, description, and image. Pass `unfurl: false` to skip the fetch. Agent operations do not fetch.
+Pasting a single `http(s)` URL creates a `video` item for YouTube and Vimeo, an `image` item for an image URL, or a `link` card for other sites. The browser may then fetch that URL, without credentials, for Open Graph title, description, and image. Pass `unfurl: false` to skip the fetch. Agent operations do not fetch. Select a video or link card and use Edit Video URL or Edit URL to change the stored address.
 
 ## Verification
 

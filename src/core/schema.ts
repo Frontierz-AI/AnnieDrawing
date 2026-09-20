@@ -11,6 +11,8 @@ export const LIMITS = {
   maxSessionLog: 500,
   maxJsonDepth: 104,
 } as const;
+/** Default labeled PNG for vision tools: 32-color indexed, 240 KiB budget. */
+export const VISION_PNG = { colors: 32, maxBytes: 245760 } as const;
 const finite = v.pipe(v.number(), v.finite());
 const coordinate = v.pipe(
   finite,

@@ -3,7 +3,7 @@ import { kindsSince } from './core/catalog';
 import type { KindCatalogSnapshot } from './core/catalog';
 import { CARD_CORNER, clone, sizeOf } from './core/defaults';
 import { itemId, mediaId } from './core/ids';
-import { LIMITS } from './core/schema';
+import { LIMITS, VISION_PNG } from './core/schema';
 import { createDoc } from './core/doc';
 import type { LinkPreview } from './core/links';
 import { lockedItems } from './core/locks';
@@ -48,6 +48,7 @@ export type { UiOptions, UiExportFormat } from './ui/index';
 import { openAutosave } from './input/autosave';
 import { measureText } from './input/measure';
 import { cursorForTool } from './input/cursors';
+import type { PasteHost } from './input/urlPaste';
 
 export interface BoardOptions {
   doc?: AnnieDoc;
@@ -612,12 +613,14 @@ export class Board {
       ...(options.scope === 'viewport' ? { bounds: this.stage.lens.viewport(), padding: 0 } : {}),
     });
     if (format === 'svg') return svg;
+    const vision = format === 'png' && options.labels === true;
     return exportRaster(svg, {
       format,
       scale: options.scale ?? 2,
       maxSide: options.maxSide,
-      maxBytes: options.maxBytes,
+      maxBytes: options.maxBytes ?? (vision ? VISION_PNG.maxBytes : undefined),
       quality: options.quality,
+      colors: options.colors ?? (vision ? VISION_PNG.colors : undefined),
     });
   }
   destroy() {
@@ -836,6 +839,25 @@ export class Board {
       { origin: 'user', label: 'Add image' },
     );
     if (result.ok) this.select(result.created);
+  }
+  /** Replace a video or link href. Editor helper; agents should `apply` a `set`. */
+  setHref(id: string, href: string): Promise<ApplyResult> {
+    return import('./input/urlPaste').then(({ updateHref }) =>
+      updateHref(this.pasteHost(), id, href),
+    );
+  }
+  private pasteHost(): PasteHost {
+    return {
+      pageId: this.pageId,
+      items: this.items,
+      destroyed: this.destroyed,
+      unfurl: this.unfurl,
+      view: this.view,
+      host: this.host,
+      apply: (ops, options) => this.apply(ops, options),
+      select: (ids) => this.select(ids),
+      get: (id) => this.get(id),
+    };
   }
   editText(id: string) {
     if (this.readonly || this.editor) return;
@@ -1880,21 +1902,7 @@ export class Board {
         this.host.dispatchEvent(new CustomEvent('ad-error', { detail: result.errors[0]?.message }));
     } catch {
       void import('./input/urlPaste').then(({ pastePlain }) =>
-        pastePlain(
-          {
-            pageId: this.pageId,
-            items: this.items,
-            destroyed: this.destroyed,
-            unfurl: this.unfurl,
-            view: this.view,
-            host: this.host,
-            apply: (ops, options) => this.apply(ops, options),
-            select: (ids) => this.select(ids),
-            get: (id) => this.get(id),
-          },
-          text,
-          point,
-        ),
+        pastePlain(this.pasteHost(), text, point),
       );
     }
   }
