@@ -1,5 +1,9 @@
 # Design decisions
 
+## 2026-09-20: Indexed PNG for vision snapshots
+
+Vision models need a raster of the screen, not SVG markup. `board_snapshot` writes a labeled viewport PNG. It defaults to a 32-color indexed encoding and a 240 KiB budget so ID labels stay sharp without JPEG ringing. The same defaults apply to `board.export('png', { labels: true })`. The tool schema advertises those defaults. The Export control and unlabeled `export('png')` stay truecolor. Pass `colors` (2–256) for a different palette. PNG `maxBytes` without `colors` tries 32 colors before shrinking the scale.
+
 ## 2026-09-20: Agent duplicate create ids
 
 An `agent:` `apply` that creates an item id already in the document, or repeated in the same batch, stores `id_1` then `_2` instead of failing the batch. Same-batch `place`, parent, and connector refs follow the stored ids. `ID_REMAPPED` is a warning. `result.created` is the stored ids; `get` with the id you sent returns the older item. User and API origins still reject duplicates so a host that supplies ids gets a hard error.
@@ -62,7 +66,7 @@ Version 2 uses pages in the document, scopes, and editing API. Version 1 documen
 
 ## 2026-09-19: Toolbar and inspector layout
 
-Keep primary drawing tools on the sidebar: eraser after hand, image after sticky note, and line and arrow inside Shapes. Do not hide those tools behind a More overflow. On phones, including landscape, and on short tablet-width hosts, the tools move to a bottom bar and hand stays in the board menu so that bar remains tappable, unless a host hides that menu. A short desktop host keeps the tool sidebar and inspector vertically centered and tightens chrome padding and icons instead of pinning those bars to the top. The selection inspector is vertically centered like the tool sidebar. Export downloads the current page. An imported board offers PNG and SVG; AnnieDoc is opt-in through `ui.export`. The local demo offers all three. The AnnieDrawing control opens the same kind of menu for document, appearance, and documentation, and hosts may hide it. Show item-specific style controls only when something is selected, with palettes opened on demand and compact line and text controls visible beside the selection. The inspector does not repeat the selected kind as a title. Page management remains in the bottom bar. Positioning and rotation follow the user's pointer. Shift constrains the move axis or resize proportions.
+Keep primary drawing tools on the sidebar: eraser after hand, image after sticky note, and line and arrow inside Shapes. Do not hide those tools behind a More overflow. On phones, including landscape, and on short tablet-width hosts, the tools move to a bottom bar and hand stays in the board menu so that bar remains tappable, unless a host hides that menu. A short desktop host keeps the tool sidebar and inspector vertically centered and tightens chrome padding and icons instead of pinning those bars to the top. The selection inspector is vertically centered like the tool sidebar. Export downloads the current page. An imported board offers PNG and SVG; AnnieDoc is opt-in through `ui.export`. The local demo offers all three. The AnnieDrawing control opens the same kind of menu for document, appearance, documentation, and GitHub, with the package version at the bottom, and hosts may hide it. Show item-specific style controls only when something is selected, with palettes opened on demand and compact line and text controls visible beside the selection. The inspector does not repeat the selected kind as a title. Page management remains in the bottom bar. Positioning and rotation follow the user's pointer. Shift constrains the move axis or resize proportions.
 
 ## 2026-09-19: OSS preparation without speculative publication
 
@@ -88,7 +92,11 @@ Paste classifies a single URL locally. YouTube and Vimeo become a `video` item w
 
 A pasted link card appears immediately from the URL. The browser may then fetch that same URL, without credentials, to fill title, description, and image. That fetch is a user-initiated paste. Hosts can pass `unfurl: false` or their own function. Do not send pasted URLs to a third-party metadata service. Agents do not unfurl.
 
+The inspector and context menu can change that stored href later. The item kind stays the same: a video still requires a YouTube or Vimeo URL. A link card resets to a hostname fallback, then unfurls when the host allows it, using the same user-initiated fetch as paste.
+
 Notes, images, videos, and link cards share one 12px corner and one soft shadow so media on the board reads as one family. Video players keep pointer events off until a double-click, matching HTML items, so a clip can be moved without hitting play.
+
+Portable SVG and PNG cannot keep a live player or a working Open control. Export those items as still cards: a video still with provider, title, and URL; a link card with preview, title, URL, and description. SVG wraps the card in a safe `http(s)` link. Do not write iframes, foreignObject, or a raw user URL into `iframe.src`.
 
 ## 2026-09-19: Publish-facing library surface
 

@@ -117,6 +117,8 @@ describe('portable SVG export', () => {
       kind: 'video',
       href: 'https://youtu.be/dQw4w9WgXcQ',
       text: { value: 'A song' },
+      w: 480,
+      h: 270,
     });
     const link = rectangle({
       id: 'i_link',
@@ -124,11 +126,19 @@ describe('portable SVG export', () => {
       href: 'https://example.com/post',
       text: { value: 'Example' },
       description: 'A description',
+      w: 220,
+      h: 200,
     });
     const svg = exportSVG(documentWith([video, link]), [video, link]);
     expect(svg).toContain('A song');
+    expect(svg).toContain('YouTube');
+    expect(svg).toContain('youtu.be/dQw4w9WgXcQ');
+    expect(svg).toContain('href="https://youtu.be/dQw4w9WgXcQ"');
     expect(svg).toContain('Example');
-    expect(svg).toContain('Open');
+    expect(svg).toContain('example.com/post');
+    expect(svg).toContain('A description');
+    expect(svg).toContain('href="https://example.com/post"');
+    expect(svg).not.toContain('>Open<');
     expect(svg).not.toContain('<iframe');
     expect(svg).not.toContain('foreignObject');
   });

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { PACKAGE_VERSION } from '../src/ui/version';
 
 async function blank(page: Page) {
   await page.goto('/?blank');
@@ -52,6 +53,14 @@ test('board menu stays focused and image upload remains available in the sidebar
   await expect(menu.getByRole('button', { name: 'Hide grid' })).toBeVisible();
   await expect(menu.getByRole('button', { name: 'For agents', exact: true })).toHaveCount(0);
   await expect(menu.getByRole('button', { name: 'Documentation', exact: true })).toBeVisible();
+  const github = menu.getByRole('link', { name: 'GitHub', exact: true });
+  await expect(github).toBeVisible();
+  await expect(github).toHaveAttribute('href', 'https://github.com/Frontierz-AI/anniedrawing');
+  await expect(github).toHaveAttribute('target', '_blank');
+  await expect(github).toHaveAttribute('rel', /noopener/);
+  await expect(menu.getByText(`v${PACKAGE_VERSION}`, { exact: true })).toBeVisible();
+  await page.keyboard.press('End');
+  await expect(github).toBeFocused();
   await expect(
     menu.getByRole('button', {
       name: /snapping|overview|keyboard shortcuts|sketchy lines|add an image|layers|auto-arrange|start a fresh/i,
@@ -198,6 +207,10 @@ test('selection inspector shows only relevant controls and opens colors on deman
     await expect(inspector.getByRole('group', { name, exact: true })).toHaveCount(0);
   }
   await expect(inspector.getByRole('button', { name: 'Edit text', exact: true })).toHaveCount(0);
+  await expect(inspector.getByRole('button', { name: 'Edit URL', exact: true })).toHaveCount(0);
+  await expect(inspector.getByRole('button', { name: 'Edit Video URL', exact: true })).toHaveCount(
+    0,
+  );
 
   await selectItem(page, 'i_arrow');
   await expect(inspector.getByRole('button', { name: 'Line', exact: true })).toBeVisible();
@@ -426,4 +439,84 @@ test('multi-selection text styling preserves distinct content and undoes each ba
   expect(await text()).toMatchObject(resized);
   await page.evaluate(() => window.__anniedrawing![0].undo());
   expect(await text()).toMatchObject(original);
+});
+
+test('inspector and context menu can change a video or link URL', async ({ page }) => {
+  await blank(page);
+  const applied = await page.evaluate(() =>
+    window.__anniedrawing![0].apply([
+      {
+        op: 'add',
+        item: {
+          id: 'i_video',
+          kind: 'video',
+          href: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          x: 200,
+          y: 160,
+        },
+      },
+      {
+        op: 'add',
+        item: {
+          id: 'i_site',
+          kind: 'link',
+          href: 'https://example.com/notes',
+          text: { value: 'Example' },
+          x: 720,
+          y: 160,
+        },
+      },
+    ]),
+  );
+  expect(applied.ok, JSON.stringify(applied.errors)).toBe(true);
+  const inspector = page.getByRole('complementary', { name: 'Selection style', exact: true });
+
+  await selectItem(page, 'i_video');
+  await expect(
+    inspector.getByRole('button', { name: 'Edit Video URL', exact: true }),
+  ).toBeVisible();
+  await expect(inspector.getByRole('button', { name: 'Edit URL', exact: true })).toHaveCount(0);
+  await inspector.getByRole('button', { name: 'Edit Video URL', exact: true }).click();
+  const videoDialog = page.locator('dialog.ad-dialog');
+  await expect(
+    videoDialog.getByRole('heading', { name: 'Edit video URL', exact: true }),
+  ).toBeVisible();
+  await expect(videoDialog.getByLabel('Video URL', { exact: true })).toHaveValue(
+    'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  );
+  await videoDialog
+    .getByLabel('Video URL', { exact: true })
+    .fill('https://example.com/not-a-video');
+  await videoDialog.getByRole('button', { name: 'Save video URL', exact: true }).click();
+  await expect(videoDialog.getByRole('alert')).toHaveText('Use a YouTube or Vimeo URL.');
+  await videoDialog
+    .getByLabel('Video URL', { exact: true })
+    .fill('https://www.youtube.com/watch?v=ihe1QbeGt7U');
+  await videoDialog.getByRole('button', { name: 'Save video URL', exact: true }).click();
+  await expect(videoDialog).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => window.__anniedrawing![0].get('i_video')?.href))
+    .toBe('https://www.youtube.com/watch?v=ihe1QbeGt7U');
+  await expect(page.locator('[data-ad-id="i_video"] iframe')).toHaveAttribute(
+    'src',
+    'https://www.youtube-nocookie.com/embed/ihe1QbeGt7U?rel=0',
+  );
+
+  await page.locator('[data-ad-id="i_site"]').click({ button: 'right' });
+  const menu = page.getByRole('menu', { name: 'Element actions' });
+  await expect(menu.getByRole('menuitem', { name: 'Edit URL', exact: true })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Edit text', exact: true })).toHaveCount(0);
+  await menu.getByRole('menuitem', { name: 'Edit URL', exact: true }).click();
+  const linkDialog = page.locator('dialog.ad-dialog');
+  await expect(linkDialog.getByRole('heading', { name: 'Edit URL', exact: true })).toBeVisible();
+  await linkDialog.getByLabel('URL', { exact: true }).fill('founderz.com/notes');
+  await linkDialog.getByRole('button', { name: 'Save URL', exact: true }).click();
+  await expect(linkDialog).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => window.__anniedrawing![0].get('i_site')))
+    .toMatchObject({
+      href: 'https://founderz.com/notes',
+      text: { value: 'Founderz' },
+    });
+  await expect(page.locator('[data-ad-id="i_site"] .ad-link-url')).toHaveText('founderz.com/notes');
 });

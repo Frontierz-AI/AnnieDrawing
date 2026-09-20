@@ -80,7 +80,7 @@ Optional. Import `toolDefs` and `runTool` from `anniedrawing/agent`. Same operat
 | `board_read` | Deep JSON. Headless: `scope: 'doc'` only. |
 | `board_query` | Filters combine with AND. |
 | `board_apply` | Atomic ops. `dryRun` validates without writing. Duplicate agent create ids become `id_1`. |
-| `board_snapshot` | Browser PNG. Defaults: viewport, scale 2, labels on. |
+| `board_snapshot` | Browser PNG. Defaults: viewport, scale 2, labels on, 32 colors, 240 KiB. |
 | `board_view_fit` | Browser camera. Optional `ids`. |
 
 ## Limits and trust

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1
+
+Indexed PNG for vision: `colors` (2–256) writes a palette file. `board_snapshot` and labeled `export('png', { labels: true })` default to 32 colors and a 240 KiB budget. Unlabeled Export PNG stays truecolor. The AnnieDrawing menu links to GitHub and shows the package version.
+
+A selected video or link card offers Edit Video URL or Edit URL. `board.setHref` is the helper behind that dialog. PNG and SVG export those items as still cards with title and URL; SVG wraps the card in the stored `http(s)` link.
+
+The package lockfile matches `0.3.1`. The private MCP example is `0.1.0` and reports that version in `serverInfo`.
+
 ## 0.3.0
 
 First public AnnieDrawing: a framework-free HTML and SVG board, JSON document operations, headless and agent APIs, browser editing, PNG/SVG/JPEG/WebP and AnnieDoc export, custom-kind and sanitized-HTML integrations, a local demo, and a separate local MCP example.

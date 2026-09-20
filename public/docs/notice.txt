@@ -5,8 +5,10 @@ Frontierz. Originally developed by Pau Garcia-Mila.
 Independent implementation
 The application code, documentation, inline icons and sample diagrams were
 created for AnnieDrawing from its own product requirements. No implementation
-from another drawing editor is incorporated. Dependency use is listed below;
-this statement does not claim ownership of third-party code or common ideas.
+from another drawing editor is incorporated. The GitHub mark in the board menu
+is a trademark of GitHub, Inc., used only as a link to this project's
+repository. Dependency use is listed below; this statement does not claim
+ownership of third-party code or common ideas.
 
 Direct runtime dependencies (MIT)
 - @preact/signals-core — Preact contributors
@@ -38,6 +40,7 @@ retain applicable upstream notices for dependencies or font files they ship.
 The lockfiles pin the exact dependency versions used for this checkout;
 npm run check:licenses validates every locked package against a reviewed list.
 Frontierz names and marks are not granted as trademarks by the MIT license.
+GitHub and the GitHub logo are trademarks of GitHub, Inc.
 
 
 --- @preact/signals-core ---

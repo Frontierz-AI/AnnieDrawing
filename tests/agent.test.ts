@@ -41,6 +41,15 @@ describe('agent tools and spatial editing', () => {
     expect(toolDefs.find((t) => t.name === 'board_apply')!.inputSchema).toHaveProperty(
       'properties.ops',
     );
+    expect(toolDefs.find((t) => t.name === 'board_snapshot')!.inputSchema).toMatchObject({
+      properties: {
+        scope: { default: 'viewport' },
+        scale: { default: 2 },
+        labels: { default: true },
+        colors: { default: 32 },
+        maxBytes: { default: 245760 },
+      },
+    });
     expect(await runTool(createDoc(), 'board_apply', { ops: 'bad' })).toMatchObject({
       ok: false,
       error: { code: 'INVALID_INPUT' },

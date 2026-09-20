@@ -67,7 +67,7 @@ function addHref(host: PasteHost, kind: 'video' | 'link', href: string, point?: 
   }
 }
 
-async function enrich(host: PasteHost, id: string, href: string) {
+async function enrich(host: PasteHost, id: string, href: string, label = 'Paste link') {
   if (host.unfurl === false) return;
   try {
     const preview = await (host.unfurl ?? unfurlPage)(href);
@@ -85,10 +85,56 @@ async function enrich(host: PasteHost, id: string, href: string) {
       patch.media = mid;
     }
     if (Object.keys(patch).length) ops.push({ op: 'set', id, patch });
-    if (ops.length) host.apply(ops, { origin: 'user', label: 'Paste link', merge: true });
+    if (ops.length) host.apply(ops, { origin: 'user', label, merge: true });
   } catch {
     /* Keep the hostname card when the page cannot be read. */
   }
+}
+
+function reject(message: string): ApplyResult {
+  return {
+    ok: false,
+    created: [],
+    errors: [{ index: 0, code: 'INVALID_OP', message }],
+    warnings: [],
+  };
+}
+
+/** Replace the href on an existing video or link item. */
+export function updateHref(host: PasteHost, id: string, value: string): ApplyResult {
+  const item = host.get(id);
+  if (!item || (item.kind !== 'video' && item.kind !== 'link'))
+    return reject(`Item ${id} is not a video or link.`);
+  const pasted = classifyPaste(value);
+  const href = pasted.kind === 'text' ? undefined : pasted.href;
+  if (!href || href.startsWith('data:'))
+    return reject(item.kind === 'video' ? `Bad video (${id}).` : `Bad href (${id}).`);
+  if (item.kind === 'video' && pasted.kind !== 'video') return reject(`Bad video (${id}).`);
+  if (href === item.href) return { ok: true, created: [], errors: [], warnings: [] };
+  const preview = item.kind === 'link' ? linkFallback(href) : undefined;
+  const label = item.kind === 'video' ? 'Edit video URL' : 'Edit URL';
+  const result = host.apply(
+    [
+      {
+        op: 'set',
+        id,
+        patch: {
+          href,
+          ...(preview
+            ? {
+                name: preview.host,
+                description: preview.description,
+                text: { value: preview.title, font: 'sans' as const },
+                media: undefined,
+              }
+            : {}),
+        },
+      },
+    ],
+    { origin: 'user', label },
+  );
+  if (result.ok && item.kind === 'link') void enrich(host, id, href, label);
+  return result;
 }
 
 function readImageSize(src: string): Promise<[number, number]> {

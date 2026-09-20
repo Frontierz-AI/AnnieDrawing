@@ -105,6 +105,78 @@ test('agentPresence maxStops dumps the rest of the batch after one stop', async 
   await expect(page.locator('[data-ad-id="three"]')).toBeVisible();
 });
 
+test('png colors writes a smaller indexed snapshot and leaves truecolor downloads alone', async ({
+  page,
+}) => {
+  await mount(page, { ui: false });
+  const shot = await page.evaluate(async () => {
+    const board = window.__anniedrawing![0];
+    const { runTool } = await import('/src/agent/toolDefs.ts' as string);
+    board.apply([
+      {
+        op: 'add',
+        item: {
+          id: 'i_api',
+          kind: 'rect',
+          x: 40,
+          y: 40,
+          w: 200,
+          h: 110,
+          text: { value: 'API' },
+          style: { fill: 'teal', fillMode: 'tint' },
+        },
+      },
+      {
+        op: 'add',
+        item: {
+          id: 'i_cache',
+          kind: 'rect',
+          x: 280,
+          y: 40,
+          w: 180,
+          h: 110,
+          text: { value: 'Cache' },
+          style: { fill: 'violet', fillMode: 'tint' },
+        },
+      },
+    ]);
+    const header = async (blob: Blob) => {
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      return { type: blob.type, size: blob.size, colorType: bytes[25] };
+    };
+    const truecolor = await header((await board.export('png', { scale: 1 })) as Blob);
+    const indexed = await header((await board.export('png', { scale: 1, colors: 32 })) as Blob);
+    const labeled = await header((await board.export('png', { scale: 1, labels: true })) as Blob);
+    const snapshot = (await runTool(board, 'board_snapshot')) as Blob;
+    const snap = await header(snapshot);
+    const image = new Image();
+    image.src = URL.createObjectURL(snapshot);
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext('2d')!;
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, image.width, image.height).data;
+    const unique = new Set<number>();
+    for (let i = 0; i < pixels.length; i += 4)
+      unique.add(
+        ((pixels[i] << 24) | (pixels[i + 1] << 16) | (pixels[i + 2] << 8) | pixels[i + 3]) >>> 0,
+      );
+    URL.revokeObjectURL(image.src);
+    return { truecolor, indexed, labeled, snap, unique: unique.size };
+  });
+  expect(shot.truecolor.type).toBe('image/png');
+  expect(shot.truecolor.colorType).not.toBe(3);
+  expect(shot.indexed.colorType).toBe(3);
+  expect(shot.indexed.size).toBeLessThan(shot.truecolor.size);
+  expect(shot.labeled.colorType).toBe(3);
+  expect(shot.snap.colorType).toBe(3);
+  expect(shot.snap.size).toBeLessThanOrEqual(245760);
+  expect(shot.unique).toBeGreaterThan(1);
+  expect(shot.unique).toBeLessThanOrEqual(32);
+});
+
 test('jpeg export returns a labeled image/jpeg blob', async ({ page }) => {
   await mount(page, { ui: false });
   const shot = await page.evaluate(async () => {
