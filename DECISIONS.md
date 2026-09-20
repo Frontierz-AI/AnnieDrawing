@@ -14,7 +14,7 @@ An `agent:` `apply` that creates an item id already in the document, or repeated
 
 ## 2026-09-20: Public contacts and safer host defaults
 
-Security and community reports go to pau@frontierz.com. `package.json` records the GitHub repository, issues URL, and that mailbox. `createBoard` does not register `window.__anniedrawing` unless `exposeGlobal` is true; the local demo opts in. `sanitizeHTML` is probed at create time so identity functions fail closed. npm publication remains a separate maintainer action.
+Security and community reports go to pau@frontierz.com. `package.json` records the GitHub repository, issues URL, and that mailbox. `createBoard` does not register `window.__anniedrawing` unless `exposeGlobal` is true; the local demo opts in. `sanitizeHTML` is probed at create time so identity functions fail closed. Further npm releases remain a maintainer action.
 
 ## 2026-09-20: Session revision, not catalog version
 

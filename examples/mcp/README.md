@@ -1,6 +1,6 @@
 # AnnieDrawing MCP example
 
-This separate local package exposes AnnieDrawing's six agent tools over the MCP stdio transport. It can edit a headless document or a live browser board. It is included in this repository as `anniedrawing-mcp` 0.1.0 (`private: true`). It does not assume a second repository or a published package exists.
+This separate local package exposes AnnieDrawing's six agent tools over the MCP stdio transport. It can edit a headless document or a live browser board. It is included in this repository as `anniedrawing-mcp` 0.1.0 (`private: true`). It does not assume a second repository exists.
 
 ## Install and run headless
 
