@@ -4,7 +4,7 @@ AnnieDrawing is a local browser library. The embedding application controls who 
 
 ## Reporting
 
-Email **pau@frontierz.com**. You can also use [GitHub private vulnerability reporting](https://github.com/Frontierz-AI/anniedrawing/security/advisories/new) when GitHub shows that form.
+Email **pau@frontierz.com**. You can also use [GitHub private vulnerability reporting](https://github.com/Frontierz-AI/AnnieDrawing/security/advisories/new) when GitHub shows that form.
 
 Do not file a public GitHub issue for a vulnerability. Do not include real private drawings.
 

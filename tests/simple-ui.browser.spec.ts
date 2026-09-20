@@ -55,7 +55,7 @@ test('board menu stays focused and image upload remains available in the sidebar
   await expect(menu.getByRole('button', { name: 'Documentation', exact: true })).toBeVisible();
   const github = menu.getByRole('link', { name: 'GitHub', exact: true });
   await expect(github).toBeVisible();
-  await expect(github).toHaveAttribute('href', 'https://github.com/Frontierz-AI/anniedrawing');
+  await expect(github).toHaveAttribute('href', 'https://github.com/Frontierz-AI/AnnieDrawing');
   await expect(github).toHaveAttribute('target', '_blank');
   await expect(github).toHaveAttribute('rel', /noopener/);
   await expect(menu.getByText(`v${PACKAGE_VERSION}`, { exact: true })).toBeVisible();
