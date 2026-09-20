@@ -14,6 +14,24 @@ async function mount(page: Page, options: Record<string, unknown> = {}) {
   }, options);
 }
 
+test('createBoard does not register window.__anniedrawing unless asked', async ({ page }) => {
+  await page.goto('/?blank');
+  await page.waitForFunction(() => !!window.__anniedrawing?.[0]);
+  const registered = await page.evaluate(async () => {
+    for (const board of [...(window.__anniedrawing ?? [])]) board.destroy();
+    const { createBoard } = await import('/src/board.ts' as string);
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;inset:0';
+    document.body.append(host);
+    const board = createBoard(host, { ui: false });
+    const global = window.__anniedrawing?.includes(board) ?? false;
+    board.destroy();
+    host.remove();
+    return global;
+  });
+  expect(registered).toBe(false);
+});
+
 test('reveal fit pans to an off-screen create and skips a visible one', async ({ page }) => {
   await mount(page, { ui: false });
   const before = await page.evaluate(() => {
@@ -132,10 +150,13 @@ test('chrome hit targets stay on the 16px pixel scale when rem is 10px', async (
     ]);
     window.__anniedrawing![0].select(['sel']);
   });
-  const width = await page.locator('.ad-style-row').first().evaluate((row) => {
-    const columns = getComputedStyle(row).gridTemplateColumns.split(' ')[0];
-    return parseFloat(columns);
-  });
+  const width = await page
+    .locator('.ad-style-row')
+    .first()
+    .evaluate((row) => {
+      const columns = getComputedStyle(row).gridTemplateColumns.split(' ')[0];
+      return parseFloat(columns);
+    });
   expect(Math.abs(width - 57.6)).toBeLessThanOrEqual(2);
 });
 

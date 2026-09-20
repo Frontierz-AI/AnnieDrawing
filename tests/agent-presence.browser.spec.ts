@@ -342,7 +342,11 @@ test('opt out and destroy preserve the normal lifecycle, and no animation state 
   const immediate = await page.evaluate(async () => {
     const { createBoard } = await import('/src/board.ts' as string);
     window.__anniedrawing![0].destroy();
-    const board = createBoard(document.getElementById('app')!, { agentPresence: false, ui: false });
+    const board = createBoard(document.getElementById('app')!, {
+      agentPresence: false,
+      ui: false,
+      exposeGlobal: true,
+    });
     board.apply(
       [{ op: 'add', item: { id: 'plain', kind: 'rect', x: 300, y: 220, w: 100, h: 100 } }],
       { origin: 'agent:planner' },

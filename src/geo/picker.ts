@@ -147,7 +147,10 @@ export class SpatialIndex {
       .sort((a, b) => a.order - b.order)
       .map((e) => e.item);
   }
-  enclosed(box: Box, options: { enteredGroup?: string; ignore?: (item: Item) => boolean } = {}): Item[] {
+  enclosed(
+    box: Box,
+    options: { enteredGroup?: string; ignore?: (item: Item) => boolean } = {},
+  ): Item[] {
     const selected = new Map<string, Entry>();
     const candidates = this.tree.search({
       minX: box.x,

@@ -17,7 +17,7 @@ const boards = window.__anniedrawing;
 const board = Array.isArray(boards) ? boards[0] : Object.values(boards)[0];
 ```
 
-If several boards exist, compare titles and pick the one the user named. A host may set `exposeGlobal: false`; then use the board reference that application gives you.
+If several boards exist, compare titles and pick the one the user named. The demo sets `exposeGlobal: true`. Other hosts leave the hook off unless they pass that option; then use the board reference that application gives you.
 
 Headless:
 
@@ -251,7 +251,7 @@ Put bytes or an allowed URL in `media`, then point the item at that key.
 { op: 'add', item: { id: 'i_photo', kind: 'image', media: 'm_photo', name: 'Photo' } }
 ```
 
-Allowed MIME: `image/png`, `image/jpeg`, `image/gif`, `image/webp`, `image/avif`, `image/svg+xml`. Remote `http(s)` sources need `allowedImageOrigins` on the host. Optional `crop` is a box in media pixels.
+Allowed MIME: `image/png`, `image/jpeg`, `image/gif`, `image/webp`, `image/avif`, `image/svg+xml`. On API and agent writes, remote `http(s)` sources need `allowedImageOrigins` on the host. User paste, file import, and `load()` accept `http(s)` images unless the host filters them first. Image URLs must not include credentials. Optional `crop` is a box in media pixels.
 
 ### `video`
 
@@ -259,7 +259,7 @@ Allowed MIME: `image/png`, `image/jpeg`, `image/gif`, `image/webp`, `image/avif`
 
 ```js
 { op: 'add', item: { id: 'i_clip', kind: 'video',
-  href: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' } }
+  href: 'https://www.youtube.com/watch?v=jNQXAC9IVRw' } }
 ```
 
 ### `link`
@@ -323,14 +323,14 @@ PNG `labels: true` draws item IDs for vision models.
 
 Optional wrapper around the same APIs. Import `toolDefs` and `runTool` from `anniedrawing/agent`. Map `name`, `description`, and `inputSchema` into the provider envelope. Do not change the operations schema.
 
-| Tool             | Use                                                                        |
-| ---------------- | -------------------------------------------------------------------------- |
-| `board_describe` | Text with IDs. Start here.                                                 |
-| `board_read`     | Deep JSON copy. Headless accepts only `scope: 'doc'`.                      |
-| `board_query`    | Same filters as `query`.                                                   |
+| Tool             | Use                                                                                                            |
+| ---------------- | -------------------------------------------------------------------------------------------------------------- |
+| `board_describe` | Text with IDs. Start here.                                                                                     |
+| `board_read`     | Deep JSON copy. Headless accepts only `scope: 'doc'`.                                                          |
+| `board_query`    | Same filters as `query`.                                                                                       |
 | `board_apply`    | Atomic ops. `runTool` forces an `agent:` origin (`agent:tool` if omitted). Duplicate create ids become `id_1`. |
-| `board_snapshot` | Browser PNG. Defaults: viewport, scale 2, labels on.                       |
-| `board_view_fit` | Browser camera. Optional `ids`.                                            |
+| `board_snapshot` | Browser PNG. Defaults: viewport, scale 2, labels on.                                                           |
+| `board_view_fit` | Browser camera. Optional `ids`.                                                                                |
 
 `board_snapshot` and `board_view_fit` need a live board.
 

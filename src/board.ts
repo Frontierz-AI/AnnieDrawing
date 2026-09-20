@@ -70,6 +70,7 @@ export interface BoardOptions {
   ui?: boolean | UiOptions;
   kinds?: KindDef[];
   autosaveKey?: string;
+  /** Register on `window.__anniedrawing`. Default false. The local demo sets true. */
   exposeGlobal?: boolean;
   allowedImageOrigins?: string[];
   sanitizeHTML?: (html: string) => string;
@@ -276,7 +277,7 @@ export class Board {
       this.uiCleanup = mountUI(this, typeof options.ui === 'object' ? options.ui : {});
     this.render();
     this.view.fit();
-    if (options.exposeGlobal !== false) {
+    if (options.exposeGlobal) {
       window.__anniedrawing ??= [];
       window.__anniedrawing.push(this);
     }

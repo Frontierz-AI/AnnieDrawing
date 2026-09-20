@@ -2,7 +2,7 @@
 
 Read [AGENTS.md](AGENTS.md), run the demo, and keep each change to one understandable improvement.
 
-Use Node.js 24 or newer and `npm ci`. `npm run dev` starts the demo on port 5173. For a code change, run `npm run check`. For interface changes, also build the demo and run the browser checks. Document the behavior you changed, the checks you actually ran, and any known limits. Add a regression test when it protects an invariant.
+Use Node.js 24 or newer to develop this repository, and `npm ci`. `npm run dev` starts the demo on port 5173. For a code change, run `npm run check`. For interface changes, also build the demo and run the browser checks. Document the behavior you changed, the checks you actually ran, and any known limits. Add a regression test when it protects an invariant.
 
 ## Independent work and dependency policy
 
@@ -32,4 +32,4 @@ Preserve the JSON format and the atomic operations contract. Keep the headless m
 
 Comment only when a name does not make the contract obvious. Keep comments short. Prefer a regression test for an invariant (atomic apply, undo, connector detach, locks, input cancellation) over a test that restates the implementation.
 
-Follow the [code of conduct](CODE_OF_CONDUCT.md). Share minimal reproductions without secrets or private drawings. Report security concerns using [SECURITY.md](SECURITY.md). Do not post an exploit and sensitive data in public.
+Follow the [code of conduct](CODE_OF_CONDUCT.md). Share minimal reproductions without secrets or private drawings. Report security concerns to pau@frontierz.com using [SECURITY.md](SECURITY.md). Do not post an exploit and sensitive data in public.

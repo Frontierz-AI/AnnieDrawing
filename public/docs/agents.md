@@ -2,7 +2,7 @@
 
 AnnieDrawing exposes the document as JSON, as a deterministic text description, and as an optional labeled PNG. Saved edits use the same operations as the editor.
 
-The demo registers live boards on `window.__anniedrawing`. Use that hook, or the board reference a host supplies, to inspect the scene and apply operations.
+The demo sets `exposeGlobal: true` so live boards appear on `window.__anniedrawing`. Other hosts leave that hook off unless they pass the same option. Use that hook, or the board reference a host supplies, to inspect the scene and apply operations.
 
 ## Locate a board
 
@@ -20,7 +20,7 @@ board.read();
 
 `kindsSince(since?)` lists built-in kinds added or last changed after that catalog version. Omit `since` or pass `0` for the full catalog. Remember the returned `version` if you later want only what is new. The current board is always `describe()`, `read()`, `get(id)`, `query()`, or `changesSince(since)`. `describe({ since })` lists items created, last written, or removed after that session revision.
 
-If several boards exist, compare titles and pick the board the user named. A host can set `exposeGlobal: false`, in which case use the board reference that application supplies.
+If several boards exist, compare titles and pick the board the user named. If the host did not set `exposeGlobal: true`, use the board reference that application supplies.
 
 Item elements carry `data-ad-id`, `data-ad-kind`, and descriptive ARIA labels. The DOM is an observation surface. Do not treat DOM edits as a write API.
 

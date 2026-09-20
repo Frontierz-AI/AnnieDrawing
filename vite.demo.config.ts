@@ -1,4 +1,5 @@
 import { defineConfig, type Plugin } from 'vite';
+import { isPublicHttpUrl } from './src/core/links.js';
 
 function unfurlPlugin(): Plugin {
   return {
@@ -6,17 +7,39 @@ function unfurlPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith('/__ad-unfurl')) return next();
+        const origin = req.headers.origin;
+        const host = req.headers.host;
+        let allowed = false;
+        try {
+          const url = origin ? new URL(origin) : undefined;
+          allowed = !!(
+            url &&
+            host &&
+            url.host === host &&
+            (url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '::1')
+          );
+        } catch {
+          allowed = false;
+        }
+        if (!allowed) {
+          res.statusCode = 403;
+          res.end();
+          return;
+        }
         try {
           const href = new URL(req.url, 'http://127.0.0.1').searchParams.get('url') ?? '';
-          const url = new URL(href);
-          if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('bad');
-          url.username = url.password = '';
-          const response = await fetch(url, {
+          if (!isPublicHttpUrl(href)) throw new Error('bad');
+          const response = await fetch(href, {
             headers: { Accept: 'text/html' },
             redirect: 'follow',
+            signal: AbortSignal.timeout(4000),
           });
           const type = response.headers.get('content-type') ?? '';
-          if (!response.ok || (type && !/html|xml/i.test(type))) {
+          if (
+            !response.ok ||
+            (type && !/html|xml/i.test(type)) ||
+            !isPublicHttpUrl(response.url || href)
+          ) {
             res.statusCode = 204;
             res.end();
             return;

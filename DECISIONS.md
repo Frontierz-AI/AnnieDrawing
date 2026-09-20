@@ -4,6 +4,10 @@
 
 An `agent:` `apply` that creates an item id already in the document, or repeated in the same batch, stores `id_1` then `_2` instead of failing the batch. Same-batch `place`, parent, and connector refs follow the stored ids. `ID_REMAPPED` is a warning. `result.created` is the stored ids; `get` with the id you sent returns the older item. User and API origins still reject duplicates so a host that supplies ids gets a hard error.
 
+## 2026-09-20: Public contacts and safer host defaults
+
+Security and community reports go to pau@frontierz.com. `package.json` records the GitHub repository, issues URL, and that mailbox. `createBoard` does not register `window.__anniedrawing` unless `exposeGlobal` is true; the local demo opts in. `sanitizeHTML` is probed at create time so identity functions fail closed. npm publication remains a separate maintainer action.
+
 ## 2026-09-20: Session revision, not catalog version
 
 `revision` counts committed session transactions (`apply`, `undo`, `redo`). It is not `CATALOG_VERSION`, not a history index, and not a field in compact `.annie` JSON. `changesSince(since)` reads a 500-slice session log so hosts can poll without re-reading the scene. `kindsSince` still answers “what can I create that I did not know about.” `load()` and `clear()` reset the session counter, stamps, and log.
@@ -62,7 +66,7 @@ Keep primary drawing tools on the sidebar: eraser after hand, image after sticky
 
 ## 2026-09-19: OSS preparation without speculative publication
 
-Provide MIT licensing, dependency attribution, DCO checks, contribution and agent guides, verification workflows, and release steps. Keep repository URLs, package ownership, private security contacts, and publication claims unset until the maintainer confirms real destinations.
+Provide MIT licensing, dependency attribution, DCO checks, contribution and agent guides, verification workflows, and release steps. Do not claim an npm name is published until a maintainer actually publishes it.
 
 ## 2026-09-19: Direct controls and ordinary groups
 

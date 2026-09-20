@@ -124,20 +124,18 @@ describe('agent history and lenient apply', () => {
   it('uses agentPlaceGap only when place.gap is omitted', () => {
     const doc = createDoc(undefined, { agentPlaceGap: 120 });
     doc.apply([{ op: 'add', item: rect('a') }]);
-    doc.apply(
-      [{ op: 'add', item: { ...rect('b'), w: 100, h: 80 }, place: { rightOf: 'a' } }],
-      { origin: 'agent:tool' },
-    );
+    doc.apply([{ op: 'add', item: { ...rect('b'), w: 100, h: 80 }, place: { rightOf: 'a' } }], {
+      origin: 'agent:tool',
+    });
     expect(doc.get('b')!.x).toBe(220);
     doc.apply(
       [{ op: 'add', item: { ...rect('c'), w: 100, h: 80 }, place: { rightOf: 'b', gap: 10 } }],
       { origin: 'agent:tool' },
     );
     expect(doc.get('c')!.x).toBe(330);
-    doc.apply(
-      [{ op: 'add', item: { ...rect('d'), w: 100, h: 80 }, place: { rightOf: 'c' } }],
-      { origin: 'user' },
-    );
+    doc.apply([{ op: 'add', item: { ...rect('d'), w: 100, h: 80 }, place: { rightOf: 'c' } }], {
+      origin: 'user',
+    });
     expect(doc.get('d')!.x).toBe(462);
   });
 });

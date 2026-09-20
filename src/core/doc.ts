@@ -59,6 +59,23 @@ function escapeHtml(html: string, sanitize?: DocOptions['sanitizeHTML']): string
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 }
+const SANITIZER_PROBE = '<img src="x" onerror="alert(1)"><script>alert(1)</script>';
+function assertEffectiveSanitizer(sanitize: (html: string) => string): void {
+  let out: string;
+  try {
+    out = sanitize(SANITIZER_PROBE);
+  } catch (error) {
+    throw new Error(
+      `sanitizeHTML failed on a safety probe (${error instanceof Error ? error.message : error}).`,
+    );
+  }
+  if (typeof out !== 'string') throw new Error('sanitizeHTML must return a string.');
+  const lower = out.toLowerCase();
+  if (lower.includes('onerror') || /<script\b/.test(lower))
+    throw new Error(
+      'sanitizeHTML must strip active HTML. Do not pass an identity function or a no-op.',
+    );
+}
 function assertPagePatch(patch: object): void {
   if (Object.keys(patch).some((key) => key !== 'name' && key !== 'background'))
     throw new Error(
@@ -228,6 +245,8 @@ function validateDoc(
     }
     if (!data && (!url || !['http:', 'https:'].includes(url.protocol)))
       throw new Error('Images must use an image data URL or an HTTP(S) URL.');
+    if (url && (url.username || url.password))
+      throw new Error('Image URLs must not include credentials.');
     if (
       origin !== 'user' &&
       (!restrictedMedia || restrictedMedia.has(mediaId)) &&
@@ -519,6 +538,7 @@ function selectiveInverse(entry: Entry, current: AnnieDoc): Op[] {
   });
 }
 export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocModel {
+  if (options.sanitizeHTML) assertEffectiveSanitizer(options.sanitizeHTML);
   const loadInitial = (doc: AnnieDoc) => {
     return migrate(doc, kindDefaultsFrom(options.kinds));
   };
