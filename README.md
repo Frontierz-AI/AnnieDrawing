@@ -83,6 +83,10 @@ console.log(board.describe());
 
 The host element must have a nonzero width and height, for example `height: 600px`. Call `board.destroy()` when the host is removed. Await `board.ready` before edits that depend on restored autosave content. `import 'anniedrawing/style.css'` loads editor styles only; it does not change the host page's `html` or `body` layout.
 
+`board.getPointer()` returns a copy of the last human pointer: `{ x, y, pageId, inside, pointerType, ageMs, itemId }`, or `null` before a pointer is observed, after a page switch, or after destruction. Coordinates are page-space. While `inside` is true they follow pan and zoom; `itemId` is the topmost hittable item or `null`. Editor controls are excluded. Leaving, blur, hidden tabs, cancel, or touch release sets `inside: false` and preserves the last point. `ageMs` measures time since the last pointer event, not camera changes. Treat an outside point as historical; ask the user to point again when ambiguous. Pointer state is never serialized.
+
+Pass `expectedRevision` from the read that informed an edit to `apply` or `board_apply`. A mismatch returns `STALE_REVISION` without applying any operation, including in lenient or dry-run mode. Read again before retrying. This guards one session only: `load()` and `clear()` reset revisions.
+
 ## Headless document
 
 ```ts

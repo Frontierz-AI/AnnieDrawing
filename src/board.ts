@@ -16,6 +16,7 @@ import type {
   ApplyOptions,
   ApplyResult,
   Box,
+  BoardPointer,
   ChangeEvent,
   ChangeLog,
   DescribeOptions,
@@ -144,6 +145,14 @@ export class Board {
   private space = false;
   private clipboard: Item[] = [];
   private pointers = new Map<number, Point>();
+  private observedPointer?: {
+    client: Point;
+    page: Point;
+    pageId: string;
+    type: string;
+    at: number;
+  };
+  private pointerInside = false;
   private pinch?: { distance: number; zoom: number; center: Point; anchor: Point };
   private editor?: HTMLElement;
   private finishEditor?: (save?: boolean) => void;
@@ -223,6 +232,15 @@ export class Board {
         this.stage.root.removeEventListener(name, handler as EventListener, opts),
       );
     };
+    bind('pointerenter', this.observePointer);
+    bind('pointerdown', this.observePointer);
+    bind('pointermove', this.observePointer);
+    bind('pointerleave', this.releasePointer);
+    bind('pointercancel', this.releasePointer);
+    bind('pointerup', (event) => {
+      this.observePointer(event);
+      if (event.pointerType !== 'mouse') this.releasePointer();
+    });
     bind('pointerdown', this.pointerDown);
     bind('pointermove', this.pointerMove);
     bind('pointerup', this.pointerUp);
@@ -257,6 +275,7 @@ export class Board {
       if (item && e.target === item && !this.drag) this.select([item.dataset.adId!]);
     });
     const release = () => {
+      this.releasePointer();
       this.space = false;
       this.finishEditor?.(true);
       this.cancel();
@@ -264,6 +283,13 @@ export class Board {
     };
     window.addEventListener('blur', release);
     this.cleanup.push(() => window.removeEventListener('blur', release));
+    const hidePointer = () => {
+      if (this.host.ownerDocument.hidden) this.releasePointer();
+    };
+    this.host.ownerDocument.addEventListener('visibilitychange', hidePointer);
+    this.cleanup.push(() =>
+      this.host.ownerDocument.removeEventListener('visibilitychange', hidePointer),
+    );
     this.observer = new ResizeObserver(() => {
       this.rect = this.stage.root.getBoundingClientRect();
       this.schedule();
@@ -289,6 +315,34 @@ export class Board {
   }
   get selection() {
     return [...this.selectionSignal.value];
+  }
+  /** Read the human cursor, or the last point after leaving/touch release. */
+  getPointer(): BoardPointer | null {
+    const observed = this.observedPointer;
+    if (this.destroyed || !observed || observed.pageId !== this.pageId) return null;
+    const rect = this.stage.root.getBoundingClientRect();
+    const inside =
+      this.pointerInside &&
+      rect.width > 0 &&
+      rect.height > 0 &&
+      observed.client.x >= rect.left &&
+      observed.client.x < rect.right &&
+      observed.client.y >= rect.top &&
+      observed.client.y < rect.bottom;
+    const point = inside
+      ? this.stage.lens.toPage({
+          x: observed.client.x - rect.left,
+          y: observed.client.y - rect.top,
+        })
+      : observed.page;
+    return {
+      ...point,
+      pageId: observed.pageId,
+      inside,
+      pointerType: observed.type,
+      ageMs: Math.max(0, Date.now() - observed.at),
+      itemId: inside ? (this.hit(point, true)?.id ?? null) : null,
+    };
   }
   get tool() {
     return this.toolSignal.value;
@@ -572,6 +626,8 @@ export class Board {
   }
   setPage(id: string) {
     if (!this.document.pages.some((page) => page.id === id)) return;
+    this.observedPointer = undefined;
+    this.pointerInside = false;
     this.cancel();
     this.pendingReveal = undefined;
     this.pageId = id;
@@ -1065,6 +1121,34 @@ export class Board {
     const p = this.stage.lens.toPage(screen);
     this.stage.lens.set({ zoom, x: screen.x - p.x * zoom, y: screen.y - p.y * zoom });
   }
+  private releasePointer = () => {
+    const point = this.getPointer();
+    if (point && this.observedPointer) this.observedPointer.page = { x: point.x, y: point.y };
+    this.pointerInside = false;
+  };
+  private observePointer = (event: PointerEvent) => {
+    const rect = this.stage.root.getBoundingClientRect();
+    const inside =
+      !this.isUI(event.target) &&
+      rect.width > 0 &&
+      rect.height > 0 &&
+      event.clientX >= rect.left &&
+      event.clientX < rect.right &&
+      event.clientY >= rect.top &&
+      event.clientY < rect.bottom;
+    if (!inside) {
+      this.releasePointer();
+      return;
+    }
+    this.pointerInside = true;
+    this.observedPointer = {
+      client: { x: event.clientX, y: event.clientY },
+      page: this.stage.lens.toPage({ x: event.clientX - rect.left, y: event.clientY - rect.top }),
+      pageId: this.pageId,
+      type: event.pointerType || 'mouse',
+      at: Date.now(),
+    };
+  };
   private pointerDown = (e: PointerEvent) => {
     if (this.isUI(e.target) || e.button > 1) return;
     this.clearInteractive(e.target);

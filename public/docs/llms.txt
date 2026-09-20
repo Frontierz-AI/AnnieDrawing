@@ -20,11 +20,15 @@ board.query({ kind: 'arrow' }); // matches stored connector created as arrow
 
 Reads return copies. Mutating them does not edit the board.
 
+`board.getPointer()` returns a copy of the last human pointer: `{ x, y, pageId, inside, pointerType, ageMs, itemId }`, or `null` before a pointer is observed, after a page switch, or after destruction. Coordinates are page-space. While `inside` is true they follow pan and zoom; `itemId` is the topmost hittable item or `null`. Editor controls are excluded. Leaving, blur, hidden tabs, cancel, or touch release sets `inside: false` and preserves the last point. `ageMs` measures time since the last pointer event, not camera changes. Treat an outside point as historical; ask the user to point again when ambiguous. Pointer state is never serialized.
+
 ## Write
 
 ```
 board.apply(ops, { origin: 'agent:name', label: 'What changed', dryRun?: false, agentName?: 'Name', reveal?: 'fit' })
 ```
+
+Pass `expectedRevision` from the read that informed an edit to `apply` or `board_apply`. A mismatch returns `STALE_REVISION` without applying any operation, including in lenient or dry-run mode. Read again before retrying. This guards one session only: `load()` and `clear()` reset revisions.
 
 Operations: `add`, `set`, `remove`, `order`, `reparent`, `page.add`, `page.set`, `page.remove`, `meta.set`, `media.set`, `media.remove`. A failed batch changes nothing. `set` merges `style`, `text`, and `data` one level deep. Do not change `id` with `set`. `add` accepts `page`, `parent`, `index`, and `place`. `order.to` is `front`, `back`, `forward`, `backward`, or a numeric index. Kind aliases: `rectangle` → `rect`, `arrow` → `connector`. Connector `from`/`to` accept `{ item, side }`, `{ x, y }`, or a string id.
 

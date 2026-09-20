@@ -2,6 +2,33 @@ import { describe, expect, it } from 'vitest';
 import { LIMITS, createDoc, type Op } from '../src/core';
 const rect = (id: string, x = 0, y = 0) => ({ kind: 'rect' as const, id, x, y, w: 100, h: 80 });
 describe('session revision', () => {
+  it('rejects a stale edit as one batch, including lenient and dry-run calls', () => {
+    const doc = createDoc();
+    doc.apply([{ op: 'add', item: rect('moon') }]);
+    const readRevision = doc.revision;
+    doc.apply([{ op: 'set', id: 'moon', patch: { x: 200 } }], { origin: 'user' });
+    const before = doc.toJSON();
+    for (const mode of [{}, { lenient: true }, { dryRun: true }]) {
+      const result = doc.apply(
+        [
+          { op: 'set', id: 'moon', patch: { style: { fill: 'slate' } } },
+          { op: 'add', item: rect('ship') },
+        ],
+        { origin: 'agent:fellow', expectedRevision: readRevision, ...mode },
+      );
+      expect(result.ok).toBe(false);
+      expect(result.errors[0].code).toBe('STALE_REVISION');
+      expect(doc.toJSON()).toEqual(before);
+      expect(doc.revision).toBe(2);
+    }
+    expect(
+      doc.apply([{ op: 'set', id: 'moon', patch: { style: { fill: 'slate' } } }], {
+        expectedRevision: doc.revision,
+      }).ok,
+    ).toBe(true);
+    expect(doc.get('moon')).toMatchObject({ x: 200, style: { fill: 'slate' } });
+    expect(doc.query()).toHaveLength(1);
+  });
   it('steps once per committed apply; dryRun does not step; load and clear reset to 0', () => {
     const doc = createDoc();
     expect(doc.revision).toBe(0);
