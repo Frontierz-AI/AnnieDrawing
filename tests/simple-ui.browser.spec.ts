@@ -509,14 +509,16 @@ test('inspector and context menu can change a video or link URL', async ({ page 
   await menu.getByRole('menuitem', { name: 'Edit URL', exact: true }).click();
   const linkDialog = page.locator('dialog.ad-dialog');
   await expect(linkDialog.getByRole('heading', { name: 'Edit URL', exact: true })).toBeVisible();
-  await linkDialog.getByLabel('URL', { exact: true }).fill('founderz.com/notes');
+  await linkDialog.getByLabel('URL', { exact: true }).fill('frontierz.com/notes');
   await linkDialog.getByRole('button', { name: 'Save URL', exact: true }).click();
   await expect(linkDialog).toHaveCount(0);
   await expect
     .poll(() => page.evaluate(() => window.__anniedrawing![0].get('i_site')))
     .toMatchObject({
-      href: 'https://founderz.com/notes',
-      text: { value: 'Founderz' },
+      href: 'https://frontierz.com/notes',
+      text: { value: 'Frontierz' },
     });
-  await expect(page.locator('[data-ad-id="i_site"] .ad-link-url')).toHaveText('founderz.com/notes');
+  await expect(page.locator('[data-ad-id="i_site"] .ad-link-url')).toHaveText(
+    'frontierz.com/notes',
+  );
 });

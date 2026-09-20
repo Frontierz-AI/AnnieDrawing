@@ -1,5 +1,31 @@
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import { defineConfig, type Plugin } from 'vite';
 import { isPublicHttpUrl } from './src/core/links.js';
+
+async function isPublicHttpTarget(href: string): Promise<boolean> {
+  if (!isPublicHttpUrl(href)) return false;
+  let hostname: string;
+  try {
+    hostname = new URL(href).hostname.replace(/^\[|\]$/g, '');
+  } catch {
+    return false;
+  }
+  if (isIP(hostname)) return true;
+  try {
+    const records = await lookup(hostname, { all: true });
+    return (
+      records.length > 0 &&
+      records.every((record) =>
+        isPublicHttpUrl(
+          record.family === 6 ? `http://[${record.address}]/` : `http://${record.address}/`,
+        ),
+      )
+    );
+  } catch {
+    return false;
+  }
+}
 
 function unfurlPlugin(): Plugin {
   return {
@@ -28,7 +54,7 @@ function unfurlPlugin(): Plugin {
         }
         try {
           const href = new URL(req.url, 'http://127.0.0.1').searchParams.get('url') ?? '';
-          if (!isPublicHttpUrl(href)) throw new Error('bad');
+          if (!(await isPublicHttpTarget(href))) throw new Error('bad');
           const response = await fetch(href, {
             headers: { Accept: 'text/html' },
             redirect: 'follow',
@@ -38,7 +64,7 @@ function unfurlPlugin(): Plugin {
           if (
             !response.ok ||
             (type && !/html|xml/i.test(type)) ||
-            !isPublicHttpUrl(response.url || href)
+            !(await isPublicHttpTarget(response.url || href))
           ) {
             res.statusCode = 204;
             res.end();

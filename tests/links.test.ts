@@ -138,12 +138,12 @@ describe('link preview parsing', () => {
     expect(decodeEntities('&#39;')).toBe("'");
     expect(hostnameOf('https://www.example.com/a')).toBe('example.com');
     expect(imageMime('https://cdn.example.com/a.webp')).toBe('image/webp');
-    expect(prettyTitle('https://www.founderz.com/')).toBe('Founderz');
-    expect(displayUrl('https://founderz.com/')).toBe('founderz.com');
-    expect(displayUrl('https://www.founderz.com/notes/')).toBe('founderz.com/notes');
-    expect(linkFallback('https://founderz.com/')).toMatchObject({
-      title: 'Founderz',
-      description: 'founderz.com',
+    expect(prettyTitle('https://www.frontierz.com/')).toBe('Frontierz');
+    expect(displayUrl('https://frontierz.com/')).toBe('frontierz.com');
+    expect(displayUrl('https://www.frontierz.com/notes/')).toBe('frontierz.com/notes');
+    expect(linkFallback('https://frontierz.com/')).toMatchObject({
+      title: 'Frontierz',
+      description: 'frontierz.com',
     });
   });
   it('reads the first non-comment uri-list line', () => {
@@ -219,12 +219,12 @@ describe('video and link documents', () => {
     expect(doc.get('i_vid')!.href).toBe('https://vimeo.com/123456789');
     expect(updateHref(host, 'i_vid', 'https://example.com/article').ok).toBe(false);
     expect(doc.get('i_vid')!.href).toBe('https://vimeo.com/123456789');
-    expect(updateHref(host, 'i_link', 'founderz.com/notes').ok).toBe(true);
+    expect(updateHref(host, 'i_link', 'frontierz.com/notes').ok).toBe(true);
     expect(doc.get('i_link')).toMatchObject({
-      href: 'https://founderz.com/notes',
-      name: 'founderz.com',
-      description: 'founderz.com/notes',
-      text: { value: 'Founderz' },
+      href: 'https://frontierz.com/notes',
+      name: 'frontierz.com',
+      description: 'frontierz.com/notes',
+      text: { value: 'Frontierz' },
     });
     expect(doc.get('i_link')!.media).toBeUndefined();
     expect(updateHref(host, 'i_link', 'javascript:alert(1)').ok).toBe(false);
@@ -260,9 +260,39 @@ describe('public http(s) URLs', () => {
     expect(isPublicHttpUrl('http://169.254.169.254/latest')).toBe(false);
     expect(isPublicHttpUrl('http://10.0.0.4/internal')).toBe(false);
     expect(isPublicHttpUrl('https://user:token@example.com/x')).toBe(false);
+    expect(isPublicHttpUrl('http://[::ffff:127.0.0.1]/')).toBe(false);
+    expect(isPublicHttpUrl('http://[::ffff:10.0.0.1]/')).toBe(false);
+    expect(isPublicHttpUrl('http://[::ffff:169.254.169.254]/')).toBe(false);
+    expect(isPublicHttpUrl('http://[64:ff9b::7f00:1]/')).toBe(false);
+    expect(isPublicHttpUrl('http://[::1]/')).toBe(false);
+    expect(isPublicHttpUrl('http://[fd12:3456::1]/')).toBe(false);
+    expect(isPublicHttpUrl('http://127.0.0.1.nip.io/meta')).toBe(false);
+    expect(isPublicHttpUrl('http://10.0.0.4.example.test/')).toBe(false);
+    expect(isPublicHttpUrl('https://[2001:4860:4860::8888]/')).toBe(true);
   });
   it('does not fetch loopback addresses when unfurling', async () => {
     expect(await unfurlPage('http://127.0.0.1/')).toBeUndefined();
     expect(await unfurlPage('http://localhost:5173/docs')).toBeUndefined();
+    expect(await unfurlPage('http://[::ffff:127.0.0.1]/')).toBeUndefined();
+  });
+  it('drops Open Graph images that are not public http(s) URLs', () => {
+    expect(
+      parseLinkPreview(
+        '<meta property="og:image" content="http://127.0.0.1:6379/cover.jpg"/>',
+        'https://example.com/post',
+      ).image,
+    ).toBeUndefined();
+    expect(
+      parseLinkPreview(
+        '<meta property="og:image" content="http://[::ffff:169.254.169.254]/latest"/>',
+        'https://example.com/post',
+      ).image,
+    ).toBeUndefined();
+    expect(
+      parseLinkPreview(
+        '<meta property="og:image" content="https://cdn.example.com/cover.jpg"/>',
+        'https://example.com/post',
+      ).image,
+    ).toBe('https://cdn.example.com/cover.jpg');
   });
 });

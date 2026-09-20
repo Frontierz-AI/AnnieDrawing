@@ -1,5 +1,9 @@
 # Design decisions
 
+## 2026-09-20: Public unfurl hosts
+
+Unfurl is a same-browser GET of a user-pasted URL, not a metadata proxy. `isPublicHttpUrl` is a hostname check: it rejects loopback, RFC1918, link-local, ULA, IPv4-mapped IPv6, NAT64, multicast, and names that start with a private IPv4. It does not look up DNS. Preview images from Open Graph go through the same check so a public page cannot point the card at a private URL. The local Vite `/__ad-unfurl` plugin additionally resolves A/AAAA records and refuses private answers. Hosts that need stricter policy pass `unfurl: false` or their own function.
+
 ## 2026-09-20: Indexed PNG for vision snapshots
 
 Vision models need a raster of the screen, not SVG markup. `board_snapshot` writes a labeled viewport PNG. It defaults to a 32-color indexed encoding and a 240 KiB budget so ID labels stay sharp without JPEG ringing. The same defaults apply to `board.export('png', { labels: true })`. The tool schema advertises those defaults. The Export control and unlabeled `export('png')` stay truecolor. Pass `colors` (2–256) for a different palette. PNG `maxBytes` without `colors` tries 32 colors before shrinking the scale.

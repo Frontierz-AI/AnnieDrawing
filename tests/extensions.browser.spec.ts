@@ -13,7 +13,10 @@ test('Tab follows reading order while paint order stays in document order', asyn
   await page.evaluate(async () => {
     const path = '/src/board.ts';
     const { createBoard } = await import(path);
-    const board = createBoard(document.querySelector('#extension-fixture'), { ui: false });
+    const board = createBoard(document.querySelector('#extension-fixture'), {
+      ui: false,
+      exposeGlobal: true,
+    });
     board.apply([
       {
         op: 'add',
@@ -58,7 +61,10 @@ test('text color uses the selected stroke while shape labels retain readable ink
   const svg = await page.evaluate(async () => {
     const path = '/src/board.ts';
     const { createBoard } = await import(path);
-    const board = createBoard(document.querySelector('#extension-fixture'), { ui: false });
+    const board = createBoard(document.querySelector('#extension-fixture'), {
+      ui: false,
+      exposeGlobal: true,
+    });
     board.apply([
       {
         op: 'add',
@@ -156,6 +162,7 @@ test('custom kinds validate fields, keep mounted DOM, use outlines, and export c
     });
     const board = createBoard(document.querySelector('#extension-fixture'), {
       ui: false,
+      exposeGlobal: true,
       kinds: [kind],
     });
     const added = board.apply([
@@ -222,6 +229,7 @@ test('DOMPurify sanitises HTML and double-click enables inert interactive contro
     ]);
     const board = createBoard(document.querySelector('#extension-fixture'), {
       ui: false,
+      exposeGlobal: true,
       sanitizeHTML: (html: string) => DOMPurify.sanitize(html),
     });
     board.apply(
@@ -256,7 +264,10 @@ test('double-click enables a pasted video player', async ({ page }) => {
   await page.evaluate(async () => {
     const boardPath = '/src/board.ts';
     const { createBoard } = await import(boardPath);
-    const board = createBoard(document.querySelector('#extension-fixture'), { ui: false });
+    const board = createBoard(document.querySelector('#extension-fixture'), {
+      ui: false,
+      exposeGlobal: true,
+    });
     board.apply(
       [
         {
@@ -307,6 +318,7 @@ test('custom polygon connectors match the drawn edge, exported SVG, bounds, and 
     };
     const board = createBoard(document.querySelector('#extension-fixture'), {
       ui: false,
+      exposeGlobal: true,
       kinds: [triangle],
     });
     board.apply([

@@ -8,6 +8,8 @@ A selected video or link card offers Edit Video URL or Edit URL. `board.setHref`
 
 The package lockfile matches `0.3.1`. The private MCP example is `0.1.0` and reports that version in `serverInfo`.
 
+Unfurl rejects IPv4-mapped IPv6, NAT64, unique-local addresses, and hostnames that begin with a private IPv4. Open Graph preview images must pass the same public-host check. The Vite demo proxy also resolves DNS and refuses private A/AAAA records.
+
 ## 0.3.0
 
 First public AnnieDrawing: a framework-free HTML and SVG board, JSON document operations, headless and agent APIs, browser editing, PNG/SVG/JPEG/WebP and AnnieDoc export, custom-kind and sanitized-HTML integrations, a local demo, and a separate local MCP example.

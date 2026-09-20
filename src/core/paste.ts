@@ -87,6 +87,7 @@ export function parseLinkPreview(html: string, base: string): LinkPreview {
     } catch {
       image = undefined;
     }
+  if (image && !image.startsWith('data:') && !isPublicHttpUrl(image)) image = undefined;
   return {
     ...(title ? { title: title.slice(0, 200) } : {}),
     ...(description ? { description: description.slice(0, 400) } : {}),

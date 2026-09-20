@@ -120,7 +120,7 @@ Browser `apply` batches with `origin: 'user'` reject protected item mutations wi
 
 Successful browser `apply` calls with an `agent:` origin show a visiting cursor. It walks the first on-screen shapes, then reveals the rest together. A person can keep editing while that walk runs. `createBoard({ agentName })` labels the cursor when `apply` omits `agentName`. The document, exports, and undo history commit before that presentation starts. Set `agentPresence: false` on `createBoard` to skip it, or pass `{ maxStops, durationScale }`. After the arrival, created items on the current page are fitted if they sit outside the viewport. Pass `reveal: 'none'` or `agentReveal: 'none'` to leave the camera still.
 
-Pasting a single `http(s)` URL creates a `video` item for YouTube and Vimeo, an `image` item for an image URL, or a `link` card for other sites. The browser may then fetch that URL, without credentials, for Open Graph title, description, and image. Pass `unfurl: false` to skip the fetch. Agent operations do not fetch. Select a video or link card and use Edit Video URL or Edit URL to change the stored address.
+Pasting a single `http(s)` URL creates a `video` item for YouTube and Vimeo, an `image` item for an image URL, or a `link` card for other sites. The browser may then fetch that URL, without credentials, for Open Graph title, description, and image. That fetch skips private and mapped-loopback hosts; preview images must pass the same check. Pass `unfurl: false` to skip the fetch. Agent operations do not fetch. Select a video or link card and use Edit Video URL or Edit URL to change the stored address.
 
 ## Verification
 
