@@ -7,12 +7,12 @@
   "author": "Frontierz",
   "homepage": "https://anniedrawing.com",
   "bugs": {
-    "url": "https://github.com/Frontierz-AI/anniedrawing/issues",
+    "url": "https://github.com/Frontierz-AI/AnnieDrawing/issues",
     "email": "pau@frontierz.com"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Frontierz-AI/anniedrawing.git"
+    "url": "git+https://github.com/Frontierz-AI/AnnieDrawing.git"
   },
   "contributors": [
     {
