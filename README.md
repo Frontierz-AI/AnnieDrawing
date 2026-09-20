@@ -157,7 +157,7 @@ Repository files: [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md), [D
 
 Contributor commits require a [Developer Certificate of Origin](https://developercertificate.org/) sign-off (`git commit -s`). Implement from the documented behavior and original work. Do not copy another editor's implementation.
 
-GitHub Actions deploys the demo to [anniedrawing.com](https://anniedrawing.com) from `main`. Publishing the npm package is a separate maintainer action.
+GitHub Actions verifies `main`. The demo is a static `site/` build hosted on the Frontierz Forge server at [anniedrawing.com](https://anniedrawing.com). Publishing the npm package is a separate maintainer action.
 
 ---
 
