@@ -2,6 +2,8 @@
 
 AnnieDrawing is a TypeScript library that renders a drawing board in the browser with HTML and SVG. Frontierz maintains it. The license is MIT.
 
+Live demo: [anniedrawing.com](https://anniedrawing.com). Manual: [anniedrawing.com/docs](https://anniedrawing.com/docs/). Package: [`anniedrawing` on npm](https://www.npmjs.com/package/anniedrawing).
+
 The document is UTF-8 JSON. Saved edits go through `apply(ops, options)`. A failed batch changes nothing. The same operations are used by the built-in editor, the headless document, and the agent tools.
 
 The library does not require a UI framework, account, API key, analytics, or a drawing service. A headless document works in Node.js and workers. The default bundle has at most five direct runtime dependencies and stays under 100 KiB gzipped, including its styles.
@@ -19,7 +21,7 @@ npm ci
 npm run dev
 ```
 
-The development server uses Vite's default port 5173. Open http://127.0.0.1:5173 for the editor, or http://127.0.0.1:5173/docs/index.html for this manual. If 5173 is already in use, Vite prints the next free address.
+The development server uses Vite's default port 5173. Open http://127.0.0.1:5173 for the editor, or http://127.0.0.1:5173/docs/index.html for this manual. If 5173 is already in use, Vite prints the next free address. The same demo is published at https://anniedrawing.com.
 
 The demo stores the current drawing in the browser. That storage is local to the browser profile. Its Export control offers PNG, SVG, and AnnieDoc. Export a `.annie` file for a portable copy. New files use format version 2 and `pages`. Version 1 files with `sheets` migrate on load.
 
@@ -138,24 +140,24 @@ npm run test:perf
 
 ## Manual
 
-| Document                              | Contents                                                                                         |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Operator manual                       | Served at `/docs/index.html` when the demo is running (`public/docs/index.html` in the checkout) |
-| [API reference](docs/api.md)          | Imports, lifecycle, reads, writes, events, export, limits                                        |
-| [Document format](docs/format.md)     | `.annie` JSON, coordinates, kinds, connections, versions                                         |
-| [Board JavaScript](docs/board-js.md)  | Create items, read the board, kind catalog                                                       |
-| [Agent operations](docs/agents.md)    | Live board discovery, batches, tools, trust                                                      |
-| [Extensions](docs/extensions.md)      | Custom kinds and sanitized HTML                                                                  |
-| [MCP example](examples/mcp/README.md) | stdio server and optional localhost bridge                                                       |
-| [llms.txt](llms.txt)                  | Compact board-JS index for automated readers                                                     |
-| [llms-full.txt](llms-full.txt)        | Same as Board JavaScript, copied by `scripts/sync-docs.mjs`                                      |
-| [Design decisions](DECISIONS.md)      | Why the library is shaped this way                                                               |
+| Document                              | Contents                                                                                           |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Operator manual                       | [anniedrawing.com/docs](https://anniedrawing.com/docs/) (`public/docs/index.html` in the checkout) |
+| [API reference](docs/api.md)          | Imports, lifecycle, reads, writes, events, export, limits                                          |
+| [Document format](docs/format.md)     | `.annie` JSON, coordinates, kinds, connections, versions                                           |
+| [Board JavaScript](docs/board-js.md)  | Create items, read the board, kind catalog                                                         |
+| [Agent operations](docs/agents.md)    | Live board discovery, batches, tools, trust                                                        |
+| [Extensions](docs/extensions.md)      | Custom kinds and sanitized HTML                                                                    |
+| [MCP example](examples/mcp/README.md) | stdio server and optional localhost bridge                                                         |
+| [llms.txt](llms.txt)                  | Compact board-JS index for automated readers                                                       |
+| [llms-full.txt](llms-full.txt)        | Same as Board JavaScript, copied by `scripts/sync-docs.mjs`                                        |
+| [Design decisions](DECISIONS.md)      | Why the library is shaped this way                                                                 |
 
 Repository files: [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md), [DECISIONS.md](DECISIONS.md), [SECURITY.md](SECURITY.md), [release checklist](docs/releasing.md), [LICENSE](LICENSE), [NOTICE](NOTICE). Bugs and security reports: [pau@frontierz.com](mailto:pau@frontierz.com).
 
 Contributor commits require a [Developer Certificate of Origin](https://developercertificate.org/) sign-off (`git commit -s`). Implement from the documented behavior and original work. Do not copy another editor's implementation.
 
-The local build does not create a remote repository, publish a package, or deploy hosting.
+GitHub Actions deploys the demo to [anniedrawing.com](https://anniedrawing.com) from `main`. Publishing the npm package is a separate maintainer action.
 
 ---
 

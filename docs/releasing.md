@@ -33,6 +33,22 @@ Review `npm audit` and changes to locked dependencies. CI license approval does 
 
 ## Publish only with authorization
 
-After the owner authorizes the destination and version, create a signed-off release commit and tag, publish the reviewed tarball using the registry's trusted publishing or authenticated workflow, and deploy `site` as a static site if that is part of the release. Do not put registry tokens in repository files. Verify the installed package and published demo after release, then update links to the real destinations.
+After the owner authorizes the destination and version, create a signed-off release commit and tag, publish the reviewed tarball using the registry's trusted publishing or authenticated workflow, and confirm GitHub Pages deployed `site` to https://anniedrawing.com. Do not put registry tokens in repository files. Verify the installed package and published demo after release.
+
+The public site is the Vite demo (`npm run build:demo`). `.github/workflows/pages.yml` deploys it from `main`. Point the apex domain at GitHub Pages:
+
+```text
+A     @    185.199.108.153
+A     @    185.199.109.153
+A     @    185.199.110.153
+A     @    185.199.111.153
+AAAA  @    2606:50c0:8000::153
+AAAA  @    2606:50c0:8001::153
+AAAA  @    2606:50c0:8002::153
+AAAA  @    2606:50c0:8003::153
+CNAME www  Frontierz-AI.github.io
+```
+
+`public/CNAME` must stay `anniedrawing.com`. GitHub then serves https://anniedrawing.com and https://anniedrawing.com/docs/.
 
 The MCP example is a private package inside this repository. Publishing it separately requires replacing its relative `../../dist` imports with a compatible `anniedrawing` dependency and reviewing its release contents on their own.
