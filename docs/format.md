@@ -42,7 +42,7 @@ The model expands defaults internally and omits default style flags on serializa
 
 Built-in kinds: `rect`, `ellipse`, `diamond`, `line`, `connector`, `path`, `text`, `note`, `image`, `video`, `link`, `group`, and `html`. Unknown kinds are kept and shown as a placeholder. Load and save do not drop custom content.
 
-Default sizes when `w` and `h` are omitted: rect and ellipse 180×110, diamond 160×140, line 180×0, connector 0×0, path 0×0, text 200×48, note 200×180, image 240×180, video 480×270, link 220×200, group 0×0, html 240×160.
+Default sizes when `w` and `h` are omitted: rect and ellipse 180×110, diamond 160×140, line 180×0, connector 0×0, path 0×0, text 600×48, note 200×180, image 240×180, video 480×270, link 220×200, group 0×0, html 240×160. An `agent:` create or text patch on `rect`, `ellipse`, `diamond`, `note`, or `text` may store a larger size so the label fits.
 
 `text` has a plain `value`, horizontal `align` (`start`, `center`, `end`), vertical `valign` (`top`, `middle`, `bottom`), `size` (`s`, `m`, `l`, `xl`, or a number from 1 to 1000), and `font` (`sans`, `serif`, `mono`, `hand`). Omitted `font` is `hand`, the handwritten Comic Sans-like stack. `autoWidth: true` on a browser `text` item stores measured width and height.
 
@@ -54,7 +54,7 @@ Named colors: `ink`, `slate`, `coral`, `amber`, `moss`, `teal`, `sky`, `violet`,
 
 ## Connectors and paths
 
-A connector has `from` and `to`. Each stored end is either `{ "item": "i_note", "side": "right" }` or a free `{ "x": 100, "y": 200 }` point. `apply` also accepts a string item id, stored as `{ item, side: "auto" }`. `side` is `auto`, `top`, `right`, `bottom`, or `left`. An attached endpoint can use a normalized `anchor: [0, 0.5]`. Routes are `straight`, `elbow`, or `curve`. Heads accept `none`, `arrow`, or `dot`. Optional `waypoints` are page-space `[x, y]` points between the ends. When a target disappears, that endpoint becomes a free point at its last position in the same atomic edit.
+A connector has `from` and `to`. Each stored end is either `{ "item": "i_note", "side": "right" }` or a free `{ "x": 100, "y": 200 }` point. `apply` also accepts a string item id, stored as `{ item, side: "auto" }`. `side` is `auto`, `top`, `right`, `bottom`, or `left`. An attached endpoint can use a normalized `anchor: [0, 0.5]`. Routes are `straight`, `elbow`, or `curve`. An `agent:` create that omits `route` stores `elbow`. Omitted `route` in a saved file stays `straight`. Elbows pick a channel that misses intervening boxes. Heads accept `none`, `arrow`, or `dot`. Optional `waypoints` are page-space `[x, y]` points between the ends. When a target disappears, that endpoint becomes a free point at its last position in the same atomic edit.
 
 Line and freehand `points` are relative to the item's `x` and `y`. Freehand points may include pressure: `[x, y, pressure]`. `closed: true` closes a path. Item IDs and connector bindings survive moves and export or import.
 

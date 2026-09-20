@@ -41,6 +41,14 @@ describe('kind catalog', () => {
     expect(kindsSince().version).toBe(CATALOG_VERSION);
     expect(kindsSince().since).toBe(0);
     expect(kindsSince().kinds.map((entry) => entry.kind)).toEqual(kindNames);
+    expect(kindsSince(1).kinds.map((entry) => entry.kind)).toEqual([
+      'rect',
+      'ellipse',
+      'diamond',
+      'connector',
+      'text',
+      'note',
+    ]);
     expect(kindsSince(CATALOG_VERSION)).toEqual({
       version: CATALOG_VERSION,
       since: CATALOG_VERSION,

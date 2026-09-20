@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AnnieDrawing · Full editor chrome</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        font-family: 'Nunito Variable', 'Nunito', 'Trebuchet MS', sans-serif;
+      }
+      #app {
+        position: fixed;
+        inset: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="app"></main>
+    <script type="module">
+      import '@fontsource-variable/nunito';
+      import '../src/style.css';
+      import { createBoard } from '../src/index';
+      import { mountChromePreview } from './chrome-preview';
+
+      const host = document.querySelector('#app');
+      if (!(host instanceof HTMLElement)) throw new Error('Missing #app');
+      createBoard(host, {
+        exposeGlobal: true,
+        ui: { export: ['png', 'svg', 'json'] },
+      });
+      mountChromePreview(host, './no-bars.html', 'Open no-bars');
+    </script>
+  </body>
+</html>

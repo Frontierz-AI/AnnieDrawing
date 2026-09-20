@@ -2,7 +2,7 @@
 
 Operate a board through JavaScript. The JSON document is the source of truth. People and agents commit through `apply(ops, options)`. This file does not cover installing or changing the library. Full examples: [board JavaScript](board-js.md) / [llms-full.txt](llms-full.txt).
 
-Kind catalog: 1
+Kind catalog: 2
 
 ```js
 const board = window.__anniedrawing[0]; // demo; hosts pass exposeGlobal: true
@@ -32,24 +32,24 @@ Pass `expectedRevision` from the read that informed an edit to `apply` or `board
 
 Operations: `add`, `set`, `remove`, `order`, `reparent`, `page.add`, `page.set`, `page.remove`, `meta.set`, `media.set`, `media.remove`. A failed batch changes nothing. `set` merges `style`, `text`, and `data` one level deep. Do not change `id` with `set`. `add` accepts `page`, `parent`, `index`, and `place`. `order.to` is `front`, `back`, `forward`, `backward`, or a numeric index. Kind aliases: `rectangle` → `rect`, `arrow` → `connector`. Connector `from`/`to` accept `{ item, side }`, `{ x, y }`, or a string id.
 
-`place` requires exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`. Default `gap` is 32. Default `align` is `middle`. `inside` requires a `group`. Do not call `load()` to patch a few items.
+`place` requires exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`. Default `gap` is 32. Default `align` is `middle`. `inside` requires a `group`. Directional `place` slides further along that axis when the slot is taken. An `agent:` create or text patch on `rect`, `ellipse`, `diamond`, `note`, or `text` grows the stored size so the label fits. Standalone `text` defaults to 600 wide. An `agent:` connector that omits `route` stores `elbow`. Elbows go around intervening boxes. Do not call `load()` to patch a few items.
 
 Check `result.ok`, then read `result.created` for stored ids. `OVERLAPS_EXISTING` and `ID_REMAPPED` are warnings; the batch still committed. An `agent:` create that reuses an id is stored as `id_1` (then `_2`); same-batch `place` and connector refs follow that id. `get` with the id you sent returns the older item. User and API origins still reject duplicates.
 
 ## Kinds
 
-Built-in kinds, default size when `w`/`h` omitted, catalog `since` 1:
+Built-in kinds, default size when `w`/`h` omitted. `rect`, `ellipse`, `diamond`, `connector`, `note`, and `text` are catalog 2: labeled boxes grow so the label fits; an omitted connector `route` stores `elbow`.
 
 | Kind | Size | Create |
 | ---- | ---- | ------ |
-| `rect` | 180×110 | Box or node. `text`, `style`. |
-| `ellipse` | 180×110 | Ellipse or circle. |
-| `diamond` | 160×140 | Decision or highlight. |
+| `rect` | 180×110 | Box or node. `text`, `style`. Agent creates grow to fit text. |
+| `ellipse` | 180×110 | Ellipse or circle. Agent creates grow to fit text. |
+| `diamond` | 160×140 | Decision or highlight. Agent creates grow to fit text. |
 | `line` | 180×0 | Segment. Optional `points` relative to x/y. |
-| `connector` | 0×0 | `from`/`to` as `{ item, side? }`, `{ x, y }`, or a string item id. `route`: straight/elbow/curve. Compact JSON omits x/y/w/h. |
+| `connector` | 0×0 | `from`/`to` as `{ item, side? }`, `{ x, y }`, or a string item id. `route`: straight/elbow/curve. Agent omit stores elbow. Compact JSON omits x/y/w/h. |
 | `path` | 0×0 | Freehand. `points` (`[x,y,pressure?]`), optional `closed`. |
-| `text` | 200×48 | Plain text. Browser `autoWidth` measures. |
-| `note` | 200×180 | Sticky. Default moss fill, 12px corner. |
+| `text` | 600×48 | Plain text. Agent creates grow to fit a title. Browser `autoWidth` measures. |
+| `note` | 200×180 | Sticky. Default moss fill, 12px corner. Agent creates grow to fit text. |
 | `image` | 240×180 | `media` key in the document media table. |
 | `video` | 480×270 | YouTube or Vimeo `href`. |
 | `link` | 220×200 | Website card. `href`, optional `description`. |
@@ -83,7 +83,7 @@ Optional. Import `toolDefs` and `runTool` from `anniedrawing/agent`. Same operat
 | `board_describe` | Text with IDs. Start here. |
 | `board_read` | Deep JSON. Headless: `scope: 'doc'` only. |
 | `board_query` | Filters combine with AND. |
-| `board_apply` | Atomic ops. `dryRun` validates without writing. Duplicate agent create ids become `id_1`. |
+| `board_apply` | Atomic ops. Grows labels, slides directional place, omitted route → elbow. `dryRun` validates. Duplicate agent create ids become `id_1`. |
 | `board_snapshot` | Browser PNG. Defaults: viewport, scale 2, labels on, 32 colors, 240 KiB. |
 | `board_view_fit` | Browser camera. Optional `ids`. |
 

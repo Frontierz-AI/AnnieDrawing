@@ -351,3 +351,52 @@ test('double clicking a newly drawn shape edits its label immediately', async ({
     await page.evaluate(() => window.__anniedrawing![0].query({ kind: 'rect' })[0].text?.value),
   ).toBe('My next idea');
 });
+
+test('agent rectangles grow so a paragraph stays inside the box', async ({ page }) => {
+  await ready(page);
+  const size = await page.evaluate(() => {
+    const board = window.__anniedrawing![0];
+    const value =
+      'Lectura:\nColumnas = etapas aproximadas.\nFilas = dimensiones (tiempo, tecnología, organización, cultura).\nEs un esquema simplificado, no una línea exacta.';
+    board.apply(
+      [{ op: 'add', item: { id: 'i_card', kind: 'rect', x: 80, y: 80, text: { value } } }],
+      { origin: 'agent:planner', reveal: 'none' },
+    );
+    const item = board.get('i_card')!;
+    const node = board.stage.world.querySelector<HTMLElement>('[data-ad-id="i_card"]')!;
+    const label = node.querySelector<HTMLElement>('.ad-text')!;
+    return {
+      w: item.w,
+      h: item.h,
+      overflowX: label.scrollWidth - label.clientWidth,
+      overflowY: label.scrollHeight - label.clientHeight,
+    };
+  });
+  expect(size.w).toBeGreaterThan(180);
+  expect(size.h).toBeGreaterThan(110);
+  expect(size.overflowX).toBeLessThanOrEqual(1);
+  expect(size.overflowY).toBeLessThanOrEqual(1);
+});
+
+test('agent text titles stay on one line past the old 200 width', async ({ page }) => {
+  await ready(page);
+  const size = await page.evaluate(() => {
+    const board = window.__anniedrawing![0];
+    const value = 'Evolución humana — vista por pisos y filas';
+    board.apply(
+      [
+        {
+          op: 'add',
+          item: { id: 'i_title', kind: 'text', x: 80, y: 80, w: 200, h: 48, text: { value } },
+        },
+      ],
+      { origin: 'agent:planner', reveal: 'none' },
+    );
+    const item = board.get('i_title')!;
+    const label = board.stage.world.querySelector<HTMLElement>('[data-ad-id="i_title"] .ad-text')!;
+    const font = parseFloat(getComputedStyle(label).fontSize);
+    return { w: item.w, h: item.h, scrollH: label.scrollHeight, font };
+  });
+  expect(size.w).toBeGreaterThan(200);
+  expect(size.scrollH).toBeLessThanOrEqual(size.font * 1.35 * 2 + 2);
+});

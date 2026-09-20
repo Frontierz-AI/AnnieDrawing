@@ -1,5 +1,6 @@
 import { getStroke } from 'perfect-freehand';
 import { CARD_CORNER } from '../core/defaults';
+import { textFontSize } from '../core/textFit';
 import type { Item, ItemText, Point, Style } from '../core/types';
 
 export const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -93,9 +94,7 @@ export function labelColor(item: Item, theme: 'light' | 'dark'): string {
   return contrast('#0F0B0A') >= contrast('#FFFFFF') ? '#0F0B0A' : '#FFFFFF';
 }
 export function fontSize(text?: ItemText): number {
-  return typeof text?.size === 'number'
-    ? text.size
-    : { s: 14, m: 18, l: 26, xl: 36 }[text?.size ?? 'm'];
+  return textFontSize(text);
 }
 export function esc(value: unknown): string {
   return String(value ?? '').replace(

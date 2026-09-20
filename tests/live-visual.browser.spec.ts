@@ -22,6 +22,7 @@ test('desktop keeps essential controls visible and groups secondary tools', asyn
   await openDemo(page);
   await expect(page.getByRole('button', { name: 'Board menu', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Board controls', exact: true })).toHaveCount(0);
   await expect(
     page.locator('.ad-welcome, .ad-title-wrap, .ad-save-status, .ad-footer-center, .ad-tool-key'),
   ).toHaveCount(0);
@@ -64,8 +65,8 @@ test('phone has seven reachable tools and secondary actions in the board menu', 
   const visibleTools = await toolbar.getByRole('button').all();
   for (const tool of visibleTools) {
     const box = await tool.boundingBox();
-    expect(box!.width).toBeGreaterThanOrEqual(48);
-    expect(box!.height).toBeGreaterThanOrEqual(48);
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(390);
   }
@@ -73,6 +74,8 @@ test('phone has seven reachable tools and secondary actions in the board menu', 
   await page.getByRole('button', { name: 'Sticky note', exact: true }).click();
   expect(await page.evaluate(() => window.__anniedrawing![0].tool)).toBe('note');
   await expect(page.getByRole('button', { name: 'Add image', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Export', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: 'Page 1', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Shapes', exact: true }).click();
   await page.getByRole('button', { name: 'Arrow', exact: true }).click();
   expect(await page.evaluate(() => window.__anniedrawing![0].tool)).toBe('connector');
@@ -83,7 +86,10 @@ test('phone has seven reachable tools and secondary actions in the board menu', 
   await page.keyboard.press('Escape');
   await expect(page.getByRole('group', { name: 'Board menu', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Board menu', exact: true })).toBeFocused();
-  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  await page.getByRole('button', { name: 'Board controls', exact: true }).click();
+  await expect(page.getByRole('group', { name: 'Board controls', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add page', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Fit drawing', exact: true })).toBeVisible();
   for (const name of ['PNG Image', 'SVG Image', 'AnnieDoc format']) {
     await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
   }
@@ -94,6 +100,21 @@ test('phone has seven reachable tools and secondary actions in the board menu', 
   ).toBeGreaterThanOrEqual(16);
   await capture(page, info, 'phone-export');
 });
+
+async function chromeMetrics(page: Page) {
+  return page.evaluate(() => {
+    const toolbar = document.querySelector('.ad-toolbar')!.getBoundingClientRect();
+    const tool = document.querySelector('.ad-toolbar .ad-icon-button')!.getBoundingClientRect();
+    const icon = document.querySelector('.ad-toolbar .ad-icon-button svg')!.getBoundingClientRect();
+    return {
+      toolbarLeft: toolbar.left,
+      toolbarMid: toolbar.top + toolbar.height / 2,
+      toolbarHeight: toolbar.height,
+      tool: Math.max(tool.width, tool.height),
+      icon: Math.max(icon.width, icon.height),
+    };
+  });
+}
 
 test('short desktop keeps the tool sidebar centered with tighter chrome', async ({
   page,
@@ -122,6 +143,70 @@ test('short desktop keeps the tool sidebar centered with tighter chrome', async 
   await capture(page, info, 'short-desktop');
 });
 
+test('short desktop without menu and pages uses a middle tool size until 500px', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 600 });
+  await page.goto('/?blank');
+  await page.waitForFunction(() => !!window.__anniedrawing?.[0]);
+  await page.evaluate(async () => {
+    for (const board of [...(window.__anniedrawing ?? [])]) board.destroy();
+    document.body.innerHTML = '<main id="chrome-fixture" style="position:fixed;inset:0"></main>';
+    const { createBoard } = await import('/src/board.ts' as string);
+    createBoard(document.querySelector('#chrome-fixture')!, {
+      exposeGlobal: true,
+      ui: { menu: false, export: false, pages: false },
+    });
+  });
+  await expect(page.locator('.ad-toolbar .ad-icon-button').first()).toBeVisible();
+  await expect(page.locator('.ad-ui')).not.toHaveClass(/ad-ui-bars/);
+  await expect(page.getByRole('button', { name: 'Board menu', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: 'Page 1', exact: true })).toHaveCount(0);
+  const mid = await chromeMetrics(page);
+  expect(mid.tool).toBeGreaterThanOrEqual(40);
+  expect(mid.tool).toBeLessThanOrEqual(42);
+  expect(mid.icon).toBeGreaterThan(18);
+  expect(mid.icon).toBeLessThan(24);
+  expect(mid.toolbarLeft).toBeLessThanOrEqual(16);
+  await page.setViewportSize({ width: 1440, height: 480 });
+  const compact = await chromeMetrics(page);
+  expect(compact.tool).toBeLessThan(mid.tool);
+  expect(compact.icon).toBeLessThanOrEqual(20);
+});
+
+test('chrome preview pages open a full editor and a board without bars', async ({ page }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/demo/full-editor.html');
+  await expect(page.getByRole('button', { name: 'Board menu', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Page 1', exact: true })).toBeVisible();
+  await expect(page.locator('.ad-ui')).toHaveClass(/ad-ui-bars/);
+  await page.getByRole('button', { name: '640px', exact: true }).click();
+  const fullAt640 = await chromeMetrics(page);
+  expect(fullAt640.tool).toBeGreaterThanOrEqual(36);
+  expect(fullAt640.tool).toBeLessThanOrEqual(38);
+  expect(fullAt640.icon).toBeLessThanOrEqual(20);
+  await capture(page, info, 'full-editor-640');
+  await page.goto('/demo/no-bars.html');
+  await expect(page.getByRole('button', { name: 'Board menu', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: 'Page 1', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Select', exact: true })).toBeVisible();
+  await expect(page.locator('.ad-ui')).not.toHaveClass(/ad-ui-bars/);
+  await page.getByRole('button', { name: '640px', exact: true }).click();
+  const bareAt640 = await chromeMetrics(page);
+  expect(bareAt640.tool).toBeGreaterThanOrEqual(40);
+  expect(bareAt640.tool).toBeLessThanOrEqual(42);
+  expect(bareAt640.icon).toBeGreaterThan(fullAt640.icon);
+  expect(bareAt640.icon).toBeLessThan(24);
+  expect(bareAt640.toolbarLeft).toBeLessThanOrEqual(16);
+  await capture(page, info, 'no-bars-640');
+  await page.getByRole('button', { name: '500px', exact: true }).click();
+  const bareAt500 = await chromeMetrics(page);
+  expect(bareAt500.tool).toBeGreaterThanOrEqual(36);
+  expect(bareAt500.tool).toBeLessThanOrEqual(38);
+  expect(bareAt500.icon).toBeLessThanOrEqual(20);
+  await capture(page, info, 'no-bars-500');
+});
+
 test('phone landscape keeps tools on a bottom bar inside the viewport', async ({ page }, info) => {
   await page.setViewportSize({ width: 844, height: 390 });
   await openDemo(page);
@@ -147,7 +232,13 @@ test('small phone controls stay inside the viewport and documentation opens', as
 }, info) => {
   await page.setViewportSize({ width: 320, height: 740 });
   await openDemo(page);
-  for (const name of ['Board menu', 'Export', 'Add page', 'Fit drawing']) {
+  for (const name of ['Board menu', 'Board controls']) {
+    const box = await page.getByRole('button', { name, exact: true }).boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(320);
+  }
+  await page.getByRole('button', { name: 'Board controls', exact: true }).click();
+  for (const name of ['Add page', 'Fit drawing', 'PNG Image']) {
     const box = await page.getByRole('button', { name, exact: true }).boundingBox();
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(320);

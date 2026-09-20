@@ -142,51 +142,113 @@ test('opacity stays open while adjusting and locking can be reversed through the
   });
 });
 
-for (const width of [1440, 390, 320]) {
-  test(`page chips overflow, rename, switch and delete the chosen page at ${width}px`, async ({
-    page,
-  }, info) => {
+async function seedNamedPages(page: Page) {
+  await page.evaluate(() => {
+    const board = window.__anniedrawing![0];
+    board.apply(
+      Array.from({ length: 12 }, (_, index) => ({
+        op: 'page.add' as const,
+        page: { id: `p_${index}`, name: `A lovely page ${index + 1}`, items: [] },
+      })),
+    );
+    board.setPage('p_11');
+  });
+}
+
+async function openBoardControls(page: Page) {
+  const chrome = page.getByRole('group', { name: 'Board controls', exact: true });
+  if (!(await chrome.isVisible()))
+    await page.getByRole('button', { name: 'Board controls', exact: true }).click();
+  await expect(chrome).toBeVisible();
+  return chrome;
+}
+
+test('page chips overflow, rename, switch and delete the chosen page at 1440px', async ({
+  page,
+}, info) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 1440, height: 844 });
+  await ready(page);
+  await seedNamedPages(page);
+  const active = page.getByRole('tab', { name: 'A lovely page 12', exact: true });
+  await expect(active).toBeVisible();
+  await expect(active).toHaveAttribute('aria-selected', 'true');
+  const overflow = page.getByRole('button', { name: 'All pages', exact: true });
+  await expect(overflow).toBeVisible();
+  await page.locator('.ad-pages').screenshot({ path: info.outputPath('page-chips.png') });
+  const rail = await page.locator('.ad-pages').boundingBox();
+  expect(rail!.x).toBeGreaterThanOrEqual(0);
+  expect(rail!.x + rail!.width).toBeLessThanOrEqual(1440);
+  const children = await page.locator('.ad-pages button:visible').all();
+  for (const child of children) {
+    const box = await child.boundingBox();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(rail!.x + rail!.width);
+  }
+  await overflow.click();
+  const all = page.getByRole('group', { name: 'All pages', exact: true });
+  await expect(all.getByRole('button', { name: 'A lovely page 2', exact: true })).toBeVisible();
+  await all
+    .getByRole('button', { name: 'A lovely page 2', exact: true })
+    .click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Rename page' }).click();
+  await page.getByLabel('Page name', { exact: true }).fill('Sketches');
+  await page.getByRole('button', { name: 'Save name' }).click();
+  expect(await page.evaluate(() => window.__anniedrawing![0].pageId)).toBe('p_11');
+  await overflow.click();
+  await all.getByRole('button', { name: 'Sketches', exact: true }).click();
+  const renamed = page.getByRole('tab', { name: 'Sketches', exact: true });
+  await expect(renamed).toHaveAttribute('aria-selected', 'true');
+  await renamed.press('Shift+F10');
+  await page.getByRole('menuitem', { name: 'Delete page' }).click();
+  await expect(page.getByRole('menu', { name: 'Page actions' })).toHaveCount(0);
+  expect(
+    await page.evaluate(() =>
+      window.__anniedrawing![0].read().pages.some(({ id }) => id === 'p_1'),
+    ),
+  ).toBe(false);
+  const undo = page.getByRole('button', { name: 'Undo', exact: true });
+  await expect(undo).toBeEnabled();
+  await undo.click();
+  expect(
+    await page.evaluate(
+      () => window.__anniedrawing![0].read().pages.find(({ id }) => id === 'p_1')?.name,
+    ),
+  ).toBe('Sketches');
+  await page.getByRole('tab', { selected: true }).press('End');
+  await expect(page.getByRole('tab', { name: 'A lovely page 12', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await page.getByRole('tab', { selected: true }).press('Home');
+  expect(await page.evaluate(() => window.__anniedrawing![0].pageId)).toBe(
+    await page.evaluate(() => window.__anniedrawing![0].read().pages[0].id),
+  );
+});
+
+for (const width of [390, 320]) {
+  test(`Board controls pages rename, switch and delete at ${width}px`, async ({ page }) => {
     test.setTimeout(60_000);
     await page.setViewportSize({ width, height: 844 });
     await ready(page);
-    await page.evaluate(() => {
-      const board = window.__anniedrawing![0];
-      board.apply(
-        Array.from({ length: 12 }, (_, index) => ({
-          op: 'page.add' as const,
-          page: { id: `p_${index}`, name: `A lovely page ${index + 1}`, items: [] },
-        })),
-      );
-      board.setPage('p_11');
-    });
-    const active = page.getByRole('tab', { name: 'A lovely page 12', exact: true });
-    await expect(active).toBeVisible();
-    await expect(active).toHaveAttribute('aria-selected', 'true');
-    const overflow = page.getByRole('button', { name: 'All pages', exact: true });
-    await expect(overflow).toBeVisible();
-    await page.locator('.ad-pages').screenshot({ path: info.outputPath('page-chips.png') });
-    const rail = await page.locator('.ad-pages').boundingBox();
-    expect(rail!.x).toBeGreaterThanOrEqual(0);
-    expect(rail!.x + rail!.width).toBeLessThanOrEqual(width);
-    const children = await page.locator('.ad-pages button:visible').all();
-    for (const child of children) {
-      const box = await child.boundingBox();
-      expect(box!.x + box!.width).toBeLessThanOrEqual(rail!.x + rail!.width);
-    }
-    await overflow.click();
-    const all = page.getByRole('group', { name: 'All pages', exact: true });
-    await expect(all.getByRole('button', { name: 'A lovely page 2', exact: true })).toBeVisible();
-    await all
+    await seedNamedPages(page);
+    const chrome = await openBoardControls(page);
+    const current = chrome.getByRole('button', { name: 'A lovely page 12', exact: true });
+    await current.scrollIntoViewIfNeeded();
+    await expect(current).toBeVisible();
+    await expect(current).toHaveAttribute('aria-current', 'true');
+    await chrome
       .getByRole('button', { name: 'A lovely page 2', exact: true })
       .click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Rename page' }).click();
     await page.getByLabel('Page name', { exact: true }).fill('Sketches');
     await page.getByRole('button', { name: 'Save name' }).click();
     expect(await page.evaluate(() => window.__anniedrawing![0].pageId)).toBe('p_11');
-    await overflow.click();
-    await all.getByRole('button', { name: 'Sketches', exact: true }).click();
-    const renamed = page.getByRole('tab', { name: 'Sketches', exact: true });
-    await expect(renamed).toHaveAttribute('aria-selected', 'true');
+    const afterRename = await openBoardControls(page);
+    await afterRename.getByRole('button', { name: 'Sketches', exact: true }).click();
+    expect(await page.evaluate(() => window.__anniedrawing![0].pageId)).toBe('p_1');
+    const afterSwitch = await openBoardControls(page);
+    const renamed = afterSwitch.getByRole('button', { name: 'Sketches', exact: true });
+    await expect(renamed).toHaveAttribute('aria-current', 'true');
     await renamed.press('Shift+F10');
     await page.getByRole('menuitem', { name: 'Delete page' }).click();
     await expect(page.getByRole('menu', { name: 'Page actions' })).toHaveCount(0);
@@ -195,7 +257,8 @@ for (const width of [1440, 390, 320]) {
         window.__anniedrawing![0].read().pages.some(({ id }) => id === 'p_1'),
       ),
     ).toBe(false);
-    const undo = page.getByRole('button', { name: 'Undo', exact: true });
+    const afterDelete = await openBoardControls(page);
+    const undo = afterDelete.getByRole('button', { name: 'Undo', exact: true });
     await expect(undo).toBeEnabled();
     await undo.click();
     expect(
@@ -203,15 +266,6 @@ for (const width of [1440, 390, 320]) {
         () => window.__anniedrawing![0].read().pages.find(({ id }) => id === 'p_1')?.name,
       ),
     ).toBe('Sketches');
-    await page.getByRole('tab', { selected: true }).press('End');
-    await expect(page.getByRole('tab', { name: 'A lovely page 12', exact: true })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
-    await page.getByRole('tab', { selected: true }).press('Home');
-    expect(await page.evaluate(() => window.__anniedrawing![0].pageId)).toBe(
-      await page.evaluate(() => window.__anniedrawing![0].read().pages[0].id),
-    );
   });
 }
 

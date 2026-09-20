@@ -289,7 +289,9 @@ for (const width of [1440, 390]) {
   test(`popovers align with their controls and toggle closed at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await blank(page);
-    for (const name of ['Shapes', 'Zoom controls', 'Export']) {
+    const names =
+      width > 700 ? ['Shapes', 'Zoom controls', 'Export'] : ['Shapes', 'Board controls'];
+    for (const name of names) {
       const trigger = page.getByRole('button', { name, exact: true });
       const panel = page.getByRole('group', { name, exact: true });
       await trigger.click();
@@ -300,7 +302,7 @@ for (const width of [1440, 390]) {
         const fit = await page.getByRole('button', { name: 'Fit drawing' }).boundingBox();
         expect(box!.x + box!.width).toBeCloseTo(fit!.x + fit!.width, 0);
         expect(box!.y + box!.height).toBeLessThan(anchor!.y);
-      } else if (name === 'Export') {
+      } else if (name === 'Export' || name === 'Board controls') {
         expect(box!.y).toBeGreaterThan(anchor!.y);
         expect(box!.x + box!.width).toBeCloseTo(anchor!.x + anchor!.width, 0);
         expect(box!.x).toBeGreaterThanOrEqual(0);
@@ -318,7 +320,9 @@ for (const width of [1440, 390]) {
       await expect(trigger).toHaveAttribute('aria-expanded', 'false');
       await trigger.click();
       await expect(panel).toBeVisible();
-      await page.mouse.click(width / 2, name === 'Export' ? 400 : 150);
+      if (name === 'Board controls')
+        await page.getByRole('button', { name: 'Select', exact: true }).click();
+      else await page.mouse.click(width / 2, name === 'Export' ? 400 : 150);
       await expect(panel).toBeHidden();
       await trigger.click();
       await expect(panel).toBeVisible();

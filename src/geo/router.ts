@@ -8,6 +8,9 @@ import {
   type ItemLookup,
 } from './box';
 import { distance, rotatePoint } from './vec';
+
+const CLEAR = 16;
+const SKIP_OBSTACLE = new Set(['connector', 'line', 'path', 'group']);
 export type OutlineResolver = (item: Item) => Outline | Outline[] | undefined;
 
 function endpointItem(
@@ -123,6 +126,96 @@ export function resolveEndpoint(
   }
   return rotatePoint(p, c, item.rotation ?? 0);
 }
+
+function listedItems(lookup?: ItemLookup): Item[] {
+  if (!lookup) return [];
+  if (Array.isArray(lookup)) return flattenItems(lookup);
+  if (lookup instanceof Map) return [...lookup.values()];
+  if (typeof lookup === 'function') return [];
+  return Object.values(lookup);
+}
+
+function obstacleBox(item: Item): Box | undefined {
+  if (item.hidden || SKIP_OBSTACLE.has(item.kind) || item.w <= 0 || item.h <= 0) return;
+  return { x: item.x, y: item.y, w: item.w, h: item.h };
+}
+
+function segmentHits(a: Point, b: Point, box: Box, pad: number): boolean {
+  const x = box.x - pad,
+    y = box.y - pad,
+    r = box.x + box.w + pad,
+    btm = box.y + box.h + pad;
+  const x0 = Math.min(a.x, b.x),
+    x1 = Math.max(a.x, b.x),
+    y0 = Math.min(a.y, b.y),
+    y1 = Math.max(a.y, b.y);
+  if (x1 < x || x0 > r || y1 < y || y0 > btm) return false;
+  if (a.x === b.x) return a.x >= x && a.x <= r && y0 <= btm && y1 >= y;
+  if (a.y === b.y) return a.y >= y && a.y <= btm && x0 <= r && x1 >= x;
+  return true;
+}
+
+function pathHits(points: Point[], boxes: Box[], pad = 0): number {
+  let hits = 0;
+  for (let i = 0; i < points.length - 1; i++)
+    for (const box of boxes) if (segmentHits(points[i], points[i + 1], box, pad)) hits++;
+  return hits;
+}
+
+function pathLength(points: Point[]): number {
+  return points.slice(1).reduce((sum, point, i) => sum + distance(points[i], point), 0);
+}
+
+/** One orthogonal channel: vertical first (shared Y) or horizontal first (shared X). */
+function elbow(start: Point, end: Point, vertical: boolean, channel?: number): Point[] {
+  if (vertical) {
+    const y = channel ?? (start.y + end.y) / 2;
+    return [start, { x: start.x, y }, { x: end.x, y }, end];
+  }
+  const x = channel ?? (start.x + end.x) / 2;
+  return [start, { x, y: start.y }, { x, y: end.y }, end];
+}
+
+function boundIds(endpoint?: Endpoint): string | undefined {
+  return endpoint && 'item' in endpoint ? endpoint.item : undefined;
+}
+
+/** Midpoint elbow, or a parallel channel that misses intervening boxes. */
+function clearElbow(
+  start: Point,
+  end: Point,
+  vertical: boolean,
+  item: Item,
+  lookup?: ItemLookup,
+): Point[] {
+  const skip = new Set(
+    [item.id, boundIds(item.from), boundIds(item.to)].filter((id): id is string => !!id),
+  );
+  const boxes = listedItems(lookup)
+    .filter((other) => !skip.has(other.id))
+    .map(obstacleBox)
+    .filter((box): box is Box => !!box);
+  const preferred = elbow(start, end, vertical);
+  if (!boxes.length || !pathHits(preferred, boxes)) return preferred;
+  const other = elbow(start, end, !vertical);
+  const hits = boxes.filter((box) => pathHits(preferred, [box]) || pathHits(other, [box]));
+  const candidates = [preferred, other];
+  for (const box of hits.slice(0, 8)) {
+    candidates.push(
+      elbow(start, end, true, box.y - CLEAR),
+      elbow(start, end, true, box.y + box.h + CLEAR),
+      elbow(start, end, false, box.x - CLEAR),
+      elbow(start, end, false, box.x + box.w + CLEAR),
+    );
+  }
+  return candidates.reduce((best, next) => {
+    const hitBest = pathHits(best, boxes),
+      hitNext = pathHits(next, boxes);
+    if (hitNext !== hitBest) return hitNext < hitBest ? next : best;
+    return pathLength(next) < pathLength(best) ? next : best;
+  });
+}
+
 export interface ConnectorGeometry {
   points: Point[];
   d: string;
@@ -145,19 +238,7 @@ export function routeConnector(
       side === 'top' ||
       side === 'bottom' ||
       ((!side || side === 'auto') && Math.abs(end.y - start.y) > Math.abs(end.x - start.x));
-    points = vertical
-      ? [
-          start,
-          { x: start.x, y: (start.y + end.y) / 2 },
-          { x: end.x, y: (start.y + end.y) / 2 },
-          end,
-        ]
-      : [
-          start,
-          { x: (start.x + end.x) / 2, y: start.y },
-          { x: (start.x + end.x) / 2, y: end.y },
-          end,
-        ];
+    points = clearElbow(start, end, vertical, item, lookup);
   }
   if (item.route === 'curve' && !item.waypoints?.length) {
     const dx = end.x - start.x,

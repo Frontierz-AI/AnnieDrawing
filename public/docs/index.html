@@ -706,10 +706,10 @@ board.apply([{ op: 'add', item: {
             to open its inspector. Fill, Line, and Color choose colors. Line also sets thickness and
             pattern. Text-capable shapes show size, alignment, and font. A selected video or link
             card can change its URL from the inspector. More arrangement options opens align,
-            distribute, group, and stacking. Pages lists pages. The AnnieDrawing menu holds
-            appearance, documentation, GitHub, and the package version unless the host hides it.
-            This demo's Export control offers PNG, SVG, and AnnieDoc; an imported board defaults to
-            PNG and SVG.
+            distribute, group, and stacking. Pages lists pages. On a phone, pages, zoom, undo, redo,
+            and Export open from Board controls. The AnnieDrawing menu holds appearance,
+            documentation, GitHub, and the package version unless the host hides it. This demo's
+            Export control offers PNG, SVG, and AnnieDoc; an imported board defaults to PNG and SVG.
           </p>
           <div class="shortcut-grid">
             <div class="shortcut"><span>Select / move</span><kbd>V</kbd></div>
@@ -787,8 +787,13 @@ board.apply([{ op: 'add', item: {
             <code>order</code>, and <code>reparent</code>, plus page, media, and document metadata
             changes. <code>place</code> takes exactly one of <code>rightOf</code>,
             <code>leftOf</code>, <code>above</code>, <code>below</code>, <code>inside</code>, or
-            <code>near</code>. A dry run validates a batch without saving it. Failed batches apply
-            nothing.
+            <code>near</code>. Directional <code>place</code> slides further along that axis when
+            the first slot is occupied. An <code>agent:</code> create or text patch on
+            <code>rect</code>, <code>ellipse</code>, <code>diamond</code>, <code>note</code>, or
+            <code>text</code> grows the stored size so the label fits. Standalone
+            <code>text</code> defaults to 600 wide. An <code>agent:</code> connector that omits
+            <code>route</code> stores <code>elbow</code>. Elbows go around intervening boxes. A dry
+            run validates a batch without saving it. Failed batches apply nothing.
           </p>
           <div class="link-row">
             <a class="pill" href="api.md">API reference</a
@@ -800,7 +805,10 @@ board.apply([{ op: 'add', item: {
           <h2>Agents</h2>
           <p>
             The document is JSON with stable item IDs. An agent can describe the scene, query items,
-            and apply a batch. Every batch succeeds together or changes nothing. This demo sets
+            and apply a batch. Every batch succeeds together or changes nothing. An
+            <code>agent:</code> origin grows labeled boxes and titles to fit text, slides
+            directional <code>place</code> when a slot is taken, and stores <code>elbow</code> on
+            connectors that omit <code>route</code>. Elbows miss intervening boxes. This demo sets
             <code>exposeGlobal: true</code> so the board is on <code>window.__anniedrawing</code>.
             Other hosts must pass that option.
           </p>

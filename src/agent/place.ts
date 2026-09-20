@@ -1,5 +1,32 @@
-import type { Item, Placement } from '../core/types';
+import type { Box, Item, Placement } from '../core/types';
 import { contains, intersects, itemBounds, lookupItem, type ItemLookup } from '../geo/box';
+
+function blocksPlace(item: Item): boolean {
+  return !item.hidden && item.kind !== 'connector' && item.kind !== 'line' && item.kind !== 'path';
+}
+
+/** Slide further along the placement axis when the first slot is occupied. */
+function nextFree(
+  box: Box,
+  axis: 'x' | 'y',
+  dir: 1 | -1,
+  gap: number,
+  items: Item[],
+  lookup: ItemLookup,
+): Box {
+  const next = { ...box };
+  for (let step = 0; step < 64; step++) {
+    const hit = items.find(
+      (other) => blocksPlace(other) && intersects(next, itemBounds(other, lookup)),
+    );
+    if (!hit) return next;
+    const b = itemBounds(hit, lookup);
+    if (axis === 'x') next.x = dir > 0 ? b.x + b.w + gap : b.x - next.w - gap;
+    else next.y = dir > 0 ? b.y + b.h + gap : b.y - next.h - gap;
+  }
+  return next;
+}
+
 /** Exactly one of rightOf, leftOf, above, below, inside, or near. */
 export function placeItem(
   item: Item,
@@ -63,6 +90,18 @@ export function placeItem(
       }
     if (!found)
       throw new Error(`No free slot inside ${ref.id}; enlarge the group or use a smaller item.`);
+  }
+  if (key === 'rightOf' || key === 'leftOf' || key === 'above' || key === 'below') {
+    const free = nextFree(
+      { x, y, w: item.w, h: item.h },
+      key === 'above' || key === 'below' ? 'y' : 'x',
+      key === 'leftOf' || key === 'above' ? -1 : 1,
+      gap,
+      items,
+      lookup,
+    );
+    x = free.x;
+    y = free.y;
   }
   if (key === 'near') {
     let found = false;
