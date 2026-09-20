@@ -54,6 +54,7 @@ describe('headless geometry', () => {
     ]);
     expect(straight.midpoint).toEqual({ x: 200, y: 40 });
     expect(routeConnector({ ...connector, route: 'elbow' }, [a, b]).points).toHaveLength(4);
+    expect(routeConnector({ ...connector, route: 'elbow' }, [a, b]).points[1].x).toBe(200);
     const curve = routeConnector({ ...connector, route: 'curve' }, [a, b]);
     expect(curve.d).toContain('Q');
     expect(curve.midpoint.y).toBeGreaterThan(40);
@@ -123,6 +124,30 @@ describe('headless geometry', () => {
       [20, 0, 0.2],
     ]);
   });
+});
+it('routes an elbow around a box sitting between the ends', () => {
+  const a = shape('a'),
+    mid = shape('mid', 'rect', 200),
+    c = shape('c', 'rect', 400),
+    link = normalizeItem({
+      kind: 'connector',
+      route: 'elbow',
+      from: { item: 'a', side: 'right' },
+      to: { item: 'c', side: 'left' },
+    });
+  const points = routeConnector(link, [a, mid, c]).points;
+  expect(points).toHaveLength(4);
+  const channel = points[1];
+  expect(channel.y < mid.y || channel.y > mid.y + mid.h).toBe(true);
+  for (let i = 0; i < points.length - 1; i++) {
+    const p = points[i],
+      q = points[i + 1];
+    const x0 = Math.min(p.x, q.x),
+      x1 = Math.max(p.x, q.x),
+      y0 = Math.min(p.y, q.y),
+      y1 = Math.max(p.y, q.y);
+    expect(x1 < mid.x || x0 > mid.x + mid.w || y1 < mid.y || y0 > mid.y + mid.h).toBe(true);
+  }
 });
 it('uses registered local outlines for custom kinds', () => {
   const triangle = shape('triangle', 'triangle'),

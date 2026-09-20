@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0
+
+On a short desktop host, the sidebar still moves inward at 640px. Tools and buttons fully shrink at that height when the AnnieDrawing menu or page chips are present. An embed without those bars uses a middle tool size from 640px and the tight size at 500px. On a narrow host, pages, zoom, undo, redo, and Export open from Board controls in the top right so the bottom bar can stay a tool strip.
+
+An `agent:` create or text patch on `rect`, `ellipse`, `diamond`, `note`, or `text` grows the stored size so the label fits. Short labels keep the size the agent sent. Larger explicit sizes stay. Standalone `text` defaults to 600 wide, three times the previous 200, so graph titles stay on one line. The kind catalog is 2.
+
+Elbow connectors pick a channel that misses intervening boxes. `rightOf` / `leftOf` / `above` / `below` slide further along that axis when the first slot is occupied. An `agent:` connector that omits `route` stores `elbow`. Existing documents that omitted `route` stay straight.
+
+The package lockfile matches `0.4.0`. The private MCP example stays `0.1.0`.
+
 ## 0.3.3
 
 Browser `getPointer()` exposes the human cursor in page coordinates, including whether it is still inside the drawing area, its age, and the item underneath. Editor controls do not count as canvas positions. Pointer state stays outside saved documents.

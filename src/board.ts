@@ -497,6 +497,8 @@ export class Board {
       if (!op || typeof op !== 'object') return op;
       if (op.op === 'add' && op.item) {
         let item = op.item;
+        if (origin.startsWith('agent:') && item.kind === 'text' && item.autoWidth === undefined)
+          item = { ...item, autoWidth: true };
         if (
           item.kind === 'text' &&
           item.autoWidth &&
@@ -510,7 +512,7 @@ export class Board {
         const item = this.get(op.id);
         if (
           item?.kind === 'text' &&
-          (op.patch.autoWidth ?? item.autoWidth) &&
+          (op.patch.autoWidth ?? item.autoWidth ?? origin.startsWith('agent:')) &&
           (op.patch.text || op.patch.autoWidth)
         ) {
           const text = { ...item.text, ...(op.patch.text as { value?: string } | undefined) };

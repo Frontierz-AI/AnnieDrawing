@@ -879,6 +879,40 @@ describe('warnings and placement', () => {
         .message,
     ).toContain('does not exist');
   });
+  it('slides a second rightOf onto the next free slot', () => {
+    const doc = createDoc();
+    doc.apply([{ op: 'add', item: { ...rect('a'), x: 0, y: 0 } }]);
+    expect(doc.apply([{ op: 'add', item: rect('b'), place: { rightOf: 'a', gap: 20 } }]).ok).toBe(
+      true,
+    );
+    expect(doc.get('b')).toMatchObject({ x: 120, y: 0 });
+    expect(doc.apply([{ op: 'add', item: rect('c'), place: { rightOf: 'a', gap: 20 } }]).ok).toBe(
+      true,
+    );
+    expect(doc.get('c')).toMatchObject({ x: 240, y: 0 });
+  });
+  it('stores elbow on agent connectors that omit route', () => {
+    const doc = createDoc();
+    doc.apply([
+      { op: 'add', item: rect('a') },
+      { op: 'add', item: rect('b', 200) },
+      {
+        op: 'add',
+        item: { id: 'link', kind: 'connector', from: { item: 'a' }, to: { item: 'b' } },
+      },
+    ]);
+    expect(doc.get('link')?.route).toBeUndefined();
+    doc.apply(
+      [
+        {
+          op: 'add',
+          item: { id: 'flow', kind: 'connector', from: { item: 'a' }, to: { item: 'b' } },
+        },
+      ],
+      { origin: 'agent:planner' },
+    );
+    expect(doc.get('flow')?.route).toBe('elbow');
+  });
   it('remaps colliding agent create ids and rewires the same batch', () => {
     const doc = createDoc();
     const first = [

@@ -1,5 +1,19 @@
 # Design decisions
 
+## 2026-09-20: Elbows miss boxes; place does not stack
+
+Agent diagrams go wrong in two cheap ways: several `rightOf` the same node land on one point, and a straight or midpoint elbow walks through the node in between. Orthogonal routing literature (channel + obstacle) and simple packing fix both without a graph layout pass.
+
+Elbows stay derived. The default midpoint channel is kept when it is clear. If it hits a box, try the other orientation, then a channel just outside the blocker. Waypoints and non-elbow routes are untouched. Other connectors are not obstacles, so routing cannot cycle.
+
+`rightOf` / `leftOf` / `above` / `below` already named an axis. When that slot intersects a solid item, slide further along the same axis by the occupant plus `gap`. `near` and `inside` already searched.
+
+An `agent:` connector that omits `route` stores `elbow`. Omitted `route` on disk stays straight.
+
+## 2026-09-20: Agent labeled boxes grow to the text
+
+Agents often send catalog defaults or example 200×100 boxes with a paragraph of `text`. The label then overflows. An `agent:` `add` or text `set` on `rect`, `ellipse`, `diamond`, `note`, or `text` grows stored `w`/`h` so the label fits, wrapping long lines at a comfortable width. Standalone `text` defaults to 600 wide so graph titles are not capped at the old 200. User and API origins keep the size they wrote. A larger explicit size is kept. The measurement is a headless heuristic so MCP and the browser store the same box. Browser `agent:` text also sets `autoWidth`. Kind catalog 2 records that create contract.
+
 ## 2026-09-20: Public unfurl hosts
 
 Unfurl is a same-browser GET of a user-pasted URL, not a metadata proxy. `isPublicHttpUrl` is a hostname check: it rejects loopback, RFC1918, link-local, ULA, IPv4-mapped IPv6, NAT64, multicast, and names that start with a private IPv4. It does not look up DNS. Preview images from Open Graph go through the same check so a public page cannot point the card at a private URL. The local Vite `/__ad-unfurl` plugin additionally resolves A/AAAA records and refuses private answers. Hosts that need stricter policy pass `unfurl: false` or their own function.
@@ -70,7 +84,7 @@ Version 2 uses pages in the document, scopes, and editing API. Version 1 documen
 
 ## 2026-09-19: Toolbar and inspector layout
 
-Keep primary drawing tools on the sidebar: eraser after hand, image after sticky note, and line and arrow inside Shapes. Do not hide those tools behind a More overflow. On phones, including landscape, and on short tablet-width hosts, the tools move to a bottom bar and hand stays in the board menu so that bar remains tappable, unless a host hides that menu. A short desktop host keeps the tool sidebar and inspector vertically centered and tightens chrome padding and icons instead of pinning those bars to the top. The selection inspector is vertically centered like the tool sidebar. Export downloads the current page. An imported board offers PNG and SVG; AnnieDoc is opt-in through `ui.export`. The local demo offers all three. The AnnieDrawing control opens the same kind of menu for document, appearance, documentation, and GitHub, with the package version at the bottom, and hosts may hide it. Show item-specific style controls only when something is selected, with palettes opened on demand and compact line and text controls visible beside the selection. The inspector does not repeat the selected kind as a title. Page management remains in the bottom bar. Positioning and rotation follow the user's pointer. Shift constrains the move axis or resize proportions.
+Keep primary drawing tools on the sidebar: eraser after hand, image after sticky note, and line and arrow inside Shapes. Do not hide those tools behind a More overflow. On phones, including landscape, and on short tablet-width hosts, the tools move to a bottom bar and hand stays in the board menu so that bar remains tappable, unless a host hides that menu. Pages, zoom, undo, redo, and Export live in a Board controls menu at the top right so they do not compete with that bar. A short desktop host keeps the tool sidebar and inspector vertically centered and tightens chrome padding and icons instead of pinning those bars to the top. That tighter chrome starts at 640px host height when the AnnieDrawing menu or page chips are present. Without those bars, 640px pulls the sidebar inward and uses a middle tool size; tools and buttons fully shrink at 500px. The selection inspector is vertically centered like the tool sidebar. Export downloads the current page. An imported board offers PNG and SVG; AnnieDoc is opt-in through `ui.export`. The local demo offers all three. The AnnieDrawing control opens the same kind of menu for document, appearance, documentation, and GitHub, with the package version at the bottom, and hosts may hide it. Show item-specific style controls only when something is selected, with palettes opened on demand and compact line and text controls visible beside the selection. The inspector does not repeat the selected kind as a title. Page management remains in the bottom bar. Positioning and rotation follow the user's pointer. Shift constrains the move axis or resize proportions.
 
 ## 2026-09-19: MIT licensing and the named package
 

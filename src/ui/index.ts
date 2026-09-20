@@ -111,6 +111,11 @@ function download(content: string | Blob, name: string, type: string) {
 }
 export function mountUI(board: Board, options: UiOptions = {}): () => void {
   const ui = el('div', 'ad-ui');
+  const showMenu = options.menu !== false;
+  const showPages = options.pages !== false;
+  if (showMenu) ui.classList.add('ad-ui-menu');
+  if (showPages) ui.classList.add('ad-ui-pages');
+  if (showMenu || showPages) ui.classList.add('ad-ui-bars');
   board.stage.root.append(ui);
   const unsubs: (() => void)[] = [];
   let activeDialog: HTMLDialogElement | undefined;
@@ -286,12 +291,17 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     window.removeEventListener('resize', hideOnResize);
     window.removeEventListener('pointerdown', dismissContext, true);
   });
-  const showMenu = options.menu !== false;
   const formats = exportFormats(options.export);
+  const exportChoices: Record<UiExportFormat, [string, string]> = {
+    png: ['PNG Image', 'image'],
+    svg: ['SVG Image', 'image'],
+    json: ['AnnieDoc format', 'code'],
+  };
   const header = el('header', 'ad-header');
   let brand: HTMLButtonElement | undefined;
   let drawingInput: HTMLInputElement | undefined;
   let exportButton: HTMLButtonElement | undefined;
+  let chromeButton: HTMLButtonElement;
   if (showMenu) {
     brand = button('Board menu', 'chevron', openMenu, 'ad-brand');
     brand.innerHTML =
@@ -314,19 +324,24 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     };
     header.append(brand);
   }
+  const actions = el('div', 'ad-header-actions');
   if (formats.length) {
-    const actions = el('div', 'ad-header-actions');
-    exportButton = textButton('Export', openExport, 'ad-button ad-primary');
+    exportButton = textButton('Export', openExport, 'ad-button ad-primary ad-header-export');
     exportButton.insertAdjacentHTML('afterbegin', icon('download'));
     if (formats.length > 1) {
       exportButton.setAttribute('aria-haspopup', 'true');
       exportButton.setAttribute('aria-expanded', 'false');
     }
     actions.append(exportButton);
-    header.append(actions);
   }
+  chromeButton = button('Board controls', 'more', openChrome);
+  chromeButton.classList.add('ad-chrome');
+  chromeButton.setAttribute('aria-haspopup', 'true');
+  chromeButton.setAttribute('aria-expanded', 'false');
+  actions.append(chromeButton);
+  header.append(actions);
   if (!showMenu) header.classList.add('ad-header-end');
-  if (showMenu || formats.length) ui.append(header);
+  ui.append(header);
   if (drawingInput) ui.append(drawingInput);
   const toolbar = el('nav', 'ad-toolbar');
   toolbar.setAttribute('aria-label', 'Drawing tools');
@@ -559,7 +574,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     }
   }
   function renderPages() {
-    if (options.pages === false) return;
+    if (!showPages) return;
     const pages = board.read().pages;
     const state = JSON.stringify([board.pageId, pages.map(({ id, name }) => [id, name])]);
     if (state === pageState) return;
@@ -568,7 +583,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     fitPageTabs();
   }
   const pagesObserver = new ResizeObserver(fitPageTabs);
-  if (options.pages !== false) {
+  if (showPages) {
     pagesObserver.observe(ui);
     unsubs.push(() => pagesObserver.disconnect());
   }
@@ -625,8 +640,8 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   const fitButton = button('Fit drawing', 'fit', () => board.view.fit());
   zoom.append(percentage, fitButton, undo, redo);
   footerRight.append(zoom);
-  if (options.pages === false) footer.append(footerRight);
-  else footer.append(pagesBar, footerRight);
+  if (showPages) footer.append(pagesBar, footerRight);
+  else footer.append(footerRight);
   ui.append(footer);
   function renamePage(id: string, name: string) {
     if (board.readonly) return;
@@ -1094,6 +1109,89 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       actions.querySelectorAll('button').forEach((action) => (action.disabled = true));
     d.append(actions);
   }
+  function openChrome() {
+    const panel = popover(chromeButton, 'Board controls');
+    if (!panel) return;
+    panel.classList.add('ad-chrome-popover');
+    const history = el('div', 'ad-chrome-history');
+    const chromeUndo = button('Undo', 'undo', () => {
+      board.undo();
+      chromeUndo.disabled = !board.canUndo;
+      chromeRedo.disabled = !board.canRedo;
+    });
+    const chromeRedo = button('Redo', 'redo', () => {
+      board.redo();
+      chromeUndo.disabled = !board.canUndo;
+      chromeRedo.disabled = !board.canRedo;
+    });
+    chromeUndo.disabled = !board.canUndo;
+    chromeRedo.disabled = !board.canRedo;
+    history.append(chromeUndo, chromeRedo);
+    panel.append(history);
+    if (showPages) {
+      const section = el('section', 'ad-chrome-section');
+      section.append(el('p', 'ad-chrome-label', 'Pages'));
+      const list = el('div', 'ad-chrome-pages');
+      for (const page of board.read().pages) list.append(pageButton(page.id, page.name));
+      const add = button('Add page', 'plus', addPage, 'ad-tool-option');
+      add.innerHTML += '<span>Add page</span>';
+      add.disabled = board.readonly;
+      section.append(list, add);
+      panel.append(section);
+    }
+    const view = el('section', 'ad-chrome-section');
+    view.append(el('p', 'ad-chrome-label', 'View'));
+    const zoomRow = el('div', 'ad-zoom-controls');
+    const zoomLabel = textButton(
+      `${Math.round(board.view.zoom * 100)}%`,
+      () => {
+        board.view.zoom = 1;
+        zoomLabel.textContent = '100%';
+      },
+      'ad-zoom-value',
+    );
+    zoomLabel.setAttribute('aria-label', 'Reset zoom');
+    const syncZoom = () => {
+      zoomLabel.textContent = `${Math.round(board.view.zoom * 100)}%`;
+    };
+    zoomRow.append(
+      button('Zoom out', 'minus', () => {
+        board.view.zoom /= 1.2;
+        syncZoom();
+      }),
+      zoomLabel,
+      button('Zoom in', 'plus', () => {
+        board.view.zoom *= 1.2;
+        syncZoom();
+      }),
+      button('Fit drawing', 'fit', () => {
+        board.view.fit();
+        syncZoom();
+      }),
+    );
+    view.append(zoomRow);
+    panel.append(view);
+    if (formats.length) {
+      const exported = el('section', 'ad-chrome-section');
+      exported.append(el('p', 'ad-chrome-label', 'Export'));
+      for (const format of formats) {
+        const [label, glyph] = exportChoices[format];
+        const option = button(
+          label,
+          glyph,
+          () => {
+            closePopover();
+            saveExport(format);
+          },
+          'ad-tool-option',
+        );
+        option.innerHTML += `<span>${label}</span>`;
+        exported.append(option);
+      }
+      panel.append(exported);
+    }
+    showPopover(panel, chromeButton);
+  }
   function saveExport(format: UiExportFormat) {
     void board
       .export(format, {
@@ -1125,13 +1223,8 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     const panel = popover(exportButton, 'Export');
     if (!panel) return;
     panel.classList.add('ad-tool-options');
-    const choices: Record<UiExportFormat, [string, string]> = {
-      png: ['PNG Image', 'image'],
-      svg: ['SVG Image', 'image'],
-      json: ['AnnieDoc format', 'code'],
-    };
     for (const format of formats) {
-      const [label, glyph] = choices[format];
+      const [label, glyph] = exportChoices[format];
       const option = button(
         label,
         glyph,

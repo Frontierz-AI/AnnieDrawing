@@ -33,6 +33,7 @@ import { placeItem } from '../agent/place';
 import { queryDoc } from '../agent/query';
 import { describeDoc } from '../agent/describe';
 import { MEDIA_DATA_URL, normalizeHref, parseVideo } from './links';
+import { growAgentLabeledTree } from './textFit';
 interface Location {
   item: Item;
   list: Item[];
@@ -271,6 +272,11 @@ function sanitizeAgentItems(item: Item, sanitizeHTML?: DocOptions['sanitizeHTML'
   if (item.mount) delete item.mount;
   item.children?.forEach((child) => sanitizeAgentItems(child, sanitizeHTML));
 }
+/** Agent creates that omit route store elbow. Saved files that omit route stay straight. */
+function preferAgentElbow(item: Item): void {
+  if (item.kind === 'connector' && item.route === undefined) item.route = 'elbow';
+  item.children?.forEach(preferAgentElbow);
+}
 function perform(
   doc: AnnieDoc,
   raw: Op,
@@ -299,6 +305,10 @@ function perform(
     if (!page) throw new Error(`Page ${op.page ?? '(first)'} does not exist.`);
     if (parent && op.page && op.page !== parent.page.id)
       throw new Error('Parent and page must refer to the same page.');
+    if (origin.startsWith('agent:')) {
+      growAgentLabeledTree(item);
+      preferAgentElbow(item);
+    }
     if (op.place) {
       const gap =
         op.place.gap ?? (origin.startsWith('agent:') ? (options.agentPlaceGap ?? 32) : 32);
@@ -356,7 +366,25 @@ function perform(
       if (patch.children)
         patch.children.forEach((child) => sanitizeAgentItems(child, options.sanitizeHTML));
     }
-    at.list[at.index] = mergePatch(at.item, patch, ['style', 'text', 'data']);
+    const previous = at.item;
+    at.list[at.index] = mergePatch(previous, patch, ['style', 'text', 'data']);
+    if (
+      origin.startsWith('agent:') &&
+      (Object.hasOwn(incoming, 'text') || Object.hasOwn(incoming, 'children'))
+    ) {
+      growAgentLabeledTree(at.list[at.index]);
+      const next = at.list[at.index];
+      const undo = inverse[0];
+      if (next.w !== previous.w) {
+        patch.w = next.w;
+        if (undo.op === 'set') undo.patch = { ...undo.patch, w: previous.w };
+      }
+      if (next.h !== previous.h) {
+        patch.h = next.h;
+        if (undo.op === 'set') undo.patch = { ...undo.patch, h: previous.h };
+      }
+      if (Object.hasOwn(incoming, 'children')) patch.children = next.children;
+    }
     if (oldLookup) {
       const newDescendants = new Set(
         flattenItems(at.list[at.index].children ?? []).map((item) => item.id),

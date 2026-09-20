@@ -1,5 +1,5 @@
 /** Bump when a built-in kind is added or its create/read contract changes. */
-export const CATALOG_VERSION = 1;
+export const CATALOG_VERSION = 2;
 
 export interface KindCatalogEntry {
   kind: string;
@@ -18,9 +18,27 @@ export interface KindCatalogSnapshot {
 
 /** Built-in kinds. `since` is the catalog version that introduced or last changed the kind. */
 export const KIND_CATALOG: readonly KindCatalogEntry[] = [
-  { kind: 'rect', since: 1, w: 180, h: 110, note: 'Rounded rectangle. Nodes, cards, boxes.' },
-  { kind: 'ellipse', since: 1, w: 180, h: 110, note: 'Ellipse or circle.' },
-  { kind: 'diamond', since: 1, w: 160, h: 140, note: 'Diamond. Decisions or highlights.' },
+  {
+    kind: 'rect',
+    since: 2,
+    w: 180,
+    h: 110,
+    note: 'Rounded rectangle. Nodes, cards, boxes. Agent creates grow so text fits.',
+  },
+  {
+    kind: 'ellipse',
+    since: 2,
+    w: 180,
+    h: 110,
+    note: 'Ellipse or circle. Agent creates grow so text fits.',
+  },
+  {
+    kind: 'diamond',
+    since: 2,
+    w: 160,
+    h: 140,
+    note: 'Diamond. Decisions or highlights. Agent creates grow so text fits.',
+  },
   {
     kind: 'line',
     since: 1,
@@ -30,10 +48,10 @@ export const KIND_CATALOG: readonly KindCatalogEntry[] = [
   },
   {
     kind: 'connector',
-    since: 1,
+    since: 2,
     w: 0,
     h: 0,
-    note: 'Bound or free link. Requires from and to. Compact JSON omits x/y/w/h.',
+    note: 'Bound or free link. Requires from and to. Agent creates that omit route store elbow. Compact JSON omits x/y/w/h.',
   },
   {
     kind: 'path',
@@ -44,17 +62,17 @@ export const KIND_CATALOG: readonly KindCatalogEntry[] = [
   },
   {
     kind: 'text',
-    since: 1,
-    w: 200,
+    since: 2,
+    w: 600,
     h: 48,
-    note: 'Plain text. Browser autoWidth measures and stores width and height.',
+    note: 'Plain text. Default width 600. Agent creates grow so a title fits. Browser autoWidth measures.',
   },
   {
     kind: 'note',
-    since: 1,
+    since: 2,
     w: 200,
     h: 180,
-    note: 'Sticky note. Default moss fill and 12px corner.',
+    note: 'Sticky note. Default moss fill and 12px corner. Agent creates grow so text fits.',
   },
   {
     kind: 'image',

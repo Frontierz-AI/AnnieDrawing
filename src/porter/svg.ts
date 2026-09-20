@@ -1,6 +1,7 @@
 import { CARD_CORNER } from '../core/defaults';
 import { allItems } from '../core/item';
 import { hostnameOf, normalizeHref, parseVideo } from '../core/links';
+import { wrapPlainText } from '../core/textFit';
 import type { AnnieDoc, Box, ExportOptions, Item } from '../core/types';
 import { boundsOf, flattenItems, routeConnector } from '../geo/index';
 import { createKindRegistry, type KindDef } from '../kinds/registry';
@@ -22,33 +23,7 @@ export interface SVGExportOptions extends ExportOptions {
   kinds?: KindDef[];
 }
 function wrapText(value: string, width: number, size: number): string[] {
-  const maxChars = Math.max(1, Math.floor(width / (size * 0.53)));
-  const result: string[] = [];
-  for (const paragraph of value.split('\n')) {
-    if (!paragraph) {
-      result.push('');
-      continue;
-    }
-    let line = '';
-    for (const word of paragraph.split(/\s+/)) {
-      if (line && line.length + word.length + 1 > maxChars) {
-        result.push(line);
-        line = '';
-      }
-      let remaining = word;
-      while (remaining.length > maxChars) {
-        if (line) {
-          result.push(line);
-          line = '';
-        }
-        result.push(remaining.slice(0, maxChars));
-        remaining = remaining.slice(maxChars);
-      }
-      line += `${line ? ' ' : ''}${remaining}`;
-    }
-    result.push(line);
-  }
-  return result;
+  return wrapPlainText(value, width, size, 0.53);
 }
 function textMarkup(
   item: Item,

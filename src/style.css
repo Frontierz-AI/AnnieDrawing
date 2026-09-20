@@ -136,6 +136,13 @@
 .ad-header-actions {
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+.ad-icon-button.ad-chrome {
+  display: none;
+  background: var(--ad-ui-bg);
+  border: 1px solid var(--ad-ui-border);
+  box-shadow: var(--ad-shadow);
 }
 .ad-button {
   border: 1px solid var(--ad-ui-border);
@@ -660,6 +667,50 @@
   width: 20px;
   height: 20px;
 }
+.ad-chrome-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(280px, calc(100cqi - 24px));
+  padding: 12px;
+}
+.ad-chrome-section {
+  min-width: 0;
+}
+.ad-chrome-label {
+  margin: 0 0 6px;
+  padding: 0 4px;
+  color: var(--ad-ui-muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.ad-chrome-pages {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 28dvh;
+  overflow: auto;
+}
+.ad-chrome-history,
+.ad-chrome-popover .ad-zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--ad-ui-surface);
+  border-radius: 14px;
+}
+.ad-chrome-history {
+  justify-content: space-between;
+}
+.ad-chrome-popover .ad-zoom-controls {
+  justify-content: space-between;
+}
+.ad-chrome-popover .ad-zoom-value {
+  flex: 1;
+  width: auto;
+}
 .ad-menu-separator {
   height: 1px;
   margin: 5px 10px;
@@ -747,11 +798,37 @@
   display: none !important;
 }
 
+/* Short desktop: pull the sidebar in. Bars get the tight tools; no-bars uses a middle size. */
 @container board ((max-height: 640px) and (min-width: 1024px)) {
   .ad-ui {
     --ad-inset: 12px;
+  }
+  .ad-ui:not(.ad-ui-bars) {
+    --ad-tool: 41px;
+    --ad-tool-pad: 5px;
+    --ad-tool-gap: 2px;
+    --ad-tool-icon: 21px;
+    --ad-ctrl: 35px;
+    --ad-ctrl-icon: 18px;
+    --ad-panel-pad: 12px;
+    --ad-dock-clearance: 148px;
+  }
+  .ad-ui:not(.ad-ui-bars) .ad-icon-button {
+    width: var(--ad-ctrl);
+    height: var(--ad-ctrl);
+    padding: 5px;
+  }
+  .ad-ui:not(.ad-ui-bars) .ad-toolbar .ad-icon-button {
+    width: var(--ad-tool);
+    height: var(--ad-tool);
+  }
+  .ad-ui:not(.ad-ui-bars) .ad-toolbar-divider {
+    width: 21px;
+    margin: 2px 0;
+  }
+  .ad-ui-bars {
     --ad-edge: 10px;
-    --ad-tool: 34px;
+    --ad-tool: 37px;
     --ad-tool-pad: 4px;
     --ad-tool-gap: 1px;
     --ad-tool-icon: 18px;
@@ -760,51 +837,84 @@
     --ad-panel-pad: 10px;
     --ad-dock-clearance: 120px;
   }
-  .ad-header {
+  .ad-ui-bars .ad-header {
     gap: 10px;
   }
-  .ad-brand {
+  .ad-ui-bars .ad-brand {
     padding: 4px 8px 4px 4px;
     gap: 6px;
   }
-  .ad-brand-mark {
+  .ad-ui-bars .ad-brand-mark {
     width: 26px;
     height: 26px;
     border-radius: 9px;
   }
-  .ad-brand-mark svg {
+  .ad-ui-bars .ad-brand-mark svg {
     width: 22px;
     height: 22px;
   }
-  .ad-brand-name {
+  .ad-ui-bars .ad-brand-name {
     font-size: 15px;
   }
-  .ad-header-actions .ad-button {
+  .ad-ui-bars .ad-header-actions .ad-button {
     height: var(--ad-ctrl);
     padding: 0 10px;
   }
-  .ad-button svg {
+  .ad-ui-bars .ad-button svg {
     width: var(--ad-ctrl-icon);
     height: var(--ad-ctrl-icon);
   }
-  .ad-icon-button {
+  .ad-ui-bars .ad-icon-button {
     width: var(--ad-ctrl);
     height: var(--ad-ctrl);
     padding: 4px;
   }
-  .ad-toolbar .ad-icon-button {
+  .ad-ui-bars .ad-toolbar .ad-icon-button {
     width: var(--ad-tool);
     height: var(--ad-tool);
   }
-  .ad-zoom,
-  .ad-pages {
+  .ad-ui-bars .ad-zoom,
+  .ad-ui-bars .ad-pages {
     padding: 3px;
   }
-  .ad-toolbar-divider {
+  .ad-ui-bars .ad-toolbar-divider {
     width: 18px;
     margin: 1px 0;
   }
-  .ad-tool-corner {
+  .ad-ui-bars .ad-tool-corner {
+    right: 5px;
+    bottom: 5px;
+  }
+}
+@container board ((max-height: 500px) and (min-width: 1024px)) {
+  .ad-ui:not(.ad-ui-bars) {
+    --ad-edge: 10px;
+    --ad-tool: 37px;
+    --ad-tool-pad: 4px;
+    --ad-tool-gap: 1px;
+    --ad-tool-icon: 18px;
+    --ad-ctrl: 32px;
+    --ad-ctrl-icon: 16px;
+    --ad-panel-pad: 10px;
+    --ad-dock-clearance: 120px;
+  }
+  .ad-ui:not(.ad-ui-bars) .ad-icon-button {
+    width: var(--ad-ctrl);
+    height: var(--ad-ctrl);
+    padding: 4px;
+  }
+  .ad-ui:not(.ad-ui-bars) .ad-toolbar .ad-icon-button {
+    width: var(--ad-tool);
+    height: var(--ad-tool);
+  }
+  .ad-ui:not(.ad-ui-bars) .ad-zoom {
+    padding: 3px;
+  }
+  .ad-ui:not(.ad-ui-bars) .ad-toolbar-divider {
+    width: 18px;
+    margin: 1px 0;
+  }
+  .ad-ui:not(.ad-ui-bars) .ad-tool-corner {
     right: 5px;
     bottom: 5px;
   }
@@ -827,10 +937,10 @@
   .ad-ui {
     --ad-inset: 12px;
     --ad-edge: 12px;
-    --ad-tool: 48px;
-    --ad-tool-pad: 5px;
+    --ad-tool: 44px;
+    --ad-tool-pad: 4px;
     --ad-tool-gap: 0px;
-    --ad-tool-icon: 24px;
+    --ad-tool-icon: 21px;
     --ad-ctrl: 44px;
     --ad-ctrl-icon: 20px;
     --ad-panel-pad: 12px;
@@ -857,6 +967,16 @@
     font-size: 14px;
     border-radius: 13px;
   }
+  .ad-icon-button.ad-chrome {
+    display: inline-flex;
+    width: 48px;
+    height: 48px;
+    border-radius: 13px;
+  }
+  .ad-header-export,
+  .ad-footer {
+    display: none;
+  }
   .ad-toolbar {
     top: auto;
     bottom: max(12px, env(safe-area-inset-bottom, 0px));
@@ -880,17 +1000,12 @@
   }
   .ad-ui > .ad-style-dock {
     top: calc(var(--ad-edge) + 56px);
-    bottom: calc(72px + var(--ad-ctrl) + 8px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--ad-tool) + var(--ad-tool-pad) * 2 + 24px + env(safe-area-inset-bottom, 0px));
     transform: none;
     max-height: none;
   }
   .ad-style-panel {
     max-height: 100%;
-  }
-  .ad-footer {
-    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
-    gap: 8px;
-    flex-wrap: wrap;
   }
   .ad-zoom {
     padding: 3px;
@@ -978,19 +1093,19 @@
     --ad-dock-clearance: 170px;
   }
   .ad-brand,
-  .ad-header-actions .ad-button {
+  .ad-header-actions .ad-button,
+  .ad-icon-button.ad-chrome {
     height: 40px;
   }
-  .ad-footer {
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
-    flex-wrap: nowrap;
+  .ad-icon-button.ad-chrome {
+    width: 40px;
   }
   .ad-zoom-value {
     width: 44px;
   }
   .ad-ui > .ad-style-dock {
     top: calc(var(--ad-edge) + 48px);
-    bottom: calc(60px + var(--ad-ctrl) + 8px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--ad-tool) + var(--ad-tool-pad) * 2 + 16px + env(safe-area-inset-bottom, 0px));
   }
   .ad-segment {
     height: 36px;
@@ -1042,6 +1157,8 @@
 }
 @media (pointer: coarse) {
   .ad-toolbar .ad-icon-button::after,
+  .ad-chrome::after,
+  .ad-chrome-popover .ad-icon-button::after,
   .ad-zoom .ad-icon-button::after,
   .ad-pages .ad-icon-button::after,
   .ad-selection-actions .ad-icon-button::after {

@@ -2,7 +2,7 @@
 
 Operate a live or headless board through JavaScript. This is the full AI reference for creating items and reading what is on the board. It does not cover installing, running, or changing the library.
 
-Kind catalog: 1
+Kind catalog: 2
 
 `kindsSince(since?)` lists built-in kinds added or last changed after that catalog version. Omit `since`, or pass `0`, to list every built-in kind. Remember the returned `version` and pass it next time you want only what is new.
 
@@ -32,12 +32,12 @@ const board = createDoc();
 
 ```js
 board.kindsSince(); // every built-in kind; same as board.kindsSince(0)
-board.kindsSince(1); // kinds added or changed after catalog 1 (empty today)
+board.kindsSince(1); // kinds added or changed after catalog 1
 ```
 
 Also exported as `kindsSince` and `CATALOG_VERSION` from `anniedrawing`, `anniedrawing/core`, and `anniedrawing/agent`.
 
-Each entry is `{ kind, since, w, h, note }`. `w` and `h` are the default size when those fields are omitted on `add`. Custom host kinds do not appear here.
+Each entry is `{ kind, since, w, h, note }`. `w` and `h` are the default size when those fields are omitted on `add`. An `agent:` create can store a larger box so `text` fits. An `agent:` connector that omits `route` stores `elbow`. Custom host kinds do not appear here.
 
 The catalog version is independent of the `.annie` document format version (`2`) and the package version.
 
@@ -93,7 +93,7 @@ Operations: `add`, `set`, `remove`, `order`, `reparent`, `page.add`, `page.set`,
 
 `set` merges `style`, `text`, and `data` one level deep. Other fields are replaced. Do not change `id` with `set`. `order.to` is `front`, `back`, `forward`, `backward`, or a numeric index.
 
-`add` accepts `page`, `parent`, `index`, and `place`. `place` needs exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`. Default `gap` is 32. Default `align` is `middle`. `inside` requires a `group`. Kind aliases: `rectangle` stores `rect`; `arrow` stores `connector` with an end arrow. `from` / `to` accept `{ item, side }`, `{ x, y }`, or a string item id.
+`add` accepts `page`, `parent`, `index`, and `place`. `place` needs exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`. Default `gap` is 32. Default `align` is `middle`. `inside` requires a `group`. `rightOf` / `leftOf` / `above` / `below` slide further along that axis when the first slot is occupied. Kind aliases: `rectangle` stores `rect`; `arrow` stores `connector` with an end arrow. `from` / `to` accept `{ item, side }`, `{ x, y }`, or a string item id. An `agent:` connector that omits `route` stores `elbow`. Elbows go around intervening boxes.
 
 `OVERLAPS_EXISTING` and `ID_REMAPPED` are warnings. The batch still committed. An `agent:` create that reuses an id is stored as `id_1`, then `_2`. Same-batch `place`, parent, and connector refs follow the stored id. `get` with the id you sent returns the older item. User and API origins still reject duplicates.
 
@@ -179,7 +179,7 @@ Named colors: `ink`, `slate`, `coral`, `amber`, `moss`, `teal`, `sky`, `violet`,
 
 ## Built-in kinds
 
-Omit `w` / `h` to use the default size in the catalog.
+Omit `w` / `h` to use the default size in the catalog. An `agent:` create or text patch on `rect`, `ellipse`, `diamond`, `note`, or `text` grows the stored size so the label fits. Standalone `text` defaults to 600 wide. A larger explicit size is kept.
 
 ### `rect`
 
@@ -213,7 +213,7 @@ Omit `w` / `h` to use the default size in the catalog.
 
 ### `connector`
 
-`from` / `to` are `{ item, side?, anchor? }`, `{ x, y }`, or a string item id stored as `{ item, side: 'auto' }`. `side` is `auto` / `top` / `right` / `bottom` / `left`. `route` is `straight` / `elbow` / `curve`. Heads: `none` / `arrow` / `dot`. Optional `waypoints` are page-space `[x, y]`. Bound ends detach to their last point when the target disappears. `kind: 'arrow'` stores `connector` with an end arrow.
+`from` / `to` are `{ item, side?, anchor? }`, `{ x, y }`, or a string item id stored as `{ item, side: 'auto' }`. `side` is `auto` / `top` / `right` / `bottom` / `left`. `route` is `straight` / `elbow` / `curve`. Heads: `none` / `arrow` / `dot`. Optional `waypoints` are page-space `[x, y]`. An `agent:` create that omits `route` stores `elbow`. Elbows pick a channel that misses intervening boxes. Bound ends detach to their last point when the target disappears. `kind: 'arrow'` stores `connector` with an end arrow.
 
 ```js
 { op: 'add', item: { id: 'i_flow', kind: 'connector',
@@ -233,11 +233,11 @@ Freehand points may include pressure: `[x, y, pressure]`. `closed: true` closes 
 ### `text`
 
 ```js
-{ op: 'add', item: { id: 'i_title', kind: 'text', x: 80, y: 40, w: 280, h: 48,
+{ op: 'add', item: { id: 'i_title', kind: 'text', x: 80, y: 40,
   text: { value: 'Architecture', size: 'l', align: 'start' } } }
 ```
 
-A browser `text` item with `autoWidth: true` stores measured width and height. Headless documents keep the stored size.
+Omitted `w` is 600. A browser `text` item with `autoWidth: true` (set for `agent:` creates) stores measured width and height. Headless documents keep the stored or grown size.
 
 ### `note`
 
@@ -327,14 +327,14 @@ PNG `labels: true` draws item IDs for vision models and defaults to a 32-color i
 
 Optional wrapper around the same APIs. Import `toolDefs` and `runTool` from `anniedrawing/agent`. Map `name`, `description`, and `inputSchema` into the provider envelope. Do not change the operations schema.
 
-| Tool             | Use                                                                                                            |
-| ---------------- | -------------------------------------------------------------------------------------------------------------- |
-| `board_describe` | Text with IDs. Start here.                                                                                     |
-| `board_read`     | Deep JSON copy. Headless accepts only `scope: 'doc'`.                                                          |
-| `board_query`    | Same filters as `query`.                                                                                       |
-| `board_apply`    | Atomic ops. `runTool` forces an `agent:` origin (`agent:tool` if omitted). Duplicate create ids become `id_1`. |
-| `board_snapshot` | Browser PNG. Defaults: viewport, scale 2, labels on, 32 colors, 240 KiB.                                       |
-| `board_view_fit` | Browser camera. Optional `ids`.                                                                                |
+| Tool             | Use                                                                                                                                                                           |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `board_describe` | Text with IDs. Start here.                                                                                                                                                    |
+| `board_read`     | Deep JSON copy. Headless accepts only `scope: 'doc'`.                                                                                                                         |
+| `board_query`    | Same filters as `query`.                                                                                                                                                      |
+| `board_apply`    | Atomic ops. Grows labels, slides directional place, omitted route → elbow. `runTool` forces an `agent:` origin (`agent:tool` if omitted). Duplicate create ids become `id_1`. |
+| `board_snapshot` | Browser PNG. Defaults: viewport, scale 2, labels on, 32 colors, 240 KiB.                                                                                                      |
+| `board_view_fit` | Browser camera. Optional `ids`.                                                                                                                                               |
 
 `board_snapshot` and `board_view_fit` need a live board.
 
