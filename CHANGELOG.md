@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2
+
+Public npm metadata now points at https://anniedrawing.com and https://github.com/Frontierz-AI/AnnieDrawing. The hosted demo is a static Laravel Forge site. This tarball includes the unfurl host checks described under 0.3.1.
+
+The package lockfile matches `0.3.2`. The private MCP example stays `0.1.0`.
+
 ## 0.3.1
 
 Indexed PNG for vision: `colors` (2–256) writes a palette file. `board_snapshot` and labeled `export('png', { labels: true })` default to 32 colors and a 240 KiB budget. Unlabeled Export PNG stays truecolor. The AnnieDrawing menu links to GitHub and shows the package version. The hosted demo is https://anniedrawing.com.
