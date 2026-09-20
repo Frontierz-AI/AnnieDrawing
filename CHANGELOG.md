@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.3
+
+Browser `getPointer()` exposes the human cursor in page coordinates, including whether it is still inside the drawing area, its age, and the item underneath. Editor controls do not count as canvas positions. Pointer state stays outside saved documents.
+
+`apply` and `board_apply` accept `expectedRevision` to reject a stale batch atomically with `STALE_REVISION`. Hosts can re-read instead of overwriting an intervening edit.
+
+The package lockfile matches `0.3.3`. The private MCP example stays `0.1.0`.
+
 ## 0.3.2
 
 Public npm metadata now points at https://anniedrawing.com and https://github.com/Frontierz-AI/AnnieDrawing. The hosted demo is a static Laravel Forge site. This tarball includes the unfurl host checks described under 0.3.1.

@@ -101,6 +101,8 @@ stop();
 
 Reads scoped to `page`, `selection`, or `viewport` include only media referenced by the returned items. Whole-document reads keep the complete media table. Scoped exports follow the same boundary, so exporting a selection does not include unrelated embedded images.
 
+`board.getPointer()` returns a copy of the last human pointer: `{ x, y, pageId, inside, pointerType, ageMs, itemId }`, or `null` before a pointer is observed, after a page switch, or after destruction. Coordinates are page-space. While `inside` is true they follow pan and zoom; `itemId` is the topmost hittable item or `null`. Editor controls are excluded. Leaving, blur, hidden tabs, cancel, or touch release sets `inside: false` and preserves the last point. `ageMs` measures time since the last pointer event, not camera changes. Treat an outside point as historical; ask the user to point again when ambiguous. Pointer state is never serialized.
+
 ## apply
 
 ```ts
@@ -115,6 +117,8 @@ const result = board.apply(ops, {
 });
 // { ok, created: string[], errors: [...], warnings: [...], skipped?: [...] }
 ```
+
+Pass `expectedRevision` from the read that informed an edit to `apply` or `board_apply`. A mismatch returns `STALE_REVISION` without applying any operation, including in lenient or dry-run mode. Read again before retrying. This guards one session only: `load()` and `clear()` reset revisions.
 
 Supported operations: `add`, `set`, `remove`, `order`, `reparent`, `page.add`, `page.set`, `page.remove`, `meta.set`, `media.set`, and `media.remove`. A batch is all-or-nothing unless `lenient: true`. Then failed operations go to `skipped` and the rest commit as one transaction. If nothing commits, `ok` is false and the document is unchanged. `set` merges `style`, `text`, and `data` one level deep. Do not change an item's ID. Add operations may provide IDs so later operations in the same batch can reference the new items. `add` also accepts `page`, `parent`, and `index`. `page.add` accepts `index`. `order.to` is `front`, `back`, `forward`, `backward`, or a numeric index.
 

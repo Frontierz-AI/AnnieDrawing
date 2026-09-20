@@ -281,3 +281,108 @@ test('createFellowBoard applies the host embed preset', async ({ page }) => {
     gap: 220,
   });
 });
+
+test('human pointer uses current page coordinates, reports the item, and returns copies', async ({
+  page,
+}) => {
+  await page.goto('/?blank');
+  await page.waitForFunction(() => !!window.__anniedrawing?.[0]);
+  await page.mouse.move(8, 8);
+  expect(
+    await page.evaluate(async () => {
+      for (const board of [...(window.__anniedrawing ?? [])]) board.destroy();
+      document.body.innerHTML =
+        '<main id="embed-fixture" style="position:fixed;right:0;bottom:0;width:64px;height:64px"></main>';
+      const { createBoard } = await import('/src/board.ts' as string);
+      createBoard(document.querySelector('#embed-fixture')!, {
+        exposeGlobal: true,
+        ui: false,
+        agentPresence: false,
+      });
+      return window.__anniedrawing![0].getPointer();
+    }),
+  ).toBeNull();
+  await mount(page, { ui: false, agentPresence: false });
+  await page.evaluate(async () => {
+    const board = window.__anniedrawing![0];
+    await board.ready;
+    board.view.zoom = 2;
+    board.view.center = { x: 100, y: 200 };
+    board.apply([
+      {
+        op: 'add',
+        item: {
+          id: 'moon',
+          kind: 'ellipse',
+          x: 60,
+          y: 160,
+          w: 80,
+          h: 80,
+          style: { fill: 'coral' },
+        },
+      },
+    ]);
+  });
+  const size = page.viewportSize()!;
+  await page.mouse.move(size.width / 2, size.height / 2);
+  const read = () => page.evaluate(() => window.__anniedrawing![0].getPointer());
+  expect(await read()).toMatchObject({
+    x: 100,
+    y: 200,
+    inside: true,
+    pointerType: 'mouse',
+    itemId: 'moon',
+  });
+  await page.evaluate(() => {
+    const board = window.__anniedrawing![0];
+    board.getPointer()!.x = -999;
+    board.view.center = { x: 300, y: 400 };
+  });
+  expect(await read()).toMatchObject({ x: 300, y: 400, inside: true, itemId: null });
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.evaluate(() => {
+    window.__anniedrawing![0].view.center = { x: 500, y: 600 };
+  });
+  expect(await read()).toMatchObject({ x: 300, y: 400, inside: false, itemId: null });
+});
+
+test('pointer excludes editor controls and becomes historical after touch or cancel', async ({
+  page,
+}) => {
+  await mount(page);
+  const root = page.locator('[data-ad-board]');
+  const read = () => page.evaluate(() => window.__anniedrawing![0].getPointer());
+  await root.dispatchEvent('pointerdown', {
+    clientX: 400,
+    clientY: 300,
+    pointerId: 7,
+    pointerType: 'touch',
+  });
+  expect(await read()).toMatchObject({ inside: true, pointerType: 'touch' });
+  await root.dispatchEvent('pointerup', {
+    clientX: 400,
+    clientY: 300,
+    pointerId: 7,
+    pointerType: 'touch',
+  });
+  expect(await read()).toMatchObject({ inside: false, pointerType: 'touch' });
+  await page.mouse.move(400, 300);
+  expect(await read()).toMatchObject({ inside: true });
+  await page.getByRole('button', { name: 'Select', exact: true }).hover();
+  expect(await read()).toMatchObject({ inside: false });
+  await page.mouse.move(400, 300);
+  await root.dispatchEvent('pointercancel', { pointerId: 1, pointerType: 'mouse' });
+  expect(await read()).toMatchObject({ inside: false });
+  await page.evaluate(() => {
+    const board = window.__anniedrawing![0];
+    board.apply([{ op: 'page.add', page: { id: 'next', name: 'Next' } }]);
+    board.setPage('next');
+  });
+  expect(await read()).toBeNull();
+  const destroyed = await page.evaluate(() => {
+    const board = window.__anniedrawing![0];
+    board.destroy();
+    return board.getPointer();
+  });
+  expect(destroyed).toBeNull();
+});

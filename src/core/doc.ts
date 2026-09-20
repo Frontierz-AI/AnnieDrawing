@@ -694,6 +694,18 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
         result.errors.push({ index: 0, code: 'READONLY', message: 'This document is read-only.' });
         return result;
       }
+      if (
+        applyOptions.expectedRevision !== undefined &&
+        (!Number.isSafeInteger(applyOptions.expectedRevision) ||
+          applyOptions.expectedRevision !== revision)
+      ) {
+        result.errors.push({
+          index: 0,
+          code: 'STALE_REVISION',
+          message: `Read the board again before editing. Expected revision ${applyOptions.expectedRevision}; current revision is ${revision}.`,
+        });
+        return result;
+      }
       const batchLimit = origin === 'user' ? LIMITS.maxItems : LIMITS.maxBatch;
       if (!Array.isArray(ops) || ops.length > batchLimit) {
         result.errors.push({

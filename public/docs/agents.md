@@ -37,6 +37,10 @@ Filters combine with AND. `kind` may be one string or an array. `text` matches `
 
 `board.isLocked(id)` reports interactive protection, including locks on ancestors and descendants. Locked items stay selectable. Their editing controls stay disabled until unlocked. Programmatic and headless operations can still edit them. Leave those items alone unless the requested change includes them. `board.updateSelection({ locked: false })` unlocks the selected items and any locks that affect their group hierarchy.
 
+`board.getPointer()` returns a copy of the last human pointer: `{ x, y, pageId, inside, pointerType, ageMs, itemId }`, or `null` before a pointer is observed, after a page switch, or after destruction. Coordinates are page-space. While `inside` is true they follow pan and zoom; `itemId` is the topmost hittable item or `null`. Editor controls are excluded. Leaving, blur, hidden tabs, cancel, or touch release sets `inside: false` and preserves the last point. `ageMs` measures time since the last pointer event, not camera changes. Treat an outside point as historical; ask the user to point again when ambiguous. Pointer state is never serialized.
+
+Pass `expectedRevision` from the read that informed an edit to `apply` or `board_apply`. A mismatch returns `STALE_REVISION` without applying any operation, including in lenient or dry-run mode. Read again before retrying. This guards one session only: `load()` and `clear()` reset revisions.
+
 ## Apply a batch
 
 ```js

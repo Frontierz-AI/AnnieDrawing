@@ -1,7 +1,20 @@
 import { createBoard, type BoardOptions } from './board';
-import type { AgentPresenceOptions, ApplyOptions, ApplyResult, ChangeLog } from './core/types';
+import type {
+  AgentPresenceOptions,
+  ApplyOptions,
+  ApplyResult,
+  BoardPointer,
+  ChangeLog,
+} from './core/types';
 
-export type { AgentPresenceOptions, ApplyOptions, ApplyResult, BoardOptions, ChangeLog };
+export type {
+  AgentPresenceOptions,
+  ApplyOptions,
+  ApplyResult,
+  BoardOptions,
+  BoardPointer,
+  ChangeLog,
+};
 
 export interface FellowBoardOptions extends BoardOptions {
   fellowName?: string;

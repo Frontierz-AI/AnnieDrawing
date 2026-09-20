@@ -4,6 +4,16 @@ export type Point = {
   x: number;
   y: number;
 };
+/** Last observed human pointer. Coordinates are page-space; never serialized. */
+export interface BoardPointer {
+  x: number;
+  y: number;
+  pageId: string;
+  inside: boolean;
+  pointerType: string;
+  ageMs: number;
+  itemId: string | null;
+}
 export type Box = Point & {
   w: number;
   h: number;
@@ -191,6 +201,8 @@ export type Op =
       id: string;
     };
 export interface ApplyOptions {
+  /** Reject the whole batch if the document changed since this session revision. */
+  expectedRevision?: number;
   /** Provenance, not auth. Default in createDoc is `api`. Non-`user` origins sanitize HTML and use LIMITS.maxBatch. */
   origin?: string;
   label?: string;

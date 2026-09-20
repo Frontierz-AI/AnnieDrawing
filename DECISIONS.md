@@ -105,3 +105,9 @@ Portable SVG and PNG cannot keep a live player or a working Open control. Export
 ## 2026-09-19: Publish-facing library surface
 
 Package entry points export the documented API, not every helper in a folder. Host page chrome (`html`, `body`, `#app`) belongs in the demo stylesheet; `anniedrawing/style.css` styles the editor host only. Draft merges, copies, translation, and connector detach share one implementation. Comments mark non-obvious contracts. Tests cover invariants, not restated implementation.
+
+## 2026-09-20: Human pointing and revision-checked edits
+
+Expose pointing through the browser board as transient page-space state, separate from the animated agent cursor and document JSON. Report inside/outside and age instead of guessing that a previous pointer is still current. Hosts decide whether a historical point answers “here.”
+
+Put optional optimistic concurrency in the shared `apply` boundary, not in each host adapter. `expectedRevision` is checked before any operation, including lenient batches and previews. This is a session guard, not a persistent document version; document replacement resets it.

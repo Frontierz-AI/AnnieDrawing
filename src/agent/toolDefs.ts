@@ -18,6 +18,7 @@ const ApplySchema = v.object({
   origin: v.optional(v.string()),
   label: v.optional(v.string()),
   dryRun: v.optional(v.boolean()),
+  expectedRevision: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
   agentName: v.optional(v.string()),
   reveal: v.optional(v.picklist(['none', 'fit'])),
 });
@@ -47,7 +48,7 @@ const descriptions: Record<keyof typeof toolSchemas, string> = {
   board_query:
     'Find items by kind, text, bounds, parent, metadata, or connected endpoint. Filters combine with AND.',
   board_apply:
-    'Atomically apply drawing operations. Supply IDs when later operations reference new items. Relative placement avoids coordinate guessing. Use dryRun to validate before editing.',
+    'Atomically apply drawing operations. Supply IDs when later operations reference new items. Relative placement avoids coordinate guessing. Use dryRun to validate before editing. Pass expectedRevision from a prior read to reject the whole batch with STALE_REVISION if the document changed.',
   board_snapshot:
     'Export a labeled PNG of a live browser board for vision models. Defaults to the viewport, item ID labels, a 32-color indexed PNG, and a 240 KiB budget. Requires a board with export support.',
   board_view_fit:
@@ -143,6 +144,7 @@ export async function runTool(
               : 'agent:tool',
           label: args.label,
           dryRun: args.dryRun,
+          expectedRevision: args.expectedRevision,
           reveal: args.reveal,
           ...(board.agentName ? {} : { agentName: args.agentName }),
         } as ApplyOptions,

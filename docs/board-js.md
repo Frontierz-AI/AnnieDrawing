@@ -68,6 +68,8 @@ board.toJSON(); // portable document
 
 DOM nodes may show `[data-ad-id]` and `[data-ad-kind]`. Do not treat DOM edits as a write API.
 
+`board.getPointer()` returns a copy of the last human pointer: `{ x, y, pageId, inside, pointerType, ageMs, itemId }`, or `null` before a pointer is observed, after a page switch, or after destruction. Coordinates are page-space. While `inside` is true they follow pan and zoom; `itemId` is the topmost hittable item or `null`. Editor controls are excluded. Leaving, blur, hidden tabs, cancel, or touch release sets `inside: false` and preserves the last point. `ageMs` measures time since the last pointer event, not camera changes. Treat an outside point as historical; ask the user to point again when ambiguous. Pointer state is never serialized.
+
 ## Write
 
 ```js
@@ -80,6 +82,8 @@ const result = board.apply(ops, {
 });
 // { ok, created, errors, warnings, skipped? }
 ```
+
+Pass `expectedRevision` from the read that informed an edit to `apply` or `board_apply`. A mismatch returns `STALE_REVISION` without applying any operation, including in lenient or dry-run mode. Read again before retrying. This guards one session only: `load()` and `clear()` reset revisions.
 
 A failed batch changes nothing. `dryRun: true` validates and does not write. It does not reserve IDs. Do not call `load()` to patch a few items. Do not set `merge: true` unless you intend to fold this commit into the previous history entry with the same origin and label. `lenient: true` is available on `apply` only.
 
