@@ -285,8 +285,24 @@ test('createFellowBoard applies the host embed preset', async ({ page }) => {
 test('human pointer uses current page coordinates, reports the item, and returns copies', async ({
   page,
 }) => {
+  await page.goto('/?blank');
+  await page.waitForFunction(() => !!window.__anniedrawing?.[0]);
+  await page.mouse.move(8, 8);
+  expect(
+    await page.evaluate(async () => {
+      for (const board of [...(window.__anniedrawing ?? [])]) board.destroy();
+      document.body.innerHTML =
+        '<main id="embed-fixture" style="position:fixed;right:0;bottom:0;width:64px;height:64px"></main>';
+      const { createBoard } = await import('/src/board.ts' as string);
+      createBoard(document.querySelector('#embed-fixture')!, {
+        exposeGlobal: true,
+        ui: false,
+        agentPresence: false,
+      });
+      return window.__anniedrawing![0].getPointer();
+    }),
+  ).toBeNull();
   await mount(page, { ui: false, agentPresence: false });
-  expect(await page.evaluate(() => window.__anniedrawing![0].getPointer())).toBeNull();
   await page.evaluate(async () => {
     const board = window.__anniedrawing![0];
     await board.ready;
