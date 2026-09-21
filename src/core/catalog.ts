@@ -1,5 +1,5 @@
 /** Bump when a built-in kind is added or its create/read contract changes. */
-export const CATALOG_VERSION = 2;
+export const CATALOG_VERSION = 3;
 
 export interface KindCatalogEntry {
   kind: string;
@@ -20,24 +20,24 @@ export interface KindCatalogSnapshot {
 export const KIND_CATALOG: readonly KindCatalogEntry[] = [
   {
     kind: 'rect',
-    since: 2,
+    since: 3,
     w: 180,
     h: 110,
-    note: 'Rounded rectangle. Nodes, cards, boxes. Agent creates grow so text fits.',
+    note: 'Rounded rectangle. Nodes, cards, boxes. Agent creates grow so text fits; omitted fill gets a varied tint.',
   },
   {
     kind: 'ellipse',
-    since: 2,
+    since: 3,
     w: 180,
     h: 110,
-    note: 'Ellipse or circle. Agent creates grow so text fits.',
+    note: 'Ellipse or circle. Agent creates grow so text fits; omitted fill gets a varied tint.',
   },
   {
     kind: 'diamond',
-    since: 2,
+    since: 3,
     w: 160,
     h: 140,
-    note: 'Diamond. Decisions or highlights. Agent creates grow so text fits.',
+    note: 'Diamond. Decisions or highlights. Agent creates grow so text fits; omitted fill gets a varied tint.',
   },
   {
     kind: 'line',
@@ -69,10 +69,10 @@ export const KIND_CATALOG: readonly KindCatalogEntry[] = [
   },
   {
     kind: 'note',
-    since: 2,
+    since: 3,
     w: 200,
     h: 180,
-    note: 'Sticky note. Default moss fill and 12px corner. Agent creates grow so text fits.',
+    note: 'Sticky note. User default is moss fill and a 12px corner. Agent creates grow so text fits; omitted fill gets a varied tint.',
   },
   {
     kind: 'image',

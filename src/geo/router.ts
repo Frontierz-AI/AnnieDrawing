@@ -1,6 +1,7 @@
 import type { Box, Endpoint, Item, Outline, Point } from '../core/types';
 import {
   boxFromPoints,
+  boxCorners,
   boundsOf,
   centerOf,
   flattenItems,
@@ -137,7 +138,7 @@ function listedItems(lookup?: ItemLookup): Item[] {
 
 function obstacleBox(item: Item): Box | undefined {
   if (item.hidden || SKIP_OBSTACLE.has(item.kind) || item.w <= 0 || item.h <= 0) return;
-  return { x: item.x, y: item.y, w: item.w, h: item.h };
+  return boxFromPoints(boxCorners(item, item.rotation));
 }
 
 function segmentHits(a: Point, b: Point, box: Box, pad: number): boolean {
@@ -176,44 +177,186 @@ function elbow(start: Point, end: Point, vertical: boolean, channel?: number): P
   return [start, { x, y: start.y }, { x, y: end.y }, end];
 }
 
-function boundIds(endpoint?: Endpoint): string | undefined {
-  return endpoint && 'item' in endpoint ? endpoint.item : undefined;
+function simplifyRoute(points: Point[]): Point[] {
+  const result: Point[] = [];
+  for (const point of points) {
+    const last = result.at(-1);
+    if (last?.x === point.x && last.y === point.y) continue;
+    const before = result.at(-2);
+    if (
+      before &&
+      last &&
+      ((before.x === last.x &&
+        last.x === point.x &&
+        (last.y - before.y) * (point.y - last.y) >= 0) ||
+        (before.y === last.y &&
+          last.y === point.y &&
+          (last.x - before.x) * (point.x - last.x) >= 0))
+    )
+      result.pop();
+    result.push(point);
+  }
+  return result;
 }
 
-/** Midpoint elbow, or a parallel channel that misses intervening boxes. */
-function clearElbow(
-  start: Point,
-  end: Point,
-  vertical: boolean,
-  item: Item,
-  lookup?: ItemLookup,
-): Point[] {
-  const skip = new Set(
-    [item.id, boundIds(item.from), boundIds(item.to)].filter((id): id is string => !!id),
-  );
-  const boxes = listedItems(lookup)
-    .filter((other) => !skip.has(other.id))
-    .map(obstacleBox)
-    .filter((box): box is Box => !!box);
-  const preferred = elbow(start, end, vertical);
-  if (!boxes.length || !pathHits(preferred, boxes)) return preferred;
-  const other = elbow(start, end, !vertical);
-  const hits = boxes.filter((box) => pathHits(preferred, [box]) || pathHits(other, [box]));
-  const candidates = [preferred, other];
-  for (const box of hits.slice(0, 8)) {
-    candidates.push(
-      elbow(start, end, true, box.y - CLEAR),
-      elbow(start, end, true, box.y + box.h + CLEAR),
-      elbow(start, end, false, box.x - CLEAR),
-      elbow(start, end, false, box.x + box.w + CLEAR),
-    );
+/** Shared endpoints are allowed; crossings and shared lengths consume a lane. */
+function pathCrossings(points: Point[], occupied: Point[][]): number {
+  let count = 0;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1],
+      b = points[i];
+    const dx = b.x - a.x,
+      dy = b.y - a.y;
+    for (const path of occupied)
+      for (let j = 1; j < path.length; j++) {
+        const c = path[j - 1],
+          d = path[j];
+        const ex = d.x - c.x,
+          ey = d.y - c.y;
+        const determinant = dx * ey - dy * ex;
+        if (Math.abs(determinant) < 1e-8) {
+          if (Math.abs((c.x - a.x) * dy - (c.y - a.y) * dx) > 1e-8) continue;
+          const axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+          if (
+            Math.min(Math.max(a[axis], b[axis]), Math.max(c[axis], d[axis])) >
+            Math.max(Math.min(a[axis], b[axis]), Math.min(c[axis], d[axis])) + 0.01
+          )
+            count++;
+          continue;
+        }
+        const t = ((c.x - a.x) * ey - (c.y - a.y) * ex) / determinant;
+        const u = ((c.x - a.x) * dy - (c.y - a.y) * dx) / determinant;
+        if (t < -1e-8 || t > 1 + 1e-8 || u < -1e-8 || u > 1 + 1e-8) continue;
+        const atEnd = (i === 1 && t < 1e-8) || (i === points.length - 1 && t > 1 - 1e-8);
+        const otherEnd = (j === 1 && u < 1e-8) || (j === path.length - 1 && u > 1 - 1e-8);
+        if (!(atEnd && otherEnd)) count++;
+      }
   }
-  return candidates.reduce((best, next) => {
-    const hitBest = pathHits(best, boxes),
-      hitNext = pathHits(next, boxes);
-    if (hitNext !== hitBest) return hitNext < hitBest ? next : best;
-    return pathLength(next) < pathLength(best) ? next : best;
+  return count;
+}
+
+interface Port {
+  point: Point;
+  exit: Point;
+}
+function ports(
+  endpoint: Endpoint | undefined,
+  other: Endpoint | undefined,
+  lookup: ItemLookup | undefined,
+  outline: OutlineResolver | undefined,
+): Port[] {
+  const item =
+    endpoint && 'item' in endpoint ? endpointItem(endpoint.item, lookup, outline) : undefined;
+  if (!item || !endpoint || !('item' in endpoint)) {
+    const point = resolveEndpoint(endpoint, other, lookup, outline);
+    return [{ point, exit: point }];
+  }
+  const center = centerOf(item);
+  const target = rotatePoint(endpointCenter(other, lookup, outline), center, -(item.rotation ?? 0));
+  const horizontal = target.x >= center.x ? 'right' : 'left';
+  const vertical = target.y >= center.y ? 'bottom' : 'top';
+  const sides =
+    Math.abs(target.x - center.x) / Math.max(1, item.w) >=
+    Math.abs(target.y - center.y) / Math.max(1, item.h)
+      ? ([
+          horizontal,
+          vertical,
+          vertical === 'top' ? 'bottom' : 'top',
+          horizontal === 'left' ? 'right' : 'left',
+        ] as const)
+      : ([
+          vertical,
+          horizontal,
+          horizontal === 'left' ? 'right' : 'left',
+          vertical === 'top' ? 'bottom' : 'top',
+        ] as const);
+  const endpoints =
+    endpoint.anchor || (endpoint.side && endpoint.side !== 'auto')
+      ? [endpoint]
+      : sides.map((side) => ({ ...endpoint, side }));
+  return endpoints.map((end) => {
+    const point = resolveEndpoint(end, other, lookup, outline);
+    const dx = point.x - center.x,
+      dy = point.y - center.y;
+    // Orthogonal exits remain outside the target even for rotated shapes.
+    const box = boxFromPoints(boxCorners(item, item.rotation));
+    const exit =
+      Math.abs(dx) / Math.max(1, box.w) >= Math.abs(dy) / Math.max(1, box.h)
+        ? { x: dx >= 0 ? box.x + box.w + CLEAR : box.x - CLEAR, y: point.y }
+        : { x: point.x, y: dy >= 0 ? box.y + box.h + CLEAR : box.y - CLEAR };
+    return { point, exit };
   });
+}
+
+/** Prefer clear lanes. Only automatic ports may move to another side of a node. */
+function clearElbow(
+  item: Item,
+  lookup: ItemLookup | undefined,
+  outline: OutlineResolver | undefined,
+  items: Item[],
+  occupied: Point[][],
+): Point[] {
+  const boxes = items.map(obstacleBox).filter((box): box is Box => !!box);
+  const fromId = item.from && 'item' in item.from ? item.from.item : undefined;
+  const toId = item.to && 'item' in item.to ? item.to.item : undefined;
+  const portBoxes = (id: string | undefined) =>
+    items
+      .filter((node) => node.id !== id)
+      .map(obstacleBox)
+      .filter((box): box is Box => !!box);
+  const fromBoxes = portBoxes(fromId),
+    toBoxes = portBoxes(toId);
+  const starts = ports(item.from, item.to, lookup, outline);
+  const ends = ports(item.to, item.from, lookup, outline);
+  let best: Point[] = [],
+    bestHits = Infinity,
+    bestCrossings = Infinity,
+    bestLength = Infinity;
+  const consider = (start: Port, end: Port, middle: Point[]) => {
+    const points = simplifyRoute([start.point, ...middle, end.point]);
+    // Port exits are checked against other nodes; their own target may be rotated.
+    const hits =
+      pathHits(middle, boxes, -0.01) +
+      pathHits([start.point, start.exit], fromBoxes, -0.01) +
+      pathHits([end.exit, end.point], toBoxes, -0.01);
+    if (hits > bestHits) return;
+    const crossings = pathCrossings(points, occupied);
+    const length = pathLength(points) + points.length * CLEAR;
+    if (
+      hits < bestHits ||
+      crossings < bestCrossings ||
+      (crossings === bestCrossings && length < bestLength)
+    ) {
+      best = points;
+      bestHits = hits;
+      bestCrossings = crossings;
+      bestLength = length;
+    }
+  };
+  for (const start of starts)
+    for (const end of ends) {
+      const vertical = start.exit.y !== start.point.y;
+      const preferred = elbow(start.exit, end.exit, vertical);
+      const alternate = elbow(start.exit, end.exit, !vertical);
+      consider(start, end, preferred);
+      consider(start, end, alternate);
+      // The common case needs no search beyond the facing ports.
+      if (start === starts[0] && end === ends[0] && bestHits === 0 && bestCrossings === 0)
+        return best;
+      const obstacles = [
+        ...boxes.filter((box) => pathHits(preferred, [box]) || pathHits(alternate, [box])),
+        ...occupied
+          .filter((path) => pathCrossings(preferred, [path]) || pathCrossings(alternate, [path]))
+          .map(boxFromPoints),
+      ];
+      for (const box of obstacles.slice(0, 12)) {
+        consider(start, end, elbow(start.exit, end.exit, true, box.y - CLEAR));
+        consider(start, end, elbow(start.exit, end.exit, true, box.y + box.h + CLEAR));
+        consider(start, end, elbow(start.exit, end.exit, false, box.x - CLEAR));
+        consider(start, end, elbow(start.exit, end.exit, false, box.x + box.w + CLEAR));
+      }
+    }
+  return best;
 }
 
 export interface ConnectorGeometry {
@@ -222,23 +365,19 @@ export interface ConnectorGeometry {
   midpoint: Point;
   bounds: Box;
 }
-export function routeConnector(
+function connectorGeometry(
   item: Item,
-  lookup?: ItemLookup,
-  outline?: OutlineResolver,
+  lookup: ItemLookup | undefined,
+  outline: OutlineResolver | undefined,
+  items: Item[] = [],
+  occupied: Point[][] = [],
 ): ConnectorGeometry {
   const start = resolveEndpoint(item.from, item.to, lookup, outline),
     end = resolveEndpoint(item.to, item.from, lookup, outline);
   let points = [start, ...(item.waypoints ?? []).map(([x, y]) => ({ x, y })), end],
     d = '';
   if (item.route === 'elbow' && !item.waypoints?.length) {
-    const from = item.from,
-      side = from && 'item' in from ? from.side : undefined;
-    const vertical =
-      side === 'top' ||
-      side === 'bottom' ||
-      ((!side || side === 'auto') && Math.abs(end.y - start.y) > Math.abs(end.x - start.x));
-    points = clearElbow(start, end, vertical, item, lookup);
+    points = clearElbow(item, lookup, outline, items, occupied);
   }
   if (item.route === 'curve' && !item.waypoints?.length) {
     const dx = end.x - start.x,
@@ -269,4 +408,23 @@ export function routeConnector(
     remaining -= lengths[i];
   }
   return { points, d, midpoint, bounds: boxFromPoints(points) };
+}
+
+export function routeConnector(
+  item: Item,
+  lookup?: ItemLookup,
+  outline?: OutlineResolver,
+): ConnectorGeometry {
+  if (item.route !== 'elbow' || item.waypoints?.length)
+    return connectorGeometry(item, lookup, outline);
+  const items = listedItems(lookup);
+  const map = typeof lookup === 'function' ? lookup : new Map(items.map((node) => [node.id, node]));
+  const occupied: Point[][] = [];
+  // Reserve lanes in document order, without recursive connector routing or stale caches.
+  for (const previous of items) {
+    if (previous.id === item.id) break;
+    if (previous.kind === 'connector' && !previous.hidden)
+      occupied.push(connectorGeometry(previous, map, outline, items, occupied).points);
+  }
+  return connectorGeometry(item, map, outline, items, occupied);
 }

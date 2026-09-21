@@ -263,6 +263,11 @@ export class Stage {
     }
     for (const id of [...dirty])
       for (const dependent of this.dependencies.get(id) ?? []) dirty.add(dependent);
+    // Automatic elbows also depend on other nodes and earlier connector lanes.
+    if (dirty.size)
+      for (const item of this.lookup.values())
+        if (item.kind === 'connector' && item.route === 'elbow' && !item.waypoints?.length)
+          dirty.add(item.id);
     for (const id of dirty) {
       const item = this.lookup.get(id),
         record = this.records.get(id);

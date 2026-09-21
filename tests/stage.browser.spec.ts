@@ -208,3 +208,33 @@ test('camera updates coalesce into one animation frame while coordinates stay sy
   expect(result.after).toContain('39px, 78px');
   expect(result.mutations).toBeLessThanOrEqual(2);
 });
+
+test('moving an unbound obstacle reroutes an automatic connector and restores it on cancel', async ({
+  page,
+}) => {
+  await prepare(page);
+  const result = await page.evaluate(() => {
+    const { stage, doc } = (window as any).__stageFixture;
+    const next = {
+      ...doc,
+      pages: [
+        {
+          ...doc.pages[0],
+          items: [
+            ...doc.pages[0].items,
+            { id: 'obstacle', kind: 'rect', x: 330, y: 300, w: 100, h: 100 },
+          ],
+        },
+      ],
+    };
+    stage.render(next, 's_main');
+    const path = () => stage.world.querySelector('[data-ad-id="i_c"] path').getAttribute('d');
+    const before = path();
+    stage.render(next, 's_main', new Map([['obstacle', { y: 80 }]]));
+    const during = path();
+    stage.render(next, 's_main', new Map());
+    return { before, during, after: path() };
+  });
+  expect(result.during).not.toEqual(result.before);
+  expect(result.after).toEqual(result.before);
+});

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.1
+
+Agent arrivals now finish by fitting the whole current page. Later batches no longer crop earlier work, and a shape that only clipped the viewport is brought fully into view. Pass `reveal: 'none'` or `agentReveal: 'none'` to leave the camera still.
+
+Automatic elbows stay out of node interiors and prefer lanes that cross fewer earlier connectors. When a side is omitted, the attachment may move to another face of the node. Explicit sides, anchors, straight and curve routes, and waypoints stay as written.
+
+Agent-created rectangles, ellipses, diamonds, and notes receive a varied palette tint when fill is omitted. The color is stored in the document, so export, reload, undo, and later edits keep it. Explicit fills, including `none`, stay unchanged. Kind catalog 3 describes these defaults. Agent examples use relative placement and `arrow` aliases so diagram JSON stays small.
+
+The package lockfile matches `0.4.1`. The private MCP example stays `0.1.0`.
+
 ## 0.4.0
 
 On a short desktop host, the sidebar still moves inward at 640px. Tools and buttons fully shrink at that height when the AnnieDrawing menu or page chips are present. An embed without those bars uses a middle tool size from 640px and the tight size at 500px. On a narrow host, pages, zoom, undo, redo, and Export open from Board controls in the top right so the bottom bar can stay a tool strip.

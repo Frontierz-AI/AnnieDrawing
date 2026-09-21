@@ -266,3 +266,49 @@ describe('agent tools and spatial editing', () => {
     ]);
   });
 });
+
+it('assigns stable varied agent fills across batches and nested groups, preserving explicit styles', () => {
+  const doc = createDoc();
+  doc.apply([{ op: 'add', item: { id: 'first', kind: 'rect' } }], { origin: 'agent:test' });
+  doc.apply(
+    [
+      {
+        op: 'add',
+        item: {
+          id: 'group',
+          kind: 'group',
+          children: [
+            { id: 'second', kind: 'ellipse' },
+            { id: 'third', kind: 'diamond' },
+            { id: 'fourth', kind: 'note' },
+            { id: 'explicit', kind: 'rect', style: { fill: 'red', fillMode: 'solid' } },
+            { id: 'hollow', kind: 'rect', style: { fill: 'none' } },
+          ],
+        },
+      },
+    ],
+    { origin: 'agent:test' },
+  );
+  const fills = ['first', 'second', 'third', 'fourth'].map((id) => doc.get(id)!.style!.fill);
+  expect(new Set(fills).size).toBe(4);
+  for (const id of ['first', 'second', 'third', 'fourth'])
+    expect(doc.get(id)!.style!.fillMode).toBe('tint');
+  expect(doc.get('explicit')!.style).toMatchObject({ fill: 'rose', fillMode: 'solid' });
+  expect(doc.get('hollow')!.style!.fill).toBe('none');
+  const snapshot = doc.toJSON();
+  doc.undo({ origin: 'agent:test' });
+  doc.redo();
+  expect(doc.toJSON()).toEqual(snapshot);
+  expect(createDoc(snapshot).toJSON()).toEqual(snapshot);
+  doc.apply([{ op: 'set', id: 'first', patch: { text: { value: 'Updated' } } }], {
+    origin: 'agent:test',
+  });
+  expect(doc.get('first')!.style!.fill).toBe(fills[0]);
+});
+
+it('leaves non-agent creation and imported default colors unchanged', () => {
+  const doc = createDoc();
+  doc.apply([{ op: 'add', item: { id: 'manual', kind: 'rect' } }]);
+  expect(doc.get('manual')!.style?.fill).toBeUndefined();
+  expect(createDoc(doc.toJSON()).get('manual')!.style?.fill).toBeUndefined();
+});

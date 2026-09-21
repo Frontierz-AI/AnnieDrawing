@@ -125,3 +125,11 @@ Package entry points export the documented API, not every helper in a folder. Ho
 Expose pointing through the browser board as transient page-space state, separate from the animated agent cursor and document JSON. Report inside/outside and age instead of guessing that a previous pointer is still current. Hosts decide whether a historical point answers “here.”
 
 Put optional optimistic concurrency in the shared `apply` boundary, not in each host adapter. `expectedRevision` is checked before any operation, including lenient batches and previews. This is a session guard, not a persistent document version; document replacement resets it.
+
+## 2026-09-21: Agent diagram defaults and routing
+
+Assign omitted agent node fills in the document transaction, using a fixed palette in page order. Store the chosen tint so rendering, exports, reloads, and undo agree without theme-dependent or random colors. Explicit styles and non-agent creates keep their existing behavior.
+
+Automatic elbows reserve connector lanes in document order and prefer paths with fewer node collisions, then fewer crossings, then less length and fewer bends. This bounded search is a heuristic, not a planar-layout guarantee. Automatic ports may choose another side; explicit sides, anchors, routes, and waypoints retain their meaning. Recompute from current geometry without mutable-scene caches so drags and exports agree.
+
+The post-arrival fit covers the whole current page. Fitting only the last batch can crop the rest of a diagram, and mere viewport intersection misses partially clipped shapes. Hosts retain the existing reveal opt-out. Relative placement, `arrow` aliases, and string endpoints already provide compact input without a second JSON dialect.

@@ -24,7 +24,7 @@ import {
   storedEndpoint,
 } from './defaults';
 import type { ItemStamp } from '../agent/describe';
-import { allItems, detachMissingEndpoints, pageRoots, remapAgentCreateIds } from './item';
+import { allItems, detachMissingEndpoints, remapAgentCreateIds } from './item';
 import { DocumentSchema, LIMITS, OpSchema, schemaError } from './schema';
 import { migrate } from './migrate';
 import { pageId } from './ids';
@@ -272,10 +272,18 @@ function sanitizeAgentItems(item: Item, sanitizeHTML?: DocOptions['sanitizeHTML'
   if (item.mount) delete item.mount;
   item.children?.forEach((child) => sanitizeAgentItems(child, sanitizeHTML));
 }
-/** Agent creates that omit route store elbow. Saved files that omit route stay straight. */
-function preferAgentElbow(item: Item): void {
+const AGENT_NODE_KINDS = new Set(['rect', 'ellipse', 'diamond', 'note']);
+const AGENT_FILLS = ['teal', 'sky', 'violet', 'amber', 'rose', 'coral', 'moss'];
+
+/** Persist omitted agent fills and elbow routes so export, undo, and later edits keep them. */
+function agentDefaults(item: Item, nextColor: () => string): void {
+  if (AGENT_NODE_KINDS.has(item.kind)) {
+    // Advance for every node so later omitted fills stay stable around explicit colors.
+    const fill = nextColor();
+    if (item.style?.fill === undefined) item.style = { fill, fillMode: 'tint', ...item.style };
+  }
   if (item.kind === 'connector' && item.route === undefined) item.route = 'elbow';
-  item.children?.forEach(preferAgentElbow);
+  item.children?.forEach((child) => agentDefaults(child, nextColor));
 }
 function perform(
   doc: AnnieDoc,
@@ -307,7 +315,10 @@ function perform(
       throw new Error('Parent and page must refer to the same page.');
     if (origin.startsWith('agent:')) {
       growAgentLabeledTree(item);
-      preferAgentElbow(item);
+      let colorIndex = flattenItems(page.items).filter((item) =>
+        AGENT_NODE_KINDS.has(item.kind),
+      ).length;
+      agentDefaults(item, () => AGENT_FILLS[colorIndex++ % AGENT_FILLS.length]);
     }
     if (op.place) {
       const gap =
@@ -335,7 +346,7 @@ function perform(
   if (op.op === 'set') {
     const at = requireItem(doc, op.id);
     const oldLookup = Object.hasOwn(op.patch, 'children')
-      ? new Map(allItems(doc).map((item) => [item.id, item]))
+      ? new Map(flattenItems(at.page.items).map((item) => [item.id, item]))
       : undefined;
     if (Object.hasOwn(op.patch, 'id') && op.patch.id !== op.id)
       throw new Error('Item ids cannot be changed.');
@@ -390,13 +401,13 @@ function perform(
         flattenItems(at.list[at.index].children ?? []).map((item) => item.id),
       );
       created = [...newDescendants].filter((id) => !oldLookup.has(id));
-      inverse.push(...detachMissingEndpoints(pageRoots(doc), oldLookup, outline));
+      inverse.push(...detachMissingEndpoints(at.page.items, oldLookup, outline));
     }
     return { op: { ...op, patch }, inverse, created };
   }
   if (op.op === 'remove') {
     const at = requireItem(doc, op.id),
-      lookup = new Map(allItems(doc).map((i) => [i.id, i]));
+      lookup = new Map(flattenItems(at.page.items).map((i) => [i.id, i]));
     inverse = [
       {
         op: 'add',
@@ -407,7 +418,7 @@ function perform(
       },
     ];
     at.list.splice(at.index, 1);
-    inverse.push(...detachMissingEndpoints(pageRoots(doc), lookup, outline));
+    inverse.push(...detachMissingEndpoints(at.page.items, lookup, outline));
   }
   if (op.op === 'order') {
     const at = requireItem(doc, op.id),

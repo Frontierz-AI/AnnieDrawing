@@ -43,44 +43,19 @@ Pass `expectedRevision` from the read that informed an edit to `apply` or `board
 
 ## Apply a batch
 
+Keep diagram payloads small: omit colors and text formatting unless they carry meaning, omit default sizes, use relative `place`, and use `kind: 'arrow'` with string endpoints. Add nodes before links. The library supplies varied fills, label sizing, arrowheads, and routing. Leave space for branches and feedback loops. No extra fit call is needed after an agent batch.
+
 ```js
 const ops = [
+  { op: 'add', item: { id: 'i_api', kind: 'rect', x: 80, y: 100, text: { value: 'API' } } },
   {
     op: 'add',
-    item: {
-      id: 'i_api',
-      kind: 'rect',
-      x: 80,
-      y: 100,
-      w: 200,
-      h: 100,
-      text: { value: 'API' },
-      style: { fill: 'teal', fillMode: 'tint' },
-    },
+    item: { id: 'i_cache', kind: 'rect', text: { value: 'Cache' } },
+    place: { rightOf: 'i_api' },
   },
   {
     op: 'add',
-    item: {
-      id: 'i_cache',
-      kind: 'rect',
-      w: 180,
-      h: 100,
-      text: { value: 'Cache' },
-      style: { fill: 'violet', fillMode: 'tint' },
-    },
-    place: { rightOf: 'i_api', gap: 80, align: 'middle' },
-  },
-  {
-    op: 'add',
-    item: {
-      id: 'i_link',
-      kind: 'connector',
-      from: { item: 'i_api', side: 'right' },
-      to: { item: 'i_cache', side: 'left' },
-      route: 'elbow',
-      heads: { end: 'arrow' },
-      text: { value: 'checks' },
-    },
+    item: { id: 'i_link', kind: 'arrow', from: 'i_api', to: 'i_cache', text: { value: 'checks' } },
   },
 ];
 const preview = board.apply(ops, { origin: 'agent:planner', dryRun: true });
@@ -101,11 +76,11 @@ After a successful apply, use `result.created` for the stored ids. Prefer unique
 
 A dry run validates. It does not reserve identifiers or block edits that happen before the real call. A failed batch applies nothing. `lenient: true` on `apply` (not on `runTool`) skips invalid operations and commits the rest as one transaction.
 
-`place` requires exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`. Default `gap` is 32 (`agentPlaceGap` for `agent:` origins when `gap` is omitted). Default `align` is `middle`. `inside` works only on a `group`. `rightOf` / `leftOf` / `above` / `below` slide further along that axis when the first slot is occupied. Omitted `w` and `h` use the kind's default size. An `agent:` create or text patch on `rect`, `ellipse`, `diamond`, `note`, or `text` grows the stored size so the label fits. Standalone `text` defaults to 600 wide. A larger explicit size is kept. An `agent:` connector that omits `route` stores `elbow`. Elbows go around intervening boxes. Do not set `merge: true` on agent batches unless you intend to fold this commit into the previous history entry with the same origin and label.
+`place` requires exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`. Default `gap` is 32 (`agentPlaceGap` for `agent:` origins when `gap` is omitted). Default `align` is `middle`. `inside` works only on a `group`. `rightOf` / `leftOf` / `above` / `below` slide further along that axis when the first slot is occupied. Omitted `w` and `h` use the kind's default size. An `agent:` create or text patch on `rect`, `ellipse`, `diamond`, `note`, or `text` grows the stored size so the label fits. Standalone `text` defaults to 600 wide. A larger explicit size is kept. Agent-created `rect`, `ellipse`, `diamond`, and `note` items with no explicit fill get varied palette tints, stored once so save/reload and undo keep them. Explicit fills, including `none`, stay unchanged. An `agent:` connector that omits `route` stores `elbow`. Automatic elbows prefer lanes around boxes and earlier connectors; automatic attachment sides may change to reduce crossings. Explicit sides and waypoints stay as written. Do not set `merge: true` on agent batches unless you intend to fold this commit into the previous history entry with the same origin and label.
 
 In the browser, a successful `apply` with an `agent:` origin shows a lilac cursor entering from outside the viewport. It visits the first on-screen shapes one after another, then reveals the rest together, including connectors. Pass `agentName` to label the cursor, or set `createBoard({ agentName })` so a tool call cannot pick the label. Without a name the cursor is unlabeled. Put related items in one batch. Do not split a batch to choreograph the walk.
 
-The returned result, JSON, exports, and history are complete while that presentation runs. Do not sleep or split an atomic batch to time the animation. Updates to existing items stay immediate. When the arrival finishes, created ids on the current page are fitted if they sit outside the viewport (`reveal: 'fit'`, the default for `agent:` origins). Pass `reveal: 'none'` to leave the camera still. Call `view.fit` immediately after `apply` when the cursor should walk in the new viewport. A person can keep editing; pending items are not hittable. Reduced motion and a hidden tab reveal pending items immediately. Set `agentPresence: false` on `createBoard` to skip the presentation.
+The returned result, JSON, exports, and history are complete while that presentation runs. Do not sleep or split an atomic batch to time the animation. Updates to existing items stay immediate. When the arrival finishes, the whole current page is fitted, including earlier batches and partially clipped items (`reveal: 'fit'`, the default for `agent:` origins). Pass `reveal: 'none'` to leave the camera still. Call `view.fit` immediately after `apply` when the cursor should walk in the new viewport. A person can keep editing; pending items are not hittable. Reduced motion and a hidden tab reveal pending items immediately. Set `agentPresence: false` on `createBoard` to skip the presentation.
 
 ## Patch
 
@@ -146,7 +121,7 @@ The six tools are `board_describe`, `board_read`, `board_query`, `board_apply`, 
 
 `runTool` rewrites `board_apply` origins. If `origin` does not start with `agent:`, the call uses `agent:tool`. Pass `origin: 'agent:planner'` (or another `agent:` name) when you want a labeled origin.
 
-`board_describe` defaults to `detail: 'normal'` and `maxItems: 100`. Pass `since`, `relations`, and `freeSpace` when you need a delta or layout hints. `board_read` on a headless document accepts only `scope: 'doc'`. Use `board_query` with `page` or `inside` to narrow. `board_snapshot` and `board_view_fit` require a browser board. `board_snapshot` defaults to `scope: 'viewport'`, `scale: 2`, `labels: true`, 32-color indexed PNG, and `maxBytes: 245760`. Those same PNG defaults apply to `board.export('png', { labels: true })`. SVG is markup for export, not a vision snapshot. The labels match item IDs in the JSON. `board_apply` uses the same `agent:` rules as `apply`: labeled boxes and titles grow to the text, directional `place` slides when a slot is taken, and an omitted connector `route` stores `elbow`. It accepts optional `reveal`. It does not accept `lenient`. If `createBoard({ agentName })` is set, the tool does not need `agentName`.
+`board_describe` defaults to `detail: 'normal'` and `maxItems: 100`. Pass `since`, `relations`, and `freeSpace` when you need a delta or layout hints. `board_read` on a headless document accepts only `scope: 'doc'`. Use `board_query` with `page` or `inside` to narrow. `board_snapshot` and `board_view_fit` require a browser board. `board_snapshot` defaults to `scope: 'viewport'`, `scale: 2`, `labels: true`, 32-color indexed PNG, and `maxBytes: 245760`. Those same PNG defaults apply to `board.export('png', { labels: true })`. SVG is markup for export, not a vision snapshot. The labels match item IDs in the JSON. `board_apply` uses the same `agent:` rules as `apply`: labeled boxes and titles grow to the text, omitted fills on `rect`, `ellipse`, `diamond`, and `note` store a varied palette tint, directional `place` slides when a slot is taken, and an omitted connector `route` stores `elbow`. Automatic elbows prefer lanes around boxes and earlier connectors; automatic attachment sides may change. It accepts optional `reveal` (`fit` frames the whole current page). It does not accept `lenient`. If `createBoard({ agentName })` is set, the tool does not need `agentName`.
 
 `LIMITS` from `anniedrawing/agent` is the live ceiling: 1,000 operations and 1,000 created items per agent batch, 50,000 items per document.
 
