@@ -209,7 +209,7 @@ export interface ApplyOptions {
   dryRun?: boolean;
   merge?: boolean;
   agentName?: string;
-  /** After a successful browser apply, fit the camera to created item ids. */
+  /** After created items finish arriving, `fit` frames the whole current page. */
   reveal?: 'none' | 'fit';
   /**
    * When true, invalid operations are skipped and the rest commit as one

@@ -60,7 +60,7 @@ export interface BoardOptions {
    * `hidden`: default undo/redo skip origins that start with `agent:`.
    */
   agentHistory?: 'shared' | 'hidden';
-  /** Default reveal for origins that start with `agent:`. Default `fit`. */
+  /** After an agent arrival, `fit` frames the whole current page. Default `fit`. */
   agentReveal?: 'none' | 'fit';
   /** Used when origin starts with `agent:` and place.gap is omitted. Default 32. */
   agentPlaceGap?: number;
@@ -570,14 +570,8 @@ export class Board {
       flattenItems(this.pageItems()).some((item) => item.id === id),
     );
     if (!onPage.length) return;
-    if (
-      onPage.every((id) => {
-        const item = this.get(id);
-        return !!item && this.visible(item);
-      })
-    )
-      return;
-    this.view.fit(onPage);
+    // The last batch alone can crop earlier work; frame everything on this page.
+    this.view.fit();
   }
   undo(options?: { origin?: string }) {
     this.cancel();

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   boundsOf,
+  createDoc,
   itemBounds,
   normalizeItem,
   resolveEndpoint,
@@ -53,8 +54,10 @@ describe('headless geometry', () => {
       { x: 300, y: 40 },
     ]);
     expect(straight.midpoint).toEqual({ x: 200, y: 40 });
-    expect(routeConnector({ ...connector, route: 'elbow' }, [a, b]).points).toHaveLength(4);
-    expect(routeConnector({ ...connector, route: 'elbow' }, [a, b]).points[1].x).toBe(200);
+    const orthogonal = routeConnector({ ...connector, route: 'elbow' }, [a, b]);
+    expect(orthogonal.points[0]).toEqual(straight.points[0]);
+    expect(orthogonal.points.at(-1)).toEqual(straight.points.at(-1));
+    expect(orthogonal.midpoint).toEqual(straight.midpoint);
     const curve = routeConnector({ ...connector, route: 'curve' }, [a, b]);
     expect(curve.d).toContain('Q');
     expect(curve.midpoint.y).toBeGreaterThan(40);
@@ -136,9 +139,7 @@ it('routes an elbow around a box sitting between the ends', () => {
       to: { item: 'c', side: 'left' },
     });
   const points = routeConnector(link, [a, mid, c]).points;
-  expect(points).toHaveLength(4);
-  const channel = points[1];
-  expect(channel.y < mid.y || channel.y > mid.y + mid.h).toBe(true);
+  expect(points.some((point) => point.y < mid.y || point.y > mid.y + mid.h)).toBe(true);
   for (let i = 0; i < points.length - 1; i++) {
     const p = points[i],
       q = points[i + 1];
@@ -231,4 +232,124 @@ it('marquee selection respects group entry without duplicate groups', () => {
       .enclosed({ x: -10, y: -10, w: 110, h: 100 }, { enteredGroup: 'group' })
       .map((item) => item.id),
   ).toEqual(['first']);
+});
+
+it('routes a startup feedback loop without crossing nodes or earlier arrows', () => {
+  const nodes = [
+    shape('idea'),
+    shape('product', 'rect', 300),
+    shape('market', 'rect', 600),
+    shape('feedback', 'rect', 300, 240),
+    shape('iterate', 'rect', 300, 480),
+  ];
+  const links = [
+    ['idea', 'product'],
+    ['product', 'market'],
+    ['market', 'feedback'],
+    ['feedback', 'iterate'],
+    ['iterate', 'product'],
+  ].map(([from, to], i) => normalizeItem({ id: `edge-${i}`, kind: 'arrow', from, to }));
+  const scene = [...nodes, ...links];
+  const paths = links.map((link) => routeConnector(link, scene).points);
+  for (const points of paths)
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1],
+        b = points[i];
+      expect(a.x === b.x || a.y === b.y).toBe(true);
+      for (const node of nodes) {
+        const throughInterior =
+          a.x === b.x
+            ? a.x > node.x &&
+              a.x < node.x + node.w &&
+              Math.max(a.y, b.y) > node.y &&
+              Math.min(a.y, b.y) < node.y + node.h
+            : a.y > node.y &&
+              a.y < node.y + node.h &&
+              Math.max(a.x, b.x) > node.x &&
+              Math.min(a.x, b.x) < node.x + node.w;
+        expect(throughInterior).toBe(false);
+      }
+    }
+  for (let first = 0; first < paths.length; first++)
+    for (let second = first + 1; second < paths.length; second++)
+      for (let i = 1; i < paths[first].length; i++)
+        for (let j = 1; j < paths[second].length; j++) {
+          const a = paths[first][i - 1],
+            b = paths[first][i],
+            c = paths[second][j - 1],
+            d = paths[second][j];
+          if ((a.x === b.x) === (c.x === d.x)) continue;
+          const [v1, v2, h1, h2] = a.x === b.x ? [a, b, c, d] : [c, d, a, b];
+          expect(
+            v1.x > Math.min(h1.x, h2.x) &&
+              v1.x < Math.max(h1.x, h2.x) &&
+              h1.y > Math.min(v1.y, v2.y) &&
+              h1.y < Math.max(v1.y, v2.y),
+          ).toBe(false);
+        }
+  // Query order and a caller's mutable lookup do not change lane allocation.
+  const map = new Map(scene.map((item) => [item.id, item]));
+  expect(routeConnector(links.at(-1)!, map).points).toEqual(paths.at(-1));
+  map.set('feedback', { ...nodes[3], x: 0 });
+  expect(routeConnector(links.at(-1)!, map).points).toEqual(
+    routeConnector(links.at(-1)!, [...map.values()]).points,
+  );
+});
+
+it('preserves explicit connector waypoints and attachment sides', () => {
+  const a = shape('a'),
+    b = shape('b', 'rect', 300, 200);
+  const connector = normalizeItem({
+    kind: 'connector',
+    route: 'elbow',
+    from: { item: 'a', side: 'left' },
+    to: { item: 'b', side: 'bottom' },
+    waypoints: [
+      [-80, 300],
+      [350, 300],
+    ],
+  });
+  expect(routeConnector(connector, [a, b]).points).toEqual([
+    { x: 0, y: 40 },
+    { x: -80, y: 300 },
+    { x: 350, y: 300 },
+    { x: 350, y: 280 },
+  ]);
+  delete connector.waypoints;
+  const automatic = routeConnector(connector, [a, b]).points;
+  expect(automatic[0]).toEqual({ x: 0, y: 40 });
+  expect(automatic.at(-1)).toEqual({ x: 350, y: 280 });
+});
+
+it('detaches at rendered ports on the same page when both targets are removed', () => {
+  const doc = createDoc();
+  doc.apply([
+    {
+      op: 'add',
+      item: { id: 'group', kind: 'group', children: [shape('a'), shape('b', 'rect', 300, 200)] },
+    },
+    { op: 'add', item: { id: 'forward', kind: 'arrow', from: 'a', to: 'b' } },
+    { op: 'add', item: { id: 'back', kind: 'arrow', from: 'b', to: 'a' } },
+  ]);
+  doc.apply([
+    {
+      op: 'page.add',
+      page: {
+        id: 'other',
+        name: 'Other page',
+        items: [{ ...shape('unrelated', 'rect', -200, -200), w: 1000, h: 1000 }],
+      },
+    },
+  ]);
+  const before = doc.toJSON();
+  const paths = ['forward', 'back'].map(
+    (id) => routeConnector(doc.get(id)!, before.pages[0].items).points,
+  );
+  expect(doc.apply([{ op: 'remove', id: 'group' }]).ok).toBe(true);
+  for (const [index, id] of ['forward', 'back'].entries()) {
+    expect(doc.get(id)!.from).toEqual(paths[index][0]);
+    expect(doc.get(id)!.to).toEqual(paths[index].at(-1));
+  }
+  doc.undo();
+  expect(doc.toJSON()).toEqual(before);
 });

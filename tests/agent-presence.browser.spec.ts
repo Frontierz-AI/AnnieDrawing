@@ -498,7 +498,7 @@ test('connectors wait while the first shapes appear one after another', async ({
   await expect(page.locator('.ad-agent-cursor,.ad-agent-pending')).toHaveCount(0);
 });
 
-test('agent creates recen­ter after the arrival to cover what was added', async ({ page }) => {
+test('agent creates recenter after the arrival to cover what was added', async ({ page }) => {
   await ready(page);
   const before = await page.evaluate(() => {
     const board = window.__anniedrawing![0];
@@ -569,4 +569,123 @@ test('agentReveal none keeps the camera after an off-screen create', async ({ pa
     y: 0,
     zoom: 1,
   });
+});
+
+test('fits partially clipped shapes and keeps earlier batches in view after arrival', async ({
+  page,
+}) => {
+  await ready(page);
+  await page.evaluate(() => {
+    const board = window.__anniedrawing![0];
+    const viewport = board.stage.lens.viewport();
+    board.apply(
+      [
+        {
+          op: 'add',
+          item: {
+            id: 'clipped',
+            kind: 'rect',
+            x: viewport.w - 80,
+            y: viewport.h - 50,
+            w: 300,
+            h: 180,
+          },
+        },
+      ],
+      { origin: 'agent:test' },
+    );
+  });
+  await expect(page.locator('.ad-agent-cursor,.ad-agent-pending')).toHaveCount(0);
+  const framed = () =>
+    page.evaluate(() => {
+      const board = window.__anniedrawing![0],
+        viewport = board.stage.lens.viewport();
+      return board
+        .query()
+        .every(
+          (item) =>
+            item.x >= viewport.x &&
+            item.y >= viewport.y &&
+            item.x + item.w <= viewport.x + viewport.w &&
+            item.y + item.h <= viewport.y + viewport.h,
+        );
+    });
+  expect(await framed()).toBe(true);
+  await page.evaluate(() => {
+    window.__anniedrawing![0].apply(
+      [{ op: 'add', item: { id: 'next-batch', kind: 'rect', x: -1600, y: -1200 } }],
+      { origin: 'agent:test' },
+    );
+  });
+  await expect(page.locator('.ad-agent-cursor,.ad-agent-pending')).toHaveCount(0);
+  expect(await framed()).toBe(true);
+});
+
+test('compact startup diagram finishes with varied nodes and the complete diagram framed', async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1280, height: 640 });
+  await ready(page);
+  await page.evaluate(async () => {
+    window.__anniedrawing![0].destroy();
+    const { createFellowBoard } = await import('/src/fellow.ts' as string);
+    const board = createFellowBoard(document.getElementById('app')!, { exposeGlobal: true });
+    await board.ready;
+    board.apply(
+      [
+        {
+          op: 'add',
+          item: { id: 'idea', kind: 'rect', x: 100, y: 150, text: { value: 'Idea / Problema' } },
+        },
+        {
+          op: 'add',
+          item: { id: 'product', kind: 'rect', text: { value: 'Producto mínimo viable' } },
+          place: { rightOf: 'idea' },
+        },
+        {
+          op: 'add',
+          item: { id: 'market', kind: 'rect', text: { value: 'Mercado / Clientes' } },
+          place: { rightOf: 'product' },
+        },
+        {
+          op: 'add',
+          item: { id: 'feedback', kind: 'rect', text: { value: 'Feedback y métricas' } },
+          place: { below: 'product' },
+        },
+        {
+          op: 'add',
+          item: { id: 'iterate', kind: 'rect', text: { value: 'Iterar / Escalar' } },
+          place: { below: 'feedback' },
+        },
+        ...[
+          ['idea', 'product'],
+          ['product', 'market'],
+          ['market', 'feedback'],
+          ['feedback', 'iterate'],
+          ['iterate', 'product'],
+        ].map(([from, to], index) => ({
+          op: 'add',
+          item: { id: `edge-${index}`, kind: 'arrow', from, to },
+        })),
+      ],
+      { origin: 'agent:test' },
+    );
+  });
+  await expect(page.locator('.ad-agent-cursor,.ad-agent-pending')).toHaveCount(0);
+  const result = await page.evaluate(() => {
+    const board = window.__anniedrawing![0],
+      viewport = board.stage.lens.viewport();
+    const bounds = board.boundsOf();
+    return {
+      fills: board.query({ kind: 'rect' }).map((item) => item.style!.fill),
+      fits:
+        bounds.x >= viewport.x &&
+        bounds.y >= viewport.y &&
+        bounds.x + bounds.w <= viewport.x + viewport.w &&
+        bounds.y + bounds.h <= viewport.y + viewport.h,
+    };
+  });
+  expect(new Set(result.fills).size).toBe(5);
+  expect(result.fits).toBe(true);
+  await page.screenshot({ path: info.outputPath('startup-diagram.png') });
 });

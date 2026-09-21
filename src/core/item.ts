@@ -12,7 +12,7 @@ import type {
 import { clone } from './defaults';
 import { itemId, uniqueItemId } from './ids';
 import { flattenItems, type ItemLookup } from '../geo/box';
-import { resolveEndpoint, type OutlineResolver } from '../geo/router';
+import { routeConnector, type OutlineResolver } from '../geo/router';
 
 export function pageRoots(doc: AnnieDoc): Item[] {
   return doc.pages.flatMap((page) => page.items);
@@ -163,21 +163,24 @@ export function detachMissingEndpoints(
   const list = flattenItems([...items]);
   const ids = new Set(list.map((item) => item.id));
   const inverse: Op[] = [];
+  const detached: { item: Item; patch: Partial<Item> }[] = [];
   for (const item of list) {
-    const restore: Partial<Item> = {};
-    for (const key of ['from', 'to'] as const) {
+    const missing = (['from', 'to'] as const).filter((key) => {
       const endpoint = item[key];
-      if (endpoint && 'item' in endpoint && !ids.has(endpoint.item)) {
-        restore[key] = clone(endpoint);
-        item[key] = resolveEndpoint(
-          endpoint,
-          item[key === 'from' ? 'to' : 'from'],
-          lookup,
-          outline,
-        );
-      }
+      return endpoint && 'item' in endpoint && !ids.has(endpoint.item);
+    });
+    if (!missing.length) continue;
+    const points = routeConnector(item, lookup, outline).points;
+    const restore: Partial<Item> = {},
+      patch: Partial<Item> = {};
+    for (const key of missing) {
+      restore[key] = clone(item[key]);
+      patch[key] = clone(key === 'from' ? points[0] : points.at(-1)!);
     }
-    if (Object.keys(restore).length) inverse.push({ op: 'set', id: item.id, patch: restore });
+    inverse.push({ op: 'set', id: item.id, patch: restore });
+    detached.push({ item, patch });
   }
+  // Resolve every old route first; an earlier detach would change shared lanes.
+  for (const { item, patch } of detached) Object.assign(item, patch);
   return inverse;
 }
