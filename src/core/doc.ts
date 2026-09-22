@@ -31,7 +31,16 @@ import { DocumentSchema, LIMITS, OpSchema, schemaError } from './schema';
 import { migrate } from './migrate';
 import { pageId } from './ids';
 import { flattenItems, intersects, itemBounds } from '../geo/box';
-import { placeItem } from '../agent/place';
+import {
+  flowPlacement,
+  freeSpaceOrigin,
+  isFlowNode,
+  placeAgentItem,
+  placeItem,
+  type BatchEdge,
+  type BatchLinks,
+  type PlaceShift,
+} from '../agent/place';
 import { queryDoc } from '../agent/query';
 import { describeDoc } from '../agent/describe';
 import { MEDIA_DATA_URL, normalizeHref, parseVideo } from './links';
@@ -343,13 +352,80 @@ function agentDefaults(item: Item, nextColor: () => string): void {
   if (item.kind === 'connector' && item.route === undefined) item.route = 'elbow';
   item.children?.forEach((child) => agentDefaults(child, nextColor));
 }
+/** Same-batch connector directions, in arrow order, so placement can tell an inserted step from a sibling. */
+function batchLinks(ops: Op[]): { links: BatchLinks; edges: BatchEdge[] } {
+  const links = new Map<string, Set<string>>();
+  const edges: BatchEdge[] = [];
+  const visit = (item: NewItem | Item | undefined) => {
+    if (!item || typeof item !== 'object') return;
+    if (
+      (item.kind === 'connector' || item.kind === 'arrow') &&
+      typeof item.id === 'string' &&
+      item.from &&
+      item.to
+    ) {
+      const from =
+          typeof item.from === 'string'
+            ? item.from
+            : 'item' in item.from
+              ? item.from.item
+              : undefined,
+        to = typeof item.to === 'string' ? item.to : 'item' in item.to ? item.to.item : undefined;
+      if (from && to) {
+        if (!links.has(from)) links.set(from, new Set());
+        links.get(from)!.add(to);
+        edges.push([from, to]);
+      }
+    }
+    item.children?.forEach(visit);
+  };
+  for (const op of ops) if (op && typeof op === 'object' && op.op === 'add') visit(op.item);
+  return { links, edges };
+}
+
+/** Move an existing item (and its children) to make room; connectors move stored points only. */
+function shiftItem(item: Item, shift: PlaceShift, moved: Op[], inverse: Op[]): void {
+  const { dx, dy } = shift;
+  if (item.kind === 'connector') {
+    const before: Partial<Item> = {},
+      patch: Partial<Item> = {};
+    if (item.waypoints?.length) {
+      before.waypoints = clone(item.waypoints);
+      item.waypoints = item.waypoints.map(([x, y]) => [x + dx, y + dy]);
+      patch.waypoints = clone(item.waypoints);
+    }
+    for (const end of ['from', 'to'] as const) {
+      const point = item[end];
+      if (point && !('item' in point)) {
+        before[end] = { ...point };
+        item[end] = { x: point.x + dx, y: point.y + dy };
+        patch[end] = { ...item[end] };
+      }
+    }
+    if (!Object.keys(patch).length) return;
+    moved.push({ op: 'set', id: item.id, patch });
+    inverse.push({ op: 'set', id: item.id, patch: before });
+    return;
+  }
+  const before = { x: item.x, y: item.y };
+  item.x += dx;
+  item.y += dy;
+  moved.push({ op: 'set', id: item.id, patch: { x: item.x, y: item.y } });
+  inverse.push({ op: 'set', id: item.id, patch: before });
+  item.children?.forEach((child) => shiftItem(child, shift, moved, inverse));
+}
+
 function perform(
   doc: AnnieDoc,
   raw: Op,
   origin: string,
   options: DocOptions = {},
+  links?: BatchLinks,
+  edges?: readonly BatchEdge[],
 ): {
   op: Op;
+  /** Follow-up `set` operations for items moved to make room. */
+  moved: Op[];
   inverse: Op[];
   created: string[];
 } {
@@ -359,6 +435,7 @@ function perform(
     options.kinds?.find((kind) => kind.kind === item.kind)?.outline?.(item);
   let inverse: Op[] = [],
     created: string[] = [];
+  const moved: Op[] = [];
   if (op.op === 'add') {
     let item = normalizeItem(op.item, kindDefaults);
     if (origin !== 'user') sanitizeAgentItems(item, options.sanitizeHTML);
@@ -380,9 +457,18 @@ function perform(
     if (parent && op.page && op.page !== parent.page.id)
       throw new Error('Parent and page must refer to the same page.');
     if (origin.startsWith('agent:')) {
+      const pageItems = flattenItems(page.items);
+      // normalizeItem stores omitted coordinates as 0; only a node sent without both is placed for the agent.
+      const unpositioned =
+        !parent && op.item.x === undefined && op.item.y === undefined && isFlowNode(item);
+      if (!op.place && unpositioned) op.place = flowPlacement(item.id, edges, pageItems);
       if (!op.place) {
-        const anchor = labelStackAnchor(item, flattenItems(page.items));
+        const anchor = labelStackAnchor(item, pageItems);
         if (anchor) op.place = { rightOf: anchor };
+      }
+      if (!op.place && unpositioned) {
+        const free = freeSpaceOrigin(item, pageItems, options.agentPlaceGap ?? 32);
+        if (free) item = { ...item, ...free };
       }
       let colorIndex = flattenItems(page.items).filter((entry) =>
         AGENT_NODE_KINDS.has(entry.kind),
@@ -392,13 +478,19 @@ function perform(
     if (op.place) {
       const gap =
         op.place.gap ?? (origin.startsWith('agent:') ? (options.agentPlaceGap ?? 32) : 32);
-      item = placeItem(item, { ...op.place, gap }, flattenItems(page.items));
+      const pageItems = flattenItems(page.items);
+      if (origin.startsWith('agent:')) {
+        const placed = placeAgentItem(item, { ...op.place, gap }, pageItems, pageItems, links);
+        item = placed.item;
+        const byId = new Map(pageItems.map((entry) => [entry.id, entry]));
+        for (const shift of placed.shifts) shiftItem(byId.get(shift.id)!, shift, moved, inverse);
+      } else item = placeItem(item, { ...op.place, gap }, pageItems);
     }
     const list = parent ? (parent.item.children ??= []) : page.items;
     if (op.index !== undefined && op.index > list.length)
       throw new Error('Insert index is outside the target list.');
     list.splice(op.index ?? list.length, 0, item);
-    inverse = [{ op: 'remove', id: item.id }];
+    inverse = [{ op: 'remove', id: item.id }, ...inverse];
     created = flattenItems([item]).map((i) => i.id);
     return {
       op: {
@@ -408,6 +500,7 @@ function perform(
         ...(parent ? { parent: parent.item.id } : {}),
         ...(op.index !== undefined ? { index: op.index } : {}),
       },
+      moved,
       inverse,
       created,
     };
@@ -472,7 +565,7 @@ function perform(
       created = [...newDescendants].filter((id) => !oldLookup.has(id));
       inverse.push(...detachMissingEndpoints(at.page.items, oldLookup, outline));
     }
-    return { op: { ...op, patch }, inverse, created };
+    return { op: { ...op, patch }, moved, inverse, created };
   }
   if (op.op === 'remove') {
     const at = requireItem(doc, op.id),
@@ -540,6 +633,7 @@ function perform(
         page: clone(page),
         ...(op.index !== undefined ? { index: op.index } : {}),
       },
+      moved,
       inverse,
       created,
     };
@@ -575,7 +669,7 @@ function perform(
     inverse = [{ op: 'media.set', id: op.id, media: clone(doc.media[op.id]) }];
     delete doc.media[op.id];
   }
-  return { op, inverse, created };
+  return { op, moved, inverse, created };
 }
 function revertedPatch(
   before: Record<string, unknown>,
@@ -846,12 +940,14 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
       const mediaIds = () =>
         new Set(concrete.filter((op) => op.op === 'media.set').map((op) => op.id));
       const batch = remapped.ops;
+      const graph = origin.startsWith('agent:') ? batchLinks(batch) : undefined;
+      const moved = new Set<string>();
       for (let index = 0; index < batch.length; index++) {
         const snapshot = lenient ? clone(draft) : undefined;
         try {
           const error = schemaError(OpSchema, batch[index]);
           if (error) throw new Error(error);
-          const change = perform(draft, batch[index], origin, options);
+          const change = perform(draft, batch[index], origin, options, graph?.links, graph?.edges);
           if (origin !== 'user' && result.created.length + change.created.length > LIMITS.maxBatch)
             throw new Error(
               `An agent batch may create at most ${LIMITS.maxBatch} items, including nested children.`,
@@ -863,10 +959,11 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
               origin,
               new Set([...mediaIds(), ...(change.op.op === 'media.set' ? [change.op.id] : [])]),
             );
-          concrete.push(change.op);
+          concrete.push(change.op, ...change.moved);
           inverse.unshift(...change.inverse);
           result.created.push(...change.created);
           change.created.forEach((id) => creationOps.set(id, index));
+          for (const op of change.moved) if (op.op === 'set') moved.add(op.id);
         } catch (error) {
           if (snapshot) draft = snapshot;
           failures.push({
@@ -921,6 +1018,7 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
           });
       }
       result.ok = true;
+      if (moved.size) result.moved = [...moved];
       if (applyOptions.dryRun || !concrete.length) return result;
       const entry: Entry = {
         ops: concrete,

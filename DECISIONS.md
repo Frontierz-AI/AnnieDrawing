@@ -1,5 +1,11 @@
 # Design decisions
 
+## 2026-09-22: Agent diagrams need no coordinates
+
+Agents spent most of a diagram call on geometry: `place` for every node, or coordinates guessed without knowing what was already on the board. The batch's arrows already say where a node belongs, and a taken slot reads them to insert, pass, or stack. For an `agent:` add that sends neither `x` nor `y`, has no `place`, is not a child, and is not a connector, line, path, or group, the arrows now choose the relation: `rightOf` the first source already on the page, otherwise `leftOf` the first such target. The existing `placeAgentItem` path then inserts, passes, or stacks. Only nodes already on the page count, so a batch lists nodes before the arrows that reach them, as it must for bound endpoints anyway.
+
+A node with no link to a placed node falls through to the similar-label rule, then to free space: if its default box at the origin would intersect a visible non-connector item, it moves right of the bounds of those items, top-aligned, using `agentPlaceGap`. This replaces "a free `0,0` is unchanged" from the decision below for coordinate-free agent nodes only. It is a single bounds step, not a packing search, so a new diagram lands beside a busy board rather than in the nearest hole. One sent axis counts as a position and is kept.
+
 ## 2026-09-22: Agent labels do not share one origin
 
 Models draw flowcharts by omitting `x`/`y`, repeating one coordinate, or putting `place` on the item instead of the operation. `normalizeItem` stores omitted coordinates as `0`, and `perform` only ran `placeItem` for `op.place`, so every step landed on the same corner. Label growth then made the widest box stick out of the pile while connectors still bound.
@@ -141,3 +147,7 @@ Assign omitted agent node fills in the document transaction, using a fixed palet
 Automatic elbows reserve connector lanes in document order and prefer paths with fewer node collisions, then fewer crossings, then less length and fewer bends. This bounded search is a heuristic, not a planar-layout guarantee. Automatic ports may choose another side; explicit sides, anchors, routes, and waypoints retain their meaning. Recompute from current geometry without mutable-scene caches so drags and exports agree.
 
 The post-arrival fit covers the whole current page. Fitting only the last batch can crop the rest of a diagram, and mere viewport intersection misses partially clipped shapes. Hosts retain the existing reveal opt-out. Relative placement, `arrow` aliases, and string endpoints already provide compact input without a second JSON dialect.
+
+## 2026-09-22: Taken placement slots for agents
+
+Sliding a directional `place` past every occupied slot sent an inserted step to the end of its row, with long crossing arrows back to its neighbors. Agents describe topology, so the document transaction resolves a taken slot from the arrows in the same batch instead of asking the agent to compute room: insert before the node the new one flows into and move that node's downstream side, pass a node the new one follows, and stack an unconnected node beside the occupant. Downstream is followed through outgoing connectors and bounded by the occupant's leading edge so unrelated content and upstream branches stay where they are. Moves are recorded as `set` operations with inverses so undo, history, and `changesSince` stay complete. API and user origins keep the predictable slide.
