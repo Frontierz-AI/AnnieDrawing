@@ -1,5 +1,6 @@
-import type { Box, Item, Placement } from '../core/types';
+import type { Box, Item, Placement, Point } from '../core/types';
 import {
+  boundsOf,
   contains,
   flattenItems,
   intersects,
@@ -205,6 +206,45 @@ export function placeAgentItem(
     return { item: { ...item, x: beside.x, y: beside.y }, shifts: [] };
   }
   return { item: { ...item, x: slot.x, y: slot.y }, shifts: [] };
+}
+
+/** Kinds an unpositioned agent add can place; links, strokes, and groups keep what was sent. */
+export function isFlowNode(item: Item): boolean {
+  return !['connector', 'line', 'path', 'group'].includes(item.kind);
+}
+
+/** One batch arrow, in the order the operations listed it. */
+export type BatchEdge = readonly [from: string, to: string];
+
+/**
+ * `place` for an agent node that omitted coordinates, read from the batch's arrows
+ * in order: right of the first on-page source, else left of the first on-page target.
+ */
+export function flowPlacement(
+  id: string,
+  edges: readonly BatchEdge[] | undefined,
+  items: Item[],
+): Placement | undefined {
+  if (!edges) return;
+  const onPage = new Set(items.map((item) => item.id));
+  for (const [from, to] of edges)
+    if (to === id && from !== id && onPage.has(from)) return { rightOf: from };
+  for (const [from, to] of edges)
+    if (from === id && to !== id && onPage.has(to)) return { leftOf: to };
+}
+
+/**
+ * Where an unpositioned, unconnected agent node goes when its default spot would cover
+ * existing work: right of everything visible on the page, top-aligned. An empty spot stays.
+ */
+export function freeSpaceOrigin(item: Item, items: Item[], gap: number): Point | undefined {
+  const solid = items.filter(
+    (other) => other.id !== item.id && !other.hidden && other.kind !== 'connector',
+  );
+  const box = { x: item.x, y: item.y, w: item.w, h: item.h };
+  if (!solid.some((other) => intersects(box, itemBounds(other, items)))) return;
+  const content = boundsOf(solid, items);
+  return { x: content.x + content.w + gap, y: content.y };
 }
 
 /** Whether a box lies past the occupant along the axis while overlapping the slot's lane. */

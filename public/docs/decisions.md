@@ -1,5 +1,11 @@
 # Design decisions
 
+## 2026-09-22: Agent diagrams need no coordinates
+
+Agents spent most of a diagram call on geometry: `place` for every node, or coordinates guessed without knowing what was already on the board. The batch's arrows already say where a node belongs, and a taken slot reads them to insert, pass, or stack. For an `agent:` add that sends neither `x` nor `y`, has no `place`, is not a child, and is not a connector, line, path, or group, the arrows now choose the relation: `rightOf` the first source already on the page, otherwise `leftOf` the first such target. The existing `placeAgentItem` path then inserts, passes, or stacks. Only nodes already on the page count, so a batch lists nodes before the arrows that reach them, as it must for bound endpoints anyway.
+
+A node with no link to a placed node falls through to the similar-label rule, then to free space: if its default box at the origin would intersect a visible non-connector item, it moves right of the bounds of those items, top-aligned, using `agentPlaceGap`. This replaces "a free `0,0` is unchanged" from the decision below for coordinate-free agent nodes only. It is a single bounds step, not a packing search, so a new diagram lands beside a busy board rather than in the nearest hole. One sent axis counts as a position and is kept.
+
 ## 2026-09-22: Agent labels do not share one origin
 
 Models draw flowcharts by omitting `x`/`y`, repeating one coordinate, or putting `place` on the item instead of the operation. `normalizeItem` stores omitted coordinates as `0`, and `perform` only ran `placeItem` for `op.place`, so every step landed on the same corner. Label growth then made the widest box stick out of the pile while connectors still bound.

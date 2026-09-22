@@ -289,7 +289,7 @@ describe('agent flowchart placement', () => {
     expect(doc.get('keep')).toMatchObject({ x: 900, y: 40 });
   });
 
-  it('leaves distinct positions, explicit place, empty labels, and non-agent edits', () => {
+  it('leaves distinct positions, explicit place, strokes, and non-agent edits', () => {
     const doc = createDoc(undefined, { agentPlaceGap: 120 });
     const result = doc.apply(
       [
@@ -322,7 +322,9 @@ describe('agent flowchart placement', () => {
     expect(doc.get('far')).toMatchObject({ x: 800, y: 40 });
     const a = doc.get('a')!;
     expect(doc.get('below')!.y).toBe(a.y + a.h + 10);
-    expect(doc.get('blank')).toMatchObject({ x: 0, y: 0 });
+    // An unpositioned blank box would cover A, so it goes right of the page content.
+    const far = doc.get('far')!;
+    expect(doc.get('blank')).toMatchObject({ x: far.x + far.w + 120, y: 0 });
     expect(doc.get('line')).toMatchObject({ x: 0, y: 0 });
     expect(doc.get('path')).toMatchObject({ x: 0, y: 0 });
     const user = createDoc(undefined, { agentPlaceGap: 120 });
@@ -589,5 +591,138 @@ describe('agent placement beside a taken slot', () => {
     ).toBe(true);
     expect(api.get('extract')!.x).toBe(print.x + print.w + 32);
     expect(api.get('print')).toMatchObject({ x: print.x });
+  });
+});
+
+describe('agent nodes sent without coordinates', () => {
+  const node = (id: string, label: string, at?: { x: number; y: number }): Op => ({
+    op: 'add',
+    item: { id, kind: 'rect', text: { value: label }, ...at },
+  });
+  const arrow = (from: string, to: string): Op => ({
+    op: 'add',
+    item: { id: `${from}_${to}`, kind: 'arrow', from, to },
+  });
+  const overlaps = (doc: ReturnType<typeof createDoc>) => {
+    const boxes = doc.query().filter((item) => item.kind !== 'connector');
+    return boxes.some((a, i) =>
+      boxes
+        .slice(i + 1)
+        .some((b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h),
+    );
+  };
+
+  it('places each connected node after its source from the batch arrows', () => {
+    const doc = createDoc(undefined, { agentPlaceGap: 120 });
+    const result = doc.apply(
+      [
+        node('idea', 'Idea'),
+        node('research', 'Research'),
+        node('build', 'Build'),
+        node('test', 'Test'),
+        arrow('idea', 'research'),
+        arrow('idea', 'build'),
+        arrow('build', 'test'),
+      ],
+      fellow,
+    );
+    expect(result.ok).toBe(true);
+    const { idea, research, build, test } = Object.fromEntries(
+      doc.query().map((item) => [item.id, item]),
+    );
+    expect(idea).toMatchObject({ x: 0, y: 0 });
+    expect(research.x).toBe(idea.x + idea.w + 120);
+    // The second branch stacks beside the first instead of covering it.
+    expect(build.x).toBe(research.x);
+    expect(build.y).toBeGreaterThanOrEqual(research.y + research.h + 120);
+    expect(test.x).toBe(build.x + build.w + 120);
+    expect(overlaps(doc)).toBe(false);
+    expect(result.warnings.some((warning) => warning.code === 'OVERLAPS_EXISTING')).toBe(false);
+  });
+
+  it('inserts a node into an existing flow from its arrows alone', () => {
+    const doc = createDoc(undefined, { agentPlaceGap: 120 });
+    doc.apply([node('a', 'A'), node('c', 'C'), arrow('a', 'c')], fellow);
+    const c = doc.get('c')!;
+    const result = doc.apply(
+      [{ op: 'remove', id: 'a_c' }, node('b', 'B'), arrow('a', 'b'), arrow('b', 'c')],
+      fellow,
+    );
+    expect(result.ok).toBe(true);
+    const a = doc.get('a')!,
+      b = doc.get('b')!;
+    expect(b).toMatchObject({ x: a.x + a.w + 120, y: a.y });
+    expect(doc.get('c')!.x).toBe(c.x + b.w + 120);
+    expect(result.moved).toEqual(['c']);
+  });
+
+  it('places a node that only points at an existing one to its left', () => {
+    const doc = createDoc(undefined, { agentPlaceGap: 120 });
+    doc.apply([node('goal', 'Goal', { x: 600, y: 0 })], fellow);
+    expect(doc.apply([node('step', 'Step'), arrow('step', 'goal')], fellow).ok).toBe(true);
+    const step = doc.get('step')!;
+    expect(step.x + step.w + 120).toBe(600);
+  });
+
+  it('starts a new diagram right of existing work instead of on top of it', () => {
+    const doc = createDoc(undefined, { agentPlaceGap: 120 });
+    doc.apply(
+      [
+        { op: 'add', item: { id: 'sketch', kind: 'ellipse', x: -50, y: -40, w: 300, h: 260 } },
+        { op: 'add', item: { id: 'title', kind: 'text', x: 0, y: 260, text: { value: 'Notes' } } },
+      ],
+      { origin: 'user' },
+    );
+    const result = doc.apply(
+      [node('start', 'Start'), node('end', 'End'), arrow('start', 'end')],
+      fellow,
+    );
+    expect(result.ok).toBe(true);
+    const start = doc.get('start')!,
+      end = doc.get('end')!,
+      title = doc.get('title')!;
+    expect(start).toMatchObject({ x: title.x + title.w + 120, y: -40 });
+    expect(end.x).toBe(start.x + start.w + 120);
+    expect(overlaps(doc)).toBe(false);
+  });
+
+  it('places a node to the right of the first arrow that points at it', () => {
+    const doc = createDoc(undefined, { agentPlaceGap: 120 });
+    doc.apply(
+      [
+        node('a', 'A', { x: 0, y: 0 }),
+        node('c', 'C', { x: 0, y: 400 }),
+        node('x', 'X', { x: 800, y: 400 }),
+        node('b', 'B'),
+        // c is already a source, but a→b is the first arrow into b.
+        arrow('c', 'x'),
+        arrow('a', 'b'),
+        arrow('c', 'b'),
+      ],
+      fellow,
+    );
+    const a = doc.get('a')!;
+    expect(doc.get('b')).toMatchObject({ x: a.x + a.w + 120, y: a.y });
+  });
+
+  it('keeps sent coordinates and explicit place over the arrows', () => {
+    const doc = createDoc(undefined, { agentPlaceGap: 120 });
+    doc.apply([node('a', 'A')], fellow);
+    const result = doc.apply(
+      [
+        node('fixed', 'Fixed', { x: 40, y: 700 }),
+        { ...node('below', 'Below'), place: { below: 'a' } } as Op,
+        { op: 'add', item: { id: 'half', kind: 'rect', x: 900, text: { value: 'Half' } } },
+        arrow('a', 'fixed'),
+        arrow('a', 'below'),
+        arrow('a', 'half'),
+      ],
+      fellow,
+    );
+    expect(result.ok).toBe(true);
+    const a = doc.get('a')!;
+    expect(doc.get('fixed')).toMatchObject({ x: 40, y: 700 });
+    expect(doc.get('below')).toMatchObject({ y: a.y + a.h + 120 });
+    expect(doc.get('half')).toMatchObject({ x: 900, y: 0 });
   });
 });

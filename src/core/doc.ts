@@ -31,7 +31,16 @@ import { DocumentSchema, LIMITS, OpSchema, schemaError } from './schema';
 import { migrate } from './migrate';
 import { pageId } from './ids';
 import { flattenItems, intersects, itemBounds } from '../geo/box';
-import { placeAgentItem, placeItem, type BatchLinks, type PlaceShift } from '../agent/place';
+import {
+  flowPlacement,
+  freeSpaceOrigin,
+  isFlowNode,
+  placeAgentItem,
+  placeItem,
+  type BatchEdge,
+  type BatchLinks,
+  type PlaceShift,
+} from '../agent/place';
 import { queryDoc } from '../agent/query';
 import { describeDoc } from '../agent/describe';
 import { MEDIA_DATA_URL, normalizeHref, parseVideo } from './links';
@@ -343,9 +352,10 @@ function agentDefaults(item: Item, nextColor: () => string): void {
   if (item.kind === 'connector' && item.route === undefined) item.route = 'elbow';
   item.children?.forEach((child) => agentDefaults(child, nextColor));
 }
-/** Same-batch connector directions, so an occupied `place` slot can tell an inserted step from a sibling. */
-function batchLinks(ops: Op[]): BatchLinks {
+/** Same-batch connector directions, in arrow order, so placement can tell an inserted step from a sibling. */
+function batchLinks(ops: Op[]): { links: BatchLinks; edges: BatchEdge[] } {
   const links = new Map<string, Set<string>>();
+  const edges: BatchEdge[] = [];
   const visit = (item: NewItem | Item | undefined) => {
     if (!item || typeof item !== 'object') return;
     if (
@@ -364,12 +374,13 @@ function batchLinks(ops: Op[]): BatchLinks {
       if (from && to) {
         if (!links.has(from)) links.set(from, new Set());
         links.get(from)!.add(to);
+        edges.push([from, to]);
       }
     }
     item.children?.forEach(visit);
   };
   for (const op of ops) if (op && typeof op === 'object' && op.op === 'add') visit(op.item);
-  return links;
+  return { links, edges };
 }
 
 /** Move an existing item (and its children) to make room; connectors move stored points only. */
@@ -410,6 +421,7 @@ function perform(
   origin: string,
   options: DocOptions = {},
   links?: BatchLinks,
+  edges?: readonly BatchEdge[],
 ): {
   op: Op;
   /** Follow-up `set` operations for items moved to make room. */
@@ -445,9 +457,18 @@ function perform(
     if (parent && op.page && op.page !== parent.page.id)
       throw new Error('Parent and page must refer to the same page.');
     if (origin.startsWith('agent:')) {
+      const pageItems = flattenItems(page.items);
+      // normalizeItem stores omitted coordinates as 0; only a node sent without both is placed for the agent.
+      const unpositioned =
+        !parent && op.item.x === undefined && op.item.y === undefined && isFlowNode(item);
+      if (!op.place && unpositioned) op.place = flowPlacement(item.id, edges, pageItems);
       if (!op.place) {
-        const anchor = labelStackAnchor(item, flattenItems(page.items));
+        const anchor = labelStackAnchor(item, pageItems);
         if (anchor) op.place = { rightOf: anchor };
+      }
+      if (!op.place && unpositioned) {
+        const free = freeSpaceOrigin(item, pageItems, options.agentPlaceGap ?? 32);
+        if (free) item = { ...item, ...free };
       }
       let colorIndex = flattenItems(page.items).filter((entry) =>
         AGENT_NODE_KINDS.has(entry.kind),
@@ -919,14 +940,14 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
       const mediaIds = () =>
         new Set(concrete.filter((op) => op.op === 'media.set').map((op) => op.id));
       const batch = remapped.ops;
-      const links = origin.startsWith('agent:') ? batchLinks(batch) : undefined;
+      const graph = origin.startsWith('agent:') ? batchLinks(batch) : undefined;
       const moved = new Set<string>();
       for (let index = 0; index < batch.length; index++) {
         const snapshot = lenient ? clone(draft) : undefined;
         try {
           const error = schemaError(OpSchema, batch[index]);
           if (error) throw new Error(error);
-          const change = perform(draft, batch[index], origin, options, links);
+          const change = perform(draft, batch[index], origin, options, graph?.links, graph?.edges);
           if (origin !== 'user' && result.created.length + change.created.length > LIMITS.maxBatch)
             throw new Error(
               `An agent batch may create at most ${LIMITS.maxBatch} items, including nested children.`,
