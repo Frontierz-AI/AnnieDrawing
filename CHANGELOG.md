@@ -4,7 +4,7 @@
 
 A short wide diamond keeps its label vertically centered. The label inset no longer grows with the diamond's width.
 
-Agent docs now say to place a new connected node beside the existing one. If the empty space between those boxes is more than three times the placement gap, move only the new node. Do not start a second copy of the flow, and do not tidy the whole page unless asked.
+Agent docs now say to place a new connected node beside the existing one. If the empty space between the boxes is more than three times the placement gap, move only that new node and leave the rest of the diagram.
 
 The package lockfile matches `0.5.1`. The private MCP example stays `0.1.0`.
 
