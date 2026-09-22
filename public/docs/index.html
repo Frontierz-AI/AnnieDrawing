@@ -788,8 +788,10 @@ board.apply([{ op: 'add', item: {
             changes. <code>place</code> takes exactly one of <code>rightOf</code>,
             <code>leftOf</code>, <code>above</code>, <code>below</code>, <code>inside</code>, or
             <code>near</code>. Directional <code>place</code> slides further along that axis when
-            the first slot is occupied. An <code>agent:</code> create or text patch on
-            <code>rect</code>, <code>ellipse</code>, <code>diamond</code>, <code>note</code>, or
+            the first slot is occupied. An <code>agent:</code> add instead reads the arrows in its
+            batch to insert, pass, or stack, and a node sent without coordinates is placed from
+            those arrows. An <code>agent:</code> create or text patch on <code>rect</code>,
+            <code>ellipse</code>, <code>diamond</code>, <code>note</code>, or
             <code>text</code> grows the stored size so the label fits. Standalone
             <code>text</code> defaults to 600 wide. An <code>agent:</code> connector that omits
             <code>route</code> stores <code>elbow</code>. Elbows go around intervening boxes. A dry
@@ -806,8 +808,8 @@ board.apply([{ op: 'add', item: {
           <p>
             The document is JSON with stable item IDs. An agent can describe the scene, query items,
             and apply a batch. Every batch succeeds together or changes nothing. An
-            <code>agent:</code> origin grows labeled boxes and titles to fit text, slides
-            directional <code>place</code> when a slot is taken, and stores <code>elbow</code> on
+            <code>agent:</code> origin grows labeled boxes and titles to fit text, places nodes sent
+            without coordinates from the arrows in the same batch, and stores <code>elbow</code> on
             connectors that omit <code>route</code>. Elbows miss intervening boxes. This demo sets
             <code>exposeGlobal: true</code> so the board is on <code>window.__anniedrawing</code>.
             Other hosts must pass that option.

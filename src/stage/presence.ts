@@ -1,6 +1,7 @@
 import type { AgentPresenceOptions, Box, Point } from '../core/types';
 import { cursorArrow } from '../input/cursors';
 import type { Lens } from './lens';
+import { painted } from './itemView';
 import { esc } from './paint';
 
 interface Placement {
@@ -230,18 +231,18 @@ export class AgentPresence {
   }
 
   private reveal(generation: number, element: HTMLElement) {
-    const opacity = element.style.opacity || '1';
-    const transform = element.style.transform;
-    const to = Number(opacity);
+    // Read what the item view painted on every frame, so a move or restyle during the fade sticks.
+    const initial = { opacity: element.style.opacity || '1', transform: element.style.transform };
+    const base = () => painted.get(element) ?? initial;
     const restore = () => {
-      element.style.opacity = opacity;
-      element.style.transform = transform;
+      element.style.opacity = base().opacity;
+      element.style.transform = base().transform;
     };
     this.restore.set(element, restore);
     void this.play(generation, 220 * this.durationScale, (t) => {
-      element.style.opacity = String(to * t);
+      element.style.opacity = String(Number(base().opacity) * t);
       if (element.dataset.adKind !== 'connector')
-        element.style.transform = `${transform} scale(${0.97 + 0.03 * t})`;
+        element.style.transform = `${base().transform} scale(${0.97 + 0.03 * t})`;
     }).then(() => {
       if (generation !== this.generation) return;
       restore();

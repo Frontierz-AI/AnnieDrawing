@@ -257,6 +257,26 @@ describe('history', () => {
     doc.apply([{ op: 'set', id: 'a', patch: { y: 1 } }]);
     expect(doc.canRedo).toBe(false);
   });
+  it('undoes a merged agent entry by origin around later edits by a person', () => {
+    const doc = createDoc();
+    doc.apply([
+      { op: 'add', item: rect('a') },
+      { op: 'add', item: rect('b', 200) },
+      { op: 'meta.set', patch: { title: 'Plan' } },
+    ]);
+    const tidy = { origin: 'agent:tidy', label: 'Tidy', merge: true };
+    doc.apply([{ op: 'set', id: 'a', patch: { x: 50, style: { fill: 'sky' } } }], tidy);
+    doc.apply([{ op: 'set', id: 'b', patch: { y: 90 } }], tidy);
+    doc.apply([{ op: 'set', id: 'a', patch: { x: 70 } }], tidy);
+    doc.apply([{ op: 'meta.set', patch: { title: 'Tidy plan' } }], tidy);
+    doc.apply([{ op: 'set', id: 'b', patch: { x: 400 } }], { origin: 'user' });
+    expect(doc.undo({ origin: 'agent:tidy' })).toBe(true);
+    expect(doc.get('a')).toMatchObject({ x: 0 });
+    expect(doc.get('a')!.style?.fill).toBeUndefined();
+    expect(doc.get('b')).toMatchObject({ x: 400, y: 0 });
+    expect(doc.toJSON().meta.title).toBe('Plan');
+    expect(doc.undo({ origin: 'agent:tidy' })).toBe(false);
+  });
   it('round-trips mixed operation sequences through event inverses', () => {
     for (let seed = 0; seed < 20; seed++) {
       const doc = createDoc();
@@ -982,6 +1002,65 @@ describe('warnings and placement', () => {
     expect(doc.get('note_2')?.kind).toBe('rect');
     expect(doc.get('note')).toBeTruthy();
     expect(doc.get('note_1')).toBeTruthy();
+  });
+  it('keeps agent refs before a colliding create on the existing item', () => {
+    const doc = createDoc();
+    doc.apply([{ op: 'add', item: rect('a') }]);
+    const edit = doc.apply(
+      [
+        { op: 'set', id: 'a', patch: { x: 40 } },
+        { op: 'add', item: rect('a', 900) },
+      ],
+      { origin: 'agent:planner' },
+    );
+    expect(edit.ok).toBe(true);
+    expect(edit.created).toEqual(['a_1']);
+    expect(doc.get('a')!.x).toBe(40);
+    expect(doc.get('a_1')!.x).toBe(900);
+  });
+  it('lets an agent replace an item it removes in the same batch', () => {
+    const doc = createDoc();
+    doc.apply([{ op: 'add', item: rect('a') }]);
+    const replaced = doc.apply(
+      [
+        { op: 'remove', id: 'a' },
+        { op: 'add', item: rect('a', 500) },
+      ],
+      { origin: 'agent:planner' },
+    );
+    expect(replaced.ok).toBe(true);
+    expect(replaced.created).toEqual(['a']);
+    expect(replaced.warnings.some((warning) => warning.code === 'ID_REMAPPED')).toBe(false);
+    expect(doc.get('a')!.x).toBe(500);
+  });
+  it('keeps child ids when an agent resends a group', () => {
+    const doc = createDoc();
+    doc.apply([
+      {
+        op: 'add',
+        item: {
+          id: 'g',
+          kind: 'group',
+          x: 0,
+          y: 0,
+          w: 300,
+          h: 80,
+          children: [rect('c1'), rect('c2', 200)],
+        },
+      },
+      { op: 'add', item: rect('z', 0, 400) },
+      { op: 'add', item: { id: 'k', kind: 'connector', from: { item: 'c1' }, to: { item: 'z' } } },
+    ]);
+    const children = doc.get('g')!.children!;
+    children[0].text = { value: 'Hello' };
+    const result = doc.apply([{ op: 'set', id: 'g', patch: { children } }], {
+      origin: 'agent:planner',
+    });
+    expect(result.ok).toBe(true);
+    expect(result.warnings).toEqual([]);
+    expect(doc.get('g')!.children!.map((child) => child.id)).toEqual(['c1', 'c2']);
+    expect(doc.get('c1')!.text?.value).toBe('Hello');
+    expect(doc.get('k')!.from).toEqual({ item: 'c1' });
   });
   it('rejects inside placement on a non-group', () => {
     const doc = createDoc();

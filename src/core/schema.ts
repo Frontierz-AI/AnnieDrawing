@@ -57,50 +57,59 @@ export const EndpointSchema = v.union([
   }),
   PointSchema,
 ]);
-export const ItemSchema: v.GenericSchema = v.lazy(() =>
-  v.looseObject({
-    id: v.optional(id),
-    kind: v.pipe(v.string(), v.minLength(1), v.maxLength(100)),
-    x: v.optional(coordinate),
-    y: v.optional(coordinate),
-    w: v.optional(dimension),
-    h: v.optional(dimension),
-    rotation: v.optional(coordinate),
-    style: v.optional(StyleSchema),
-    text: v.optional(TextSchema),
-    locked: v.optional(v.boolean()),
-    hidden: v.optional(v.boolean()),
-    name: v.optional(text),
-    data: v.optional(record),
-    children: v.optional(v.array(ItemSchema)),
-    points: v.optional(
-      v.pipe(
-        v.array(
-          v.tupleWithRest([coordinate, coordinate], v.pipe(finite, v.minValue(0), v.maxValue(1))),
+function itemSchema(label: v.GenericSchema): v.GenericSchema {
+  const schema: v.GenericSchema = v.lazy(() =>
+    v.looseObject({
+      id: v.optional(id),
+      kind: v.pipe(v.string(), v.minLength(1), v.maxLength(100)),
+      x: v.optional(coordinate),
+      y: v.optional(coordinate),
+      w: v.optional(dimension),
+      h: v.optional(dimension),
+      rotation: v.optional(coordinate),
+      style: v.optional(StyleSchema),
+      text: v.optional(label),
+      locked: v.optional(v.boolean()),
+      hidden: v.optional(v.boolean()),
+      name: v.optional(text),
+      data: v.optional(record),
+      children: v.optional(v.array(schema)),
+      points: v.optional(
+        v.pipe(
+          v.array(
+            v.tupleWithRest([coordinate, coordinate], v.pipe(finite, v.minValue(0), v.maxValue(1))),
+          ),
+          v.maxLength(LIMITS.maxPoints),
         ),
-        v.maxLength(LIMITS.maxPoints),
       ),
-    ),
-    from: v.optional(EndpointSchema),
-    to: v.optional(EndpointSchema),
-    route: v.optional(v.picklist(['straight', 'elbow', 'curve'])),
-    heads: v.optional(
-      v.object({
-        start: v.optional(v.picklist(['none', 'arrow', 'dot'])),
-        end: v.optional(v.picklist(['none', 'arrow', 'dot'])),
-      }),
-    ),
-    waypoints: v.optional(v.array(v.tuple([coordinate, coordinate]))),
-    closed: v.optional(v.boolean()),
-    autoWidth: v.optional(v.boolean()),
-    media: v.optional(id),
-    crop: v.optional(BoxSchema),
-    href: v.optional(text),
-    description: v.optional(text),
-    html: v.optional(text),
-    mount: v.optional(id),
-  }),
-);
+      from: v.optional(EndpointSchema),
+      to: v.optional(EndpointSchema),
+      route: v.optional(v.picklist(['straight', 'elbow', 'curve'])),
+      heads: v.optional(
+        v.object({
+          start: v.optional(v.picklist(['none', 'arrow', 'dot'])),
+          end: v.optional(v.picklist(['none', 'arrow', 'dot'])),
+        }),
+      ),
+      waypoints: v.optional(v.array(v.tuple([coordinate, coordinate]))),
+      closed: v.optional(v.boolean()),
+      autoWidth: v.optional(v.boolean()),
+      media: v.optional(id),
+      crop: v.optional(BoxSchema),
+      href: v.optional(text),
+      description: v.optional(text),
+      html: v.optional(text),
+      mount: v.optional(id),
+    }),
+  );
+  return schema;
+}
+/** A stored item. */
+export const ItemSchema = itemSchema(TextSchema);
+/** Label input on `apply`: a plain string is stored as `{ value }`, like the `rectangle` alias. */
+const TextInputSchema = v.union([text, TextSchema]);
+/** An item sent to `apply`. Same as `ItemSchema`, except `text` may be a plain string. */
+export const NewItemSchema = itemSchema(TextInputSchema);
 export const PatchSchema = v.looseObject({
   x: v.optional(coordinate),
   y: v.optional(coordinate),
@@ -108,7 +117,7 @@ export const PatchSchema = v.looseObject({
   h: v.optional(dimension),
   rotation: v.optional(coordinate),
   style: v.optional(StyleSchema),
-  text: v.optional(v.partial(TextSchema)),
+  text: v.optional(v.union([text, v.partial(TextSchema)])),
   href: v.optional(text),
   description: v.optional(text),
   data: v.optional(record),
@@ -147,7 +156,7 @@ export const DocumentSchema = v.object({
 export const OpSchema = v.variant('op', [
   v.object({
     op: v.literal('add'),
-    item: ItemSchema,
+    item: NewItemSchema,
     page: v.optional(id),
     parent: v.optional(id),
     index: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
@@ -176,7 +185,7 @@ export const OpSchema = v.variant('op', [
       id: v.optional(id),
       name: text,
       background: v.optional(v.string()),
-      items: v.optional(v.array(ItemSchema)),
+      items: v.optional(v.array(NewItemSchema)),
     }),
   }),
   v.object({

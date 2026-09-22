@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDoc, type Op, type Placement } from '../src/core';
+import { createDoc, type Item, type Op, type Placement } from '../src/core';
 
 const fellow = { origin: 'agent:fellow' as const };
 const labels = [
@@ -640,6 +640,26 @@ describe('agent nodes sent without coordinates', () => {
     expect(result.warnings.some((warning) => warning.code === 'OVERLAPS_EXISTING')).toBe(false);
   });
 
+  it('reads arrows sent without ids', () => {
+    const doc = createDoc();
+    const labels = ['A', 'B', 'C', 'D'];
+    const result = doc.apply(
+      [
+        ...labels.map((label) => node(label.toLowerCase(), label)),
+        ...['a', 'b', 'c'].map((from, index): Op => ({
+          op: 'add',
+          item: { kind: 'arrow', from, to: 'bcd'[index] },
+        })),
+      ],
+      fellow,
+    );
+    expect(result.ok).toBe(true);
+    const [a, b, c, d] = ['a', 'b', 'c', 'd'].map((id) => doc.get(id)!);
+    expect([b, c, d].map((item) => item.y)).toEqual([a.y, a.y, a.y]);
+    expect(c.x).toBe(b.x + b.w + 32);
+    expect(d.x).toBe(c.x + c.w + 32);
+  });
+
   it('inserts a node into an existing flow from its arrows alone', () => {
     const doc = createDoc(undefined, { agentPlaceGap: 120 });
     doc.apply([node('a', 'A'), node('c', 'C'), arrow('a', 'c')], fellow);
@@ -724,5 +744,228 @@ describe('agent nodes sent without coordinates', () => {
     expect(doc.get('fixed')).toMatchObject({ x: 40, y: 700 });
     expect(doc.get('below')).toMatchObject({ y: a.y + a.h + 120 });
     expect(doc.get('half')).toMatchObject({ x: 900, y: 0 });
+  });
+});
+
+describe('agent placement edge cases', () => {
+  const box = (id: string, x: number, y: number, extra: Partial<Item> = {}): Item => ({
+    id,
+    kind: 'rect',
+    x,
+    y,
+    w: 100,
+    h: 60,
+    ...extra,
+  });
+  const link = (id: string, from: string, to: string): Op => ({
+    op: 'add',
+    item: { id, kind: 'connector', from: { item: from }, to: { item: to } },
+  });
+  const insert = (place: Placement, extra: Op[] = []): Op[] => [
+    { op: 'add', item: { id: 'n', kind: 'rect', w: 100, h: 60 }, place },
+    ...extra,
+  ];
+  const overlap = (a: Item, b: Item) =>
+    a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  const fellow = { origin: 'agent:fellow' as const };
+
+  it('moves a connector inside a shifted group once, and undo restores it', () => {
+    const doc = createDoc();
+    doc.apply([
+      { op: 'add', item: box('r', 0, 0) },
+      { op: 'add', item: box('h', 132, 0) },
+      {
+        op: 'add',
+        item: {
+          id: 'g',
+          kind: 'group',
+          x: 300,
+          y: 0,
+          w: 300,
+          h: 60,
+          children: [
+            box('a', 300, 0),
+            box('c', 500, 0),
+            {
+              id: 'inner',
+              kind: 'connector',
+              from: { item: 'a' },
+              to: { item: 'c' },
+              waypoints: [[450, 100]],
+            },
+          ],
+        },
+      },
+      link('rh', 'r', 'h'),
+      link('hg', 'h', 'g'),
+    ]);
+    const result = doc.apply(
+      insert({ rightOf: 'r' }, [link('rn', 'r', 'n'), link('nh', 'n', 'h')]),
+      fellow,
+    );
+    expect(result.ok).toBe(true);
+    const dx = doc.get('a')!.x - 300;
+    expect(dx).toBeGreaterThan(0);
+    expect(doc.get('inner')!.waypoints).toEqual([[450 + dx, 100]]);
+    expect(doc.undo()).toBe(true);
+    expect(doc.get('a')!.x).toBe(300);
+    expect(doc.get('inner')!.waypoints).toEqual([[450, 100]]);
+  });
+
+  it('leaves a group that holds locked work and warns when a moved node reaches it', () => {
+    const doc = createDoc();
+    doc.apply([
+      { op: 'add', item: box('r', 0, 0) },
+      { op: 'add', item: box('h', 132, 0) },
+      {
+        op: 'add',
+        item: {
+          id: 'g',
+          kind: 'group',
+          x: 300,
+          y: 0,
+          w: 100,
+          h: 60,
+          children: [box('a', 300, 0, { locked: true })],
+        },
+      },
+      link('rh', 'r', 'h'),
+      link('hg', 'h', 'g'),
+    ]);
+    const result = doc.apply(
+      insert({ rightOf: 'r' }, [link('rn', 'r', 'n'), link('nh', 'n', 'h')]),
+      fellow,
+    );
+    expect(result.moved).toEqual(['h']);
+    expect(doc.get('a')!.x).toBe(300);
+    expect(result.warnings).toContainEqual(
+      expect.objectContaining({
+        code: 'OVERLAPS_EXISTING',
+        message: 'Item h, moved to make room, overlaps a.',
+      }),
+    );
+  });
+
+  it('stacks beside a locked occupant instead of covering it', () => {
+    const doc = createDoc();
+    doc.apply([
+      { op: 'add', item: box('r', 0, 0) },
+      { op: 'add', item: box('b', 132, 0, { locked: true }) },
+      link('rb', 'r', 'b'),
+    ]);
+    const result = doc.apply(
+      insert({ rightOf: 'r' }, [link('rn', 'r', 'n'), link('nb', 'n', 'b')]),
+      fellow,
+    );
+    expect(result.ok).toBe(true);
+    expect(result.moved).toBeUndefined();
+    expect(doc.get('b')).toMatchObject({ x: 132, y: 0 });
+    expect(overlap(doc.get('n')!, doc.get('b')!)).toBe(false);
+    expect(result.warnings.map((warning) => warning.code)).not.toContain('OVERLAPS_EXISTING');
+  });
+
+  it('inserts before a node that sits inside a group', () => {
+    const doc = createDoc();
+    doc.apply([
+      { op: 'add', item: box('r', 0, 0) },
+      {
+        op: 'add',
+        item: {
+          id: 'g',
+          kind: 'group',
+          x: 132,
+          y: 0,
+          w: 232,
+          h: 60,
+          children: [box('c', 132, 0), box('d', 264, 0)],
+        },
+      },
+      link('rc', 'r', 'c'),
+      link('cd', 'c', 'd'),
+    ]);
+    const result = doc.apply(
+      insert({ rightOf: 'r' }, [link('rn', 'r', 'n'), link('nc', 'n', 'c')]),
+      fellow,
+    );
+    expect(doc.get('n')).toMatchObject({ x: 132, y: 0 });
+    expect(result.moved).toEqual(expect.arrayContaining(['c', 'd']));
+    expect(doc.get('c')!.x).toBe(264);
+    expect(doc.get('d')!.x).toBe(396);
+  });
+
+  it('keeps a stacked node clear of a tall reference', () => {
+    const doc = createDoc();
+    doc.apply([
+      { op: 'add', item: box('r', 0, 0, { h: 300 }) },
+      { op: 'add', item: box('d', 132, 0, { w: 20, h: 20 }) },
+    ]);
+    doc.apply(
+      [
+        {
+          op: 'add',
+          item: { id: 'n', kind: 'rect', w: 180, h: 60 },
+          place: { rightOf: 'r', align: 'start' },
+        },
+      ],
+      fellow,
+    );
+    expect(overlap(doc.get('n')!, doc.get('r')!)).toBe(false);
+    expect(overlap(doc.get('n')!, doc.get('d')!)).toBe(false);
+  });
+
+  it('places with a zero gap next to touching neighbors, for any origin', () => {
+    for (const origin of ['api', 'agent:fellow'] as const) {
+      const doc = createDoc();
+      doc.apply([
+        { op: 'add', item: box('r', 0, 0) },
+        { op: 'add', item: box('a', 100, 0) },
+        { op: 'add', item: box('b', 200, 0) },
+      ]);
+      const beside = doc.apply(insert({ rightOf: 'r', gap: 0 }), { origin });
+      expect(beside.ok).toBe(true);
+      expect(beside.warnings).toEqual([]);
+      // Other origins slide past touching neighbors; an unconnected agent node stacks beside one.
+      expect(doc.get('n')).toMatchObject(origin === 'api' ? { x: 300, y: 0 } : { x: 100, y: 60 });
+      const near = doc.apply(
+        [
+          {
+            op: 'add',
+            item: { id: 'm', kind: 'rect', w: 50, h: 50 },
+            place: { near: 'r', gap: 0 },
+          },
+        ],
+        { origin },
+      );
+      expect(near.ok).toBe(true);
+      expect(
+        [doc.get('r'), doc.get('a'), doc.get('b'), doc.get('n')].some((item) =>
+          overlap(item!, doc.get('m')!),
+        ),
+      ).toBe(false);
+    }
+  });
+
+  it('warns only about overlaps on the same page', () => {
+    const doc = createDoc();
+    doc.apply([
+      { op: 'add', item: box('first', 0, 0) },
+      { op: 'page.add', page: { id: 'p2', name: 'Two', items: [] } },
+    ]);
+    const result = doc.apply([{ op: 'add', page: 'p2', item: box('second', 0, 0) }], fellow);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('keeps many siblings of one reference apart', () => {
+    const doc = createDoc();
+    doc.apply([{ op: 'add', item: box('r', 0, 0) }]);
+    const result = doc.apply(
+      Array.from({ length: 90 }, (_, i): Op => ({
+        op: 'add',
+        item: { id: `s${i}`, kind: 'rect', w: 100, h: 60 },
+        place: { rightOf: 'r' },
+      })),
+      fellow,
+    );
+    expect(result.warnings.filter((warning) => warning.code === 'OVERLAPS_EXISTING')).toEqual([]);
   });
 });

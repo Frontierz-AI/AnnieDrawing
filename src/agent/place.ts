@@ -3,8 +3,8 @@ import {
   boundsOf,
   contains,
   flattenItems,
-  intersects,
   itemBounds,
+  overlaps,
   lookupItem,
   type ItemLookup,
 } from '../geo/box';
@@ -15,7 +15,7 @@ type Direction = 'rightOf' | 'leftOf' | 'above' | 'below';
 type Axis = 'x' | 'y';
 /** Tolerance for "at or beyond" comparisons on stored coordinates. */
 const EPSILON = 0.5;
-const MAX_SLIDES = 64;
+const MAX_SLIDES = 256;
 
 /** Connector directions from one batch: source id to the ids it points at. */
 export type BatchLinks = ReadonlyMap<string, ReadonlySet<string>>;
@@ -62,10 +62,23 @@ function slotBeside(key: Direction, ref: Box, item: Item, gap: number, align: st
   return { x: ref.x + offset(ref.w, w), y: ref.y + ref.h + gap, w, h };
 }
 
-function occupant(box: Box, items: Item[], lookup: ItemLookup, skip: Set<string>) {
-  return items.find(
+/**
+ * What takes a slot. A group and its children both cover it; prefer the one the batch arrows name,
+ * then the innermost shape, so a flow into a grouped node is read as a flow into that node.
+ */
+function occupant(
+  box: Box,
+  items: Item[],
+  lookup: ItemLookup,
+  skip: Set<string>,
+  linked?: ReadonlySet<string>,
+) {
+  const hits = items.filter(
     (other) =>
-      !skip.has(other.id) && blocksPlace(other) && intersects(box, itemBounds(other, lookup)),
+      !skip.has(other.id) && blocksPlace(other) && overlaps(box, itemBounds(other, lookup)),
+  );
+  return (
+    hits.find((hit) => linked?.has(hit.id)) ?? hits.find((hit) => hit.kind !== 'group') ?? hits[0]
   );
 }
 
@@ -110,7 +123,7 @@ function insideGroup(ref: Item, item: Item, gap: number, lookup: ItemLookup) {
       };
       if (
         contains(b, candidate) &&
-        !children.some((other) => intersects(candidate, itemBounds(other, lookup)))
+        !children.some((other) => overlaps(candidate, itemBounds(other, lookup)))
       )
         return { x: candidate.x, y: candidate.y };
     }
@@ -118,17 +131,20 @@ function insideGroup(ref: Item, item: Item, gap: number, lookup: ItemLookup) {
 }
 
 function nearReference(b: Box, item: Item, gap: number, items: Item[], lookup: ItemLookup) {
+  // Rings move out by the gap; a zero gap still needs somewhere further to look.
+  const step = Math.max(gap, 16);
   for (let ring = 1; ring <= 100; ring++) {
+    const offset = gap + (ring - 1) * step;
     const candidates = [
-      { x: b.x + b.w + gap * ring, y: b.y },
-      { x: b.x, y: b.y + b.h + gap * ring },
-      { x: b.x - item.w - gap * ring, y: b.y },
-      { x: b.x, y: b.y - item.h - gap * ring },
+      { x: b.x + b.w + offset, y: b.y },
+      { x: b.x, y: b.y + b.h + offset },
+      { x: b.x - item.w - offset, y: b.y },
+      { x: b.x, y: b.y - item.h - offset },
     ];
     for (const candidate of candidates)
       if (
         !items.some((other) =>
-          intersects({ ...candidate, w: item.w, h: item.h }, itemBounds(other, lookup)),
+          overlaps({ ...candidate, w: item.w, h: item.h }, itemBounds(other, lookup)),
         )
       )
         return candidate;
@@ -181,18 +197,26 @@ export function placeAgentItem(
   const linked = new Set<string>(links?.get(item.id) ?? []);
   for (const [from, targets] of links ?? []) if (targets.has(item.id)) linked.add(from);
   let slot = slotBeside(key, itemBounds(ref, lookup), item, gap, align);
+  // Stacking beside an occupant must still keep clear of the reference.
+  const self = new Set([item.id]);
   for (let step = 0; step < MAX_SLIDES; step++) {
-    const hit = occupant(slot, items, lookup, skip);
+    const hit = occupant(slot, items, lookup, skip, linked);
     if (!hit) break;
     const hitBounds = itemBounds(hit, lookup);
     const into = links?.get(item.id)?.has(hit.id) ?? false,
       outOf = links?.get(hit.id)?.has(item.id) ?? false,
       forward = dir > 0;
-    if (forward ? into : outOf)
+    if (forward ? into : outOf) {
+      // A locked occupant, or one in or around locked work, stays; the new node stacks beside it.
+      if (pinned(hit, items)) {
+        const beside = stackBeside(slot, hitBounds, axis, gap, items, lookup, self);
+        return { item: { ...item, x: beside.x, y: beside.y }, shifts: [] };
+      }
       return {
         item: { ...item, x: slot.x, y: slot.y },
         shifts: makeRoom(slot, hit, hitBounds, ref.id, axis, dir, gap, items, lookup),
       };
+    }
     // Keep sliding past a node the new one follows, or when its own neighbor sits further down this lane.
     const laneAhead = (other: Item) =>
       linked.has(other.id) &&
@@ -202,7 +226,7 @@ export function placeAgentItem(
       slot = pastOccupant(slot, hitBounds, axis, dir, gap);
       continue;
     }
-    const beside = stackBeside(slot, hitBounds, axis, gap, items, lookup, skip);
+    const beside = stackBeside(slot, hitBounds, axis, gap, items, lookup, self);
     return { item: { ...item, x: beside.x, y: beside.y }, shifts: [] };
   }
   return { item: { ...item, x: slot.x, y: slot.y }, shifts: [] };
@@ -242,9 +266,18 @@ export function freeSpaceOrigin(item: Item, items: Item[], gap: number): Point |
     (other) => other.id !== item.id && !other.hidden && other.kind !== 'connector',
   );
   const box = { x: item.x, y: item.y, w: item.w, h: item.h };
-  if (!solid.some((other) => intersects(box, itemBounds(other, items)))) return;
+  if (!solid.some((other) => overlaps(box, itemBounds(other, items)))) return;
   const content = boundsOf(solid, items);
   return { x: content.x + content.w + gap, y: content.y };
+}
+
+/** A locked item, one inside a locked group, or a group holding locked work cannot be moved over. */
+function pinned(item: Item, items: Item[]): boolean {
+  if (flattenItems([item]).some((entry) => entry.locked)) return true;
+  return items.some(
+    (entry) =>
+      entry.locked && entry.id !== item.id && flattenItems([entry]).some((c) => c.id === item.id),
+  );
 }
 
 /** Whether a box lies past the occupant along the axis while overlapping the slot's lane. */
@@ -329,7 +362,7 @@ function makeRoom(
   const moving = new Set<string>();
   for (const id of component) {
     const entry = byId.get(id)!;
-    if (entry.kind === 'connector' || entry.locked) continue;
+    if (entry.kind === 'connector' || pinned(entry, items)) continue;
     if (id === hit.id || beyond(itemBounds(entry, lookup))) moving.add(id);
   }
   const ancestorMoving = (id: string): boolean => {
@@ -343,6 +376,8 @@ function makeRoom(
   for (const id of moving) if (!ancestorMoving(id)) shifts.push({ id, dx, dy });
   const covered = (id: string) => moving.has(id) || ancestorMoving(id);
   for (const connector of connectors) {
+    // A connector inside a moving group already moves with it.
+    if (covered(connector.id)) continue;
     const ends = [connector.from, connector.to];
     const bound = ends.flatMap((end) => (end && 'item' in end ? [end.item] : []));
     const free = ends.some((end) => end && !('item' in end));

@@ -9,6 +9,7 @@ export { placeItem } from './place';
 export {
   DocumentSchema,
   ItemSchema,
+  NewItemSchema,
   OpSchema,
   OpsSchema,
   QuerySchema,

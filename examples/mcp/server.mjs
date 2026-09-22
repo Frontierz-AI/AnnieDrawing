@@ -76,6 +76,10 @@ if (live) {
         socket.close(1008, 'Invalid JSON');
         return;
       }
+      if (!message || typeof message !== 'object') {
+        socket.close(1008, 'Expected a JSON object');
+        return;
+      }
       if (!authenticated) {
         if (message.type !== 'hello' || !equalToken(message.token) || peer) {
           socket.close(1008, 'Authentication rejected or board already connected');

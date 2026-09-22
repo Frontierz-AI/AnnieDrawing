@@ -46,11 +46,11 @@ Default sizes when `w` and `h` are omitted: rect and ellipse 180×110, diamond 1
 
 `text` has a plain `value`, horizontal `align` (`start`, `center`, `end`), vertical `valign` (`top`, `middle`, `bottom`), `size` (`s`, `m`, `l`, `xl`, or a number from 1 to 1000), and `font` (`sans`, `serif`, `mono`, `hand`). Omitted `font` is `hand`, the handwritten Comic Sans-like stack. `autoWidth: true` on a browser `text` item stores measured width and height.
 
-Style fields: `stroke`, `strokeWidth` (0 to 1000), `dash` (`solid`, `dashed`, `dotted`), `fill`, `fillMode` (`solid`, `tint`, `hatch`), `corner`, and `opacity` (0 to 1). Notes, images, videos, and link cards default to a 12px corner. `hatch` is a document and export fill. The inspector does not offer it.
+Style fields: `stroke`, `strokeWidth` (0 to 1000), `dash` (`solid`, `dashed`, `dotted`), `fill`, `fillMode` (`solid`, `tint`, `hatch`), `corner`, and `opacity` (0 to 1). Rectangles, notes, images, videos, and link cards default to a 12px corner. `hatch` is a document and export fill. The inspector does not offer it.
 
 `href` is an `http(s)` URL on `video` and `link` items. `description` is optional plain text for a link card. A `video` href must be a YouTube or Vimeo watch or embed URL. The renderer derives the player address from the parsed id. It does not store iframe markup. `html` holds markup for `html` items. `mount` is an internal id the renderer assigns; do not treat it as a file field to author.
 
-Named colors: `ink`, `slate`, `coral`, `amber`, `moss`, `teal`, `sky`, `violet`, `rose`, and `paper`. These map to Frontierz colors and theme-aware foreground and background values. Ordinary CSS colors are also accepted. `fill: 'none'` draws a hollow shape. `apply` also accepts host color names (`black`, `grey`, `gray`, `blue`, `light-blue`, `green`, `light-green`, `red`, `light-red`, `orange`, `yellow`, `violet`, `light-violet`); compact JSON writes the token, not the alias. Kind aliases `rectangle` and `arrow` are operation input only. They are not format kinds.
+Named colors: `ink`, `slate`, `coral`, `amber`, `moss`, `teal`, `sky`, `violet`, `rose`, and `paper`. These map to Frontierz colors and theme-aware foreground and background values. Ordinary CSS colors are also accepted. `fill: 'none'` draws a hollow shape. `apply` also accepts host color names (`black`, `grey`, `gray`, `blue`, `light-blue`, `green`, `light-green`, `red`, `light-red`, `orange`, `yellow`, `violet`, `light-violet`); compact JSON writes the token, not the alias. Kind aliases `rectangle` and `arrow` are operation input only. They are not format kinds. The same holds for a plain string `text` on `apply`: the document always stores `text` as an object with `value`.
 
 ## Connectors and paths
 

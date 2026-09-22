@@ -189,6 +189,10 @@ test('live bridge rejects a wrong origin/token, forwards calls and reports disco
   unauthenticated.send(JSON.stringify({ type: 'hello', token: 'incorrect' }));
   const [code] = await once(unauthenticated, 'close');
   assert.equal(code, 1008);
+  const malformed = new WebSocket(url, { origin });
+  await once(malformed, 'open');
+  malformed.send('null');
+  assert.equal((await once(malformed, 'close'))[0], 1008);
   const socket = new WebSocket(url, { origin });
   t.after(() => socket.terminate());
   await once(socket, 'open');

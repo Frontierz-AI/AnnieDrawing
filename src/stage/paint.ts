@@ -32,8 +32,13 @@ const dark: Record<string, string> = {
   slate: '#B6C5C1',
   paper: '#173D40',
 };
+// Named colors, hex, and color functions without nesting. Anything else, such as `url(...)`, would
+// let a document make the browser fetch a URL that image-origin rules never saw.
+const CSS_COLOR =
+  /^(?:[a-z]+|#[\da-f]{3,8}|(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch)\([\w\s.,%+\-/]*\))$/i;
 export function color(value = 'ink', theme: 'light' | 'dark' = 'light'): string {
-  return (theme === 'dark' ? dark : light)[value] ?? value;
+  const palette = theme === 'dark' ? dark : light;
+  return palette[value] ?? (CSS_COLOR.test(value) ? value : palette.ink);
 }
 function rgb(value: string): number[] | undefined {
   const named: Record<string, string> = {

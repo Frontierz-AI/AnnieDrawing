@@ -3,7 +3,7 @@ import type { AnnieDoc, Item } from '../src/core/types';
 import { Lens } from '../src/stage/lens';
 import { createKindRegistry, defineKind, getKind, registerKind } from '../src/kinds/registry';
 import { exportSVG } from '../src/porter/svg';
-import { freehandPath, labelColor } from '../src/stage/paint';
+import { color, freehandPath, labelColor } from '../src/stage/paint';
 
 const rectangle = (patch: Partial<Item> = {}): Item => ({
   id: 'i_box',
@@ -141,6 +141,19 @@ describe('portable SVG export', () => {
     expect(svg).not.toContain('>Open<');
     expect(svg).not.toContain('<iframe');
     expect(svg).not.toContain('foreignObject');
+  });
+  it('keeps CSS colors and drops url() paints that would fetch', () => {
+    const colors = ['#abc', 'rebeccapurple', 'rgb(0 0 0 / 50%)', 'oklch(70% 0.1 200)'];
+    const safe = colors.map((fill) => rectangle({ id: fill, style: { fill } }));
+    const beacon = rectangle({
+      id: 'i_beacon',
+      style: { fill: 'url(https://beacon.example/a.png)', stroke: 'url(#p) red' },
+    });
+    const svg = exportSVG(documentWith([...safe, beacon]), [...safe, beacon]);
+    for (const fill of colors) expect(svg).toContain(`fill="${fill}"`);
+    expect(svg).not.toContain('beacon.example');
+    expect(svg).not.toContain('url(');
+    expect(color('url(https://beacon.example/a.png)')).toBe(color('ink'));
   });
   it('supports caller-supplied SVG exporters', () => {
     const item = rectangle({ kind: 'badge' });

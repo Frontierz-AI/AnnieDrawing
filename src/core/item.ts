@@ -64,8 +64,12 @@ export function remapAgentCreateIds(
   ops: Op[],
 ): { ops: Op[]; warnings: ApplyIssue[] } {
   const batch = clone(ops);
-  const taken = new Set(allItems(doc).map((item) => item.id));
+  const existing = new Map(allItems(doc).map((item) => [item.id, item]));
+  const taken = new Set(existing.keys());
   const alias = new Map<string, string>();
+  // A remove, or a set that replaces children, frees those ids for later creates in the batch.
+  const release = (items: Item[] | undefined) =>
+    flattenItems(items ?? []).forEach((item) => taken.delete(item.id));
   const warnings: ApplyIssue[] = [];
   const claim = (requested: string, index: number) => {
     const id = uniqueItemId(requested, taken);
@@ -84,14 +88,6 @@ export function remapAgentCreateIds(
     if (typeof item.id === 'string' && item.id) item.id = claim(item.id, index);
     item.children?.forEach((child) => assignTree(child, index));
   };
-  for (let index = 0; index < batch.length; index++) {
-    const op = batch[index];
-    if (!op || typeof op !== 'object') continue;
-    if (op.op === 'add') assignTree(op.item, index);
-    else if (op.op === 'page.add') op.page.items?.forEach((item) => assignTree(item, index));
-    else if (op.op === 'set' && Array.isArray(op.patch?.children))
-      op.patch.children.forEach((child) => assignTree(child, index));
-  }
   const rewriteId = (id: string | undefined | null) => (id && alias.has(id) ? alias.get(id)! : id);
   const rewriteEndpoint = (value: EndpointInput | undefined) => {
     if (typeof value === 'string') return rewriteId(value) ?? value;
@@ -117,9 +113,12 @@ export function remapAgentCreateIds(
     if ('place' in item) rewritePlace(item.place);
     item.children?.forEach(rewriteTree);
   };
-  for (const op of batch) {
+  // In batch order, so an op before a create still refers to the item already on the board.
+  for (let index = 0; index < batch.length; index++) {
+    const op = batch[index];
     if (!op || typeof op !== 'object') continue;
     if (op.op === 'add') {
+      assignTree(op.item, index);
       rewriteTree(op.item);
       if (op.parent) op.parent = rewriteId(op.parent)!;
       if (op.place)
@@ -127,13 +126,22 @@ export function remapAgentCreateIds(
           const target = op.place[key];
           if (target) op.place[key] = rewriteId(target) as Placement[typeof key];
         }
-    } else if (op.op === 'page.add') op.page.items?.forEach(rewriteTree);
-    else if (op.op === 'set') {
+    } else if (op.op === 'page.add') {
+      op.page.items?.forEach((item) => assignTree(item, index));
+      op.page.items?.forEach(rewriteTree);
+    } else if (op.op === 'set') {
       op.id = rewriteId(op.id)!;
-      if (op.patch.from !== undefined) op.patch.from = rewriteEndpoint(op.patch.from);
-      if (op.patch.to !== undefined) op.patch.to = rewriteEndpoint(op.patch.to);
-      if (Array.isArray(op.patch.children)) op.patch.children.forEach(rewriteTree);
-    } else if (op.op === 'remove' || op.op === 'order') op.id = rewriteId(op.id)!;
+      if (op.patch?.from !== undefined) op.patch.from = rewriteEndpoint(op.patch.from);
+      if (op.patch?.to !== undefined) op.patch.to = rewriteEndpoint(op.patch.to);
+      if (Array.isArray(op.patch?.children)) {
+        release(existing.get(op.id)?.children);
+        op.patch.children.forEach((child) => assignTree(child, index));
+        op.patch.children.forEach(rewriteTree);
+      }
+    } else if (op.op === 'remove') {
+      op.id = rewriteId(op.id)!;
+      if (existing.has(op.id)) release([existing.get(op.id)!]);
+    } else if (op.op === 'order') op.id = rewriteId(op.id)!;
     else if (op.op === 'reparent') {
       op.id = rewriteId(op.id)!;
       if (op.parent) op.parent = rewriteId(op.parent)!;

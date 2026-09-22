@@ -98,6 +98,7 @@ try {
     import { readFileSync } from 'node:fs';
     import { createDoc } from 'anniedrawing/core';
     import { toolDefs, runTool } from 'anniedrawing/agent';
+    import { effect } from '@preact/signals-core';
     const doc = createDoc();
     const result = await runTool(doc, 'board_apply', {ops:[{op:'page.add',page:{id:'p_consumer',name:'Consumer'}},{op:'add',page:'p_consumer',item:{id:'i_consumer',kind:'note',text:{value:'Installed from tarball'}}}]});
     assert.equal(result.ok,true);
@@ -106,9 +107,33 @@ try {
     assert.equal('sheets' in doc.toJSON(),false);
     assert.equal(doc.get('i_consumer').text.value,'Installed from tarball');
     assert.equal(toolDefs.length,6);
+    // The package imports its runtime dependencies, so the host's signals runtime tracks board signals.
+    const seen = [];
+    const stop = effect(() => { seen.push(doc.itemSignal('i_consumer').value?.x); });
+    doc.apply([{op:'set',id:'i_consumer',patch:{x:42}}]);
+    stop();
+    assert.equal(seen.at(-1),42);
     for (const path of ['anniedrawing','anniedrawing/core','anniedrawing/agent','anniedrawing/ui','anniedrawing/fellow','anniedrawing/style.css']) assert(import.meta.resolve(path));
     assert(readFileSync(new URL(import.meta.resolve('anniedrawing/style.css')),'utf8').includes('.ad-root'));
-    console.log('Tarball consumer passed: version2 pages, headless operations, six tools, CSS and all package exports.');
+    console.log('Tarball consumer passed: version2 pages, headless operations, six tools, shared signals, CSS and all package exports.');
+  `,
+    ],
+    { cwd: directory, stdio: 'inherit' },
+  );
+  // CommonJS hosts reach the ES module entries through the `default` condition.
+  execFileSync(
+    process.execPath,
+    [
+      '-e',
+      `
+    const assert = require('node:assert/strict');
+    const { createDoc } = require('anniedrawing/core');
+    const { toolDefs } = require('anniedrawing/agent');
+    const { version } = require('anniedrawing/package.json');
+    assert.equal(createDoc().apply([{op:'add',item:{kind:'rect',text:'Required'}}]).ok,true);
+    assert.equal(toolDefs.length,6);
+    assert.match(version,/^\\d+\\.\\d+\\.\\d+/);
+    console.log('CommonJS consumer passed: require() of core, agent, and package.json.');
   `,
     ],
     { cwd: directory, stdio: 'inherit' },

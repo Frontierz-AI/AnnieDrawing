@@ -75,6 +75,13 @@ export function boundsOf(items: Item[], lookup?: ItemLookup, outline?: OutlineRe
 }
 export const intersects = (a: Box, b: Box) =>
   a.x <= b.x + b.w && a.x + a.w >= b.x && a.y <= b.y + b.h && a.y + a.h >= b.y;
+/** Boxes share area. Touching edges, and float noise below TOUCH, do not count. */
+const TOUCH = 1e-6;
+export const overlaps = (a: Box, b: Box) =>
+  a.x + TOUCH < b.x + b.w &&
+  b.x + TOUCH < a.x + a.w &&
+  a.y + TOUCH < b.y + b.h &&
+  b.y + TOUCH < a.y + a.h;
 export const contains = (a: Box, b: Box) =>
   b.x >= a.x && b.y >= a.y && b.x + b.w <= a.x + a.w && b.y + b.h <= a.y + a.h;
 export const containsPoint = (b: Box, p: Point) =>

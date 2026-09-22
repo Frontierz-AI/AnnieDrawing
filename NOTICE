@@ -11,16 +11,16 @@ repository. Dependency use is listed below; this statement does not claim
 ownership of third-party code or common ideas.
 
 Direct runtime dependencies (MIT)
-- @preact/signals-core — Preact contributors
-- perfect-freehand — Steve Ruiz and contributors
-- rbush — Vladimir Agafonkin
-- valibot — Fabian Hiller and contributors
-- nanoid — Andrey Sitnik
+- @preact/signals-core: Preact contributors
+- perfect-freehand: Steve Ruiz and contributors
+- rbush: Vladimir Agafonkin
+- valibot: Fabian Hiller and contributors
+- nanoid: Andrey Sitnik
 
 Optional integrations
-- DOMPurify — dual licensed MPL-2.0 OR Apache-2.0; Cure53 and contributors.
+- DOMPurify: dual licensed MPL-2.0 OR Apache-2.0; Cure53 and contributors.
   AnnieDrawing consumers may use the Apache-2.0 option.
-- ws in the separate MCP example — MIT; Einar Otto Stangvik and contributors
+- ws in the separate MCP example: MIT; Einar Otto Stangvik and contributors
 
 Demo typography
 - Nunito variable font, distributed by @fontsource-variable/nunito,

@@ -111,6 +111,8 @@ export function normalizeItem(
   else delete result.to;
   if (style) result.style = style;
   else delete result.style;
+  // A plain string label keeps any label defaults of a custom kind.
+  if (typeof input.text === 'string') result.text = { ...custom?.text, value: input.text };
   if (originalKind === 'arrow') {
     if (result.heads?.end === undefined) result.heads = { ...result.heads, end: 'arrow' };
     if (result.route === undefined) result.route = 'elbow';

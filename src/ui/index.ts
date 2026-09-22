@@ -1,4 +1,5 @@
 import type { Board } from '../board';
+import type { SaveEvent } from '../input/autosave';
 import type { Item, Point } from '../core/types';
 import { button, icon } from './icons';
 import { GITHUB_REPO_URL, PACKAGE_VERSION } from './version';
@@ -343,6 +344,31 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   if (!showMenu) header.classList.add('ad-header-end');
   ui.append(header);
   if (drawingInput) ui.append(drawingInput);
+  // Autosave problems stay visible until a save succeeds; a conflict asks which version to keep.
+  const saveNotice = el('div', 'ad-save-notice');
+  saveNotice.setAttribute('role', 'status');
+  saveNotice.hidden = true;
+  ui.append(saveNotice);
+  let shownSave: SaveEvent | undefined;
+  const showSave = (event: SaveEvent) => {
+    if (event.status === 'saved') {
+      shownSave = undefined;
+      saveNotice.hidden = true;
+      saveNotice.replaceChildren();
+      return;
+    }
+    if ((event.status !== 'error' && event.status !== 'conflict') || event === shownSave) return;
+    shownSave = event;
+    saveNotice.dataset.status = event.status;
+    saveNotice.replaceChildren(el('span', 'ad-save-message', event.message ?? ''));
+    const resolve = event.resolve;
+    if (resolve)
+      saveNotice.append(
+        textButton('Use saved version', () => resolve('load')),
+        textButton('Keep this version', () => resolve('keep'), 'ad-button ad-primary'),
+      );
+    saveNotice.hidden = false;
+  };
   const toolbar = el('nav', 'ad-toolbar');
   toolbar.setAttribute('aria-label', 'Drawing tools');
   function toolButton(id: string, expanded = false) {
@@ -1337,6 +1363,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   };
   board.host.addEventListener('ad-context', context);
   unsubs.push(
+    board.on('save', showSave),
     board.on('change', refresh),
     board.on('select', () => {
       renderStyle();
