@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1
+
+A short wide diamond keeps its label vertically centered. The label inset no longer grows with the diamond's width.
+
+Agent docs now say to place a new connected node beside the existing one. If the empty space between those boxes is more than three times the placement gap, move only the new node. Do not start a second copy of the flow, and do not tidy the whole page unless asked.
+
+The package lockfile matches `0.5.1`. The private MCP example stays `0.1.0`.
+
 ## 0.5.0
 
 An `agent:` create that omits coordinates, or repeats one coordinate on every step, no longer stacks labeled flowchart nodes on one origin. A single `place` on the item is honored. Otherwise a labeled `rect`, `ellipse`, `diamond`, `note`, or `text` that covers a similar label is placed `rightOf` it, using `agentPlaceGap`. A much smaller shape inside a larger one stays where it was sent. Connectors, lines, paths, explicit `place`, and non-agent edits keep their coordinates.

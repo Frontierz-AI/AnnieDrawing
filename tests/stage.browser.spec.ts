@@ -82,6 +82,41 @@ test('draft movement reuses DOM and paints only the changed item and attached co
   expect(result.restored).toContain('80px, 80px');
 });
 
+test('a short diamond centers its label vertically', async ({ page }) => {
+  await prepare(page);
+  const delta = await page.evaluate(() => {
+    const { stage, doc } = (window as any).__stageFixture;
+    const next = {
+      ...doc,
+      pages: [
+        {
+          ...doc.pages[0],
+          items: [
+            ...doc.pages[0].items,
+            {
+              id: 'i_d',
+              kind: 'diamond',
+              x: 40,
+              y: 240,
+              w: 420,
+              h: 120,
+              text: { value: 'Second human review needed?' },
+            },
+          ],
+        },
+      ],
+    };
+    stage.render(next, 's_main');
+    const item = stage.world.querySelector('[data-ad-id="i_d"]');
+    const range = document.createRange();
+    range.selectNodeContents(item.querySelector('.ad-text'));
+    const textBox = range.getBoundingClientRect();
+    const itemBox = item.getBoundingClientRect();
+    return textBox.top + textBox.height / 2 - (itemBox.top + itemBox.height / 2);
+  });
+  expect(Math.abs(delta)).toBeLessThan(2);
+});
+
 test('selection has eight usable resize handles and a rotation handle', async ({ page }) => {
   await prepare(page);
   await page.evaluate(() => (window as any).__stageFixture.stage.setSelection(['i_a']));

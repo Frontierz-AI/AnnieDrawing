@@ -121,8 +121,9 @@
     Chalkboard SE,
     cursive;
 }
+/* Vertical padding is a percentage of width, so a wide short diamond shoved the label down. */
 .ad-item[data-ad-kind='diamond'] .ad-text {
-  padding: 20%;
+  padding: 0 20%;
 }
 .ad-item[data-ad-kind='ellipse'] .ad-text {
   padding: 15%;
