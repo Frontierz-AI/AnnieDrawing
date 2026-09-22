@@ -1,5 +1,29 @@
 # Design decisions
 
+## 2026-09-22: Autosave asks before replacing, placement respects locked groups, describe quotes
+
+Autosave kept one IndexedDB record per key and wrote it whenever the page changed. Two tabs, a late load, or opening a blank demo page silently replaced saved work. A save stamp now sits beside the record and is checked in the same readwrite transaction as the write, so the check cannot interleave with another tab. A tab that finds a newer stamp does not write; it raises a conflict and the person picks a version. Tabs without unsaved edits follow saves announced on a `BroadcastChannel`. The stored drawing keeps its old format and key, so earlier saves still load. An unreadable record is copied to a separate key before new work is saved over it; if the copy fails, autosave stops rather than risk the only copy.
+
+Locking already protects group descendants in the editor. Placement now does the same: a group that holds locked work, or sits in a locked group, is not moved to make room, and a locked occupant makes the node stack beside it. Placement occupancy uses strict overlap, so a zero gap places boxes edge to edge. The shared `intersects` stays inclusive for hit testing and selection.
+
+`describe()` is read by agents as text. Ids, kinds, fills, and data keys are free strings in the format, and printing them raw let a document add lines or fields. They now print as is only when they are plain tokens, and are JSON-quoted otherwise. The format keeps accepting any id so imported and unknown content survives.
+
+## 2026-09-22: History keeps traces, dependencies stay external, labels accept strings
+
+A history entry held the whole document before and after it, and every commit deep-copied the whole document, media data URLs included. A board with one large photo grew by the photo's size on every edit. Selective undo only compares the items, pages, metadata, and media that an entry's inverse ops name, so an entry now keeps those parts as references into committed states, which are never edited after commit. Document copies share media objects, because media is only ever replaced or removed. A data-URL media object is validated once. A merged entry keeps the earliest value of each part and re-reads the current state for its after side.
+
+The library build imports its runtime dependencies instead of bundling them. Consumers install them anyway, so bundled copies were duplicates, and a host's own `@preact/signals-core` could not track board signals through a second runtime. The size budget measures what a consumer's bundler ships for `import 'anniedrawing'`: the editor, those dependencies, and the stylesheet. The check also fails when the package imports anything that is not a dependency or peer. The JSON Schema converter stays bundled into the agent entry because it is a development dependency.
+
+Agents send `text: 'Start'` more often than `text: { value: 'Start' }`. That string is accepted on `add`, `page.add`, and `set`, and stored as `{ value }`. A string `set` patch changes only `value`. Like `rectangle`, it is operation vocabulary, not a format field, so `ItemSchema` and stored documents keep the object form and `CATALOG_VERSION` does not change.
+
+## 2026-09-22: Paints are colors, lanes route once, and agent remaps follow batch order
+
+`fill` and `stroke` stay free strings in the format so unknown values survive import. Rendering, SVG export, and the inspector swatch resolve them through one function that accepts palette tokens, named colors, hex, and CSS color functions without nesting. Anything else renders as ink. A `url(...)` paint would otherwise fetch a remote URL on render and in exports, outside `allowedImageOrigins`.
+
+Elbow lanes are still reserved in document order from current geometry. Each route is the next step of one ordered pass over its lookup, so the pass is kept per lookup object and resumed. Every call first compares the listed items and the fields routing reads, so a refilled or mutated lookup, such as drag drafts, starts a new pass. Replaying the pass per connector made a page cubic in its connector count.
+
+An `agent:` create that collides is remapped for the ops after it, not the ops before it. An earlier `set`, `remove`, `order`, or `reparent` still names the item on the board. A `remove`, or a `set` that replaces a group's `children`, frees those ids for later creates in the batch, so replacing an item or resending a group keeps its ids.
+
 ## 2026-09-22: Agent diagrams need no coordinates
 
 Agents spent most of a diagram call on geometry: `place` for every node, or coordinates guessed without knowing what was already on the board. The batch's arrows already say where a node belongs, and a taken slot reads them to insert, pass, or stack. For an `agent:` add that sends neither `x` nor `y`, has no `place`, is not a child, and is not a connector, line, path, or group, the arrows now choose the relation: `rightOf` the first source already on the page, otherwise `leftOf` the first such target. The existing `placeAgentItem` path then inserts, passes, or stacks. Only nodes already on the page count, so a batch lists nodes before the arrows that reach them, as it must for bound endpoints anyway.

@@ -99,12 +99,14 @@ export interface Item {
   [key: string]: unknown;
 }
 export type NewItem = {
-  [K in keyof Item as K extends 'children' | 'kind' | 'from' | 'to' ? never : K]?: Item[K];
+  [K in keyof Item as K extends 'children' | 'kind' | 'from' | 'to' | 'text' ? never : K]?: Item[K];
 } & {
   kind: ItemKind;
   children?: NewItem[];
   from?: EndpointInput;
   to?: EndpointInput;
+  /** A plain string is stored as `{ value }`. */
+  text?: ItemText | string;
 };
 export interface Page {
   id: string;
@@ -151,9 +153,11 @@ export type Op =
   | {
       op: 'set';
       id: string;
-      patch: Omit<Partial<Item>, 'from' | 'to'> & {
+      patch: Omit<Partial<Item>, 'from' | 'to' | 'text'> & {
         from?: EndpointInput;
         to?: EndpointInput;
+        /** A plain string sets `text.value` and keeps the other label fields. */
+        text?: Partial<ItemText> | string;
       };
     }
   | {

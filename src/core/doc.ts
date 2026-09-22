@@ -9,6 +9,7 @@ import type {
   DocModel,
   DocOptions,
   Item,
+  Media,
   NewItem,
   Op,
   Page,
@@ -30,7 +31,7 @@ import { allItems, detachMissingEndpoints, remapAgentCreateIds } from './item';
 import { DocumentSchema, LIMITS, OpSchema, schemaError } from './schema';
 import { migrate } from './migrate';
 import { pageId } from './ids';
-import { flattenItems, intersects, itemBounds } from '../geo/box';
+import { flattenItems, itemBounds, overlaps } from '../geo/box';
 import {
   flowPlacement,
   freeSpaceOrigin,
@@ -52,13 +53,64 @@ interface Location {
   parent?: Item;
   page: Page;
 }
+/**
+ * The parts of one document that an entry's inverse ops name. Selective undo compares these with
+ * the current document; keeping whole documents here held a full copy, media included, per entry.
+ * Values are references into committed states, which are never edited after commit.
+ */
+interface Trace {
+  items: Map<string, { item: Item; parent?: string; page: string }>;
+  pages: Map<string, Omit<Page, 'items'>>;
+  media: Map<string, Media | undefined>;
+  meta?: AnnieDoc['meta'];
+}
 interface Entry {
   ops: Op[];
   inverse: Op[];
-  before: AnnieDoc;
-  after: AnnieDoc;
+  before: Trace;
+  after: Trace;
   origin: string;
   label?: string;
+}
+/** Media values are replaced, never edited in place, so document copies share them. */
+function cloneDoc(doc: AnnieDoc): AnnieDoc {
+  const { media, ...rest } = doc;
+  return { ...clone(rest), media: { ...media } };
+}
+function trace(doc: AnnieDoc, inverse: Op[]): Trace {
+  const result: Trace = { items: new Map(), pages: new Map(), media: new Map() };
+  const items = new Set<string>();
+  for (const op of inverse) {
+    if (op.op === 'set' || op.op === 'order' || op.op === 'reparent') items.add(op.id);
+    else if (op.op === 'meta.set') result.meta = doc.meta;
+    else if (op.op === 'media.set' || op.op === 'media.remove')
+      result.media.set(op.id, doc.media[op.id]);
+    else if (op.op === 'page.set') {
+      const page = doc.pages.find((page) => page.id === op.id);
+      if (page) {
+        const { items: _items, ...rest } = page;
+        result.pages.set(op.id, rest);
+      }
+    }
+  }
+  if (!items.size) return result;
+  const walk = (list: Item[], page: string, parent?: string) => {
+    for (const item of list) {
+      if (items.has(item.id)) result.items.set(item.id, { item, parent, page });
+      if (item.children) walk(item.children, page, item.id);
+    }
+  };
+  for (const page of doc.pages) walk(page.items, page.id);
+  return result;
+}
+/** The state before a merged entry: the earlier trace wins wherever both named a value. */
+function traceBefore(earlier: Trace, later: Trace): Trace {
+  return {
+    items: new Map([...later.items, ...earlier.items]),
+    pages: new Map([...later.pages, ...earlier.pages]),
+    media: new Map([...later.media, ...earlier.media]),
+    meta: earlier.meta ?? later.meta,
+  };
 }
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 function escapeHtml(html: string, sanitize?: DocOptions['sanitizeHTML']): string {
@@ -183,6 +235,8 @@ function assertSafeJSON(value: unknown, depth = 0, seen = new Set<unknown>()): v
   }
   seen.delete(value);
 }
+/** Data-URL media already scanned; their checks do not depend on origin. */
+const checkedDataMedia = new WeakSet<Media>();
 function validateDoc(
   doc: AnnieDoc,
   options: DocOptions = {},
@@ -248,22 +302,26 @@ function validateDoc(
         }
   }
   for (const [mediaId, media] of Object.entries(doc.media)) {
+    if (checkedDataMedia.has(media)) continue;
     const data = MEDIA_DATA_URL.test(media.src);
+    // Stored media is shared between states and never edited, so one scan of a data URL is enough.
+    if (data) {
+      checkedDataMedia.add(media);
+      continue;
+    }
     let url: URL | undefined;
     try {
       url = new URL(media.src);
     } catch {
       /* Validation below reports a useful error. */
     }
-    if (!data && (!url || !['http:', 'https:'].includes(url.protocol)))
+    if (!url || !['http:', 'https:'].includes(url.protocol))
       throw new Error('Images must use an image data URL or an HTTP(S) URL.');
     if (url && (url.username || url.password))
       throw new Error('Image URLs must not include credentials.');
     if (
       origin !== 'user' &&
       (!restrictedMedia || restrictedMedia.has(mediaId)) &&
-      !data &&
-      url &&
       !options.allowedImageOrigins?.includes(url.origin)
     )
       throw new Error(
@@ -358,12 +416,8 @@ function batchLinks(ops: Op[]): { links: BatchLinks; edges: BatchEdge[] } {
   const edges: BatchEdge[] = [];
   const visit = (item: NewItem | Item | undefined) => {
     if (!item || typeof item !== 'object') return;
-    if (
-      (item.kind === 'connector' || item.kind === 'arrow') &&
-      typeof item.id === 'string' &&
-      item.from &&
-      item.to
-    ) {
+    // Arrows usually arrive without ids; the edge only needs its endpoints.
+    if ((item.kind === 'connector' || item.kind === 'arrow') && item.from && item.to) {
       const from =
           typeof item.from === 'string'
             ? item.from
@@ -431,6 +485,9 @@ function perform(
 } {
   const op = clone(raw),
     kindDefaults = kindDefaultsFrom(options.kinds);
+  // `text: 'Label'` patches the value and keeps the rest of the label style.
+  if (op.op === 'set' && typeof op.patch?.text === 'string')
+    op.patch.text = { value: op.patch.text };
   const outline = (item: Item) =>
     options.kinds?.find((kind) => kind.kind === item.kind)?.outline?.(item);
   let inverse: Op[] = [],
@@ -660,13 +717,13 @@ function perform(
   }
   if (op.op === 'media.set') {
     inverse = doc.media[op.id]
-      ? [{ op: 'media.set', id: op.id, media: clone(doc.media[op.id]) }]
+      ? [{ op: 'media.set', id: op.id, media: doc.media[op.id] }]
       : [{ op: 'media.remove', id: op.id }];
     doc.media[op.id] = clone(op.media);
   }
   if (op.op === 'media.remove') {
     if (!doc.media[op.id]) throw new Error(`Media ${op.id} does not exist.`);
-    inverse = [{ op: 'media.set', id: op.id, media: clone(doc.media[op.id]) }];
+    inverse = [{ op: 'media.set', id: op.id, media: doc.media[op.id] }];
     delete doc.media[op.id];
   }
   return { op, moved, inverse, created };
@@ -700,14 +757,15 @@ function revertedPatch(
 function selectiveInverse(entry: Entry, current: AnnieDoc): Op[] {
   return entry.inverse.flatMap<Op>((op) => {
     if (op.op === 'set') {
-      const before = locate(entry.before, op.id)?.item,
-        after = locate(entry.after, op.id)?.item,
+      const before = entry.before.items.get(op.id)?.item,
+        after = entry.after.items.get(op.id)?.item,
         now = locate(current, op.id)?.item;
       if (!before || !after || !now) return [];
       const patch = revertedPatch(before, after, now, ['style', 'text', 'data']);
       return Object.keys(patch).length ? [{ ...op, patch }] : [];
     }
     if (op.op === 'meta.set') {
+      if (!entry.before.meta || !entry.after.meta) return [];
       const patch = revertedPatch(entry.before.meta, entry.after.meta, current.meta);
       return Object.keys(patch).length ? [{ ...op, patch }] : [];
     }
@@ -715,17 +773,20 @@ function selectiveInverse(entry: Entry, current: AnnieDoc): Op[] {
     if (op.op === 'add') return locate(current, String(op.item.id)) ? [] : [op];
     if (op.op === 'order' || op.op === 'reparent') {
       const now = locate(current, op.id),
-        after = locate(entry.after, op.id);
-      if (!now || !after || now.parent?.id !== after.parent?.id || now.page.id !== after.page.id)
+        after = entry.after.items.get(op.id);
+      if (!now || !after || now.parent?.id !== after.parent || now.page.id !== after.page)
         return [];
       return [op];
     }
-    if (op.op === 'media.set' || op.op === 'media.remove')
-      return equal(current.media[op.id], entry.after.media[op.id]) ? [op] : [];
+    if (op.op === 'media.set' || op.op === 'media.remove') {
+      const now = current.media[op.id],
+        after = entry.after.media.get(op.id);
+      return now === after || equal(now, after) ? [op] : [];
+    }
     if (op.op === 'page.set') {
       assertPagePatch(op.patch);
-      const before = entry.before.pages.find((page) => page.id === op.id),
-        after = entry.after.pages.find((page) => page.id === op.id),
+      const before = entry.before.pages.get(op.id),
+        after = entry.after.pages.get(op.id),
         now = current.pages.find((page) => page.id === op.id);
       if (!before || !after || !now) return [];
       const patch = revertedPatch(
@@ -738,6 +799,37 @@ function selectiveInverse(entry: Entry, current: AnnieDoc): Op[] {
     }
     return [op];
   });
+}
+/**
+ * Fit an older entry's op to the draft it replays onto. Later edits may have shortened a list or
+ * removed a parent group; clamp the index, fall back to the page root, or skip what no longer exists.
+ */
+function fitToDoc(op: Op, doc: AnnieDoc): Op | undefined {
+  if (op.op === 'add') {
+    const page = doc.pages.find((page) => page.id === (op.page ?? doc.pages[0]?.id));
+    if (!page) return undefined;
+    const parent = op.parent ? locate(doc, op.parent) : undefined;
+    const next = { ...op };
+    if (op.parent && (!parent || parent.page.id !== page.id)) delete next.parent;
+    const list = next.parent ? (parent!.item.children ?? []) : page.items;
+    if (next.index !== undefined) next.index = Math.min(next.index, list.length);
+    return next;
+  }
+  if (op.op === 'set' || op.op === 'remove') return locate(doc, op.id) ? op : undefined;
+  if (op.op === 'order') {
+    const at = locate(doc, op.id);
+    if (!at) return undefined;
+    return typeof op.to === 'number' ? { ...op, to: Math.min(op.to, at.list.length - 1) } : op;
+  }
+  if (op.op === 'reparent') {
+    const at = locate(doc, op.id),
+      parent = op.parent ? locate(doc, op.parent) : undefined;
+    if (!at || (op.parent && !parent)) return undefined;
+    if (op.index === undefined) return op;
+    const list = parent ? (parent.item.children ?? []) : at.page.items;
+    return { ...op, index: Math.min(op.index, list.length - (list === at.list ? 1 : 0)) };
+  }
+  return op;
 }
 export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocModel {
   if (options.sanitizeHTML) assertEffectiveSanitizer(options.sanitizeHTML);
@@ -920,7 +1012,7 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
       let draft: AnnieDoc;
       try {
         assertSafeJSON(ops);
-        draft = clone(state);
+        draft = cloneDoc(state);
       } catch (error) {
         result.errors.push({
           index: 0,
@@ -941,9 +1033,10 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
         new Set(concrete.filter((op) => op.op === 'media.set').map((op) => op.id));
       const batch = remapped.ops;
       const graph = origin.startsWith('agent:') ? batchLinks(batch) : undefined;
-      const moved = new Set<string>();
+      /** Items moved to make room, with the op that moved them. */
+      const moved = new Map<string, number>();
       for (let index = 0; index < batch.length; index++) {
-        const snapshot = lenient ? clone(draft) : undefined;
+        const snapshot = lenient ? cloneDoc(draft) : undefined;
         try {
           const error = schemaError(OpSchema, batch[index]);
           if (error) throw new Error(error);
@@ -963,7 +1056,8 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
           inverse.unshift(...change.inverse);
           result.created.push(...change.created);
           change.created.forEach((id) => creationOps.set(id, index));
-          for (const op of change.moved) if (op.op === 'set') moved.add(op.id);
+          for (const op of change.moved)
+            if (op.op === 'set' && !moved.has(op.id)) moved.set(op.id, index);
         } catch (error) {
           if (snapshot) draft = snapshot;
           failures.push({
@@ -996,38 +1090,58 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
         return result;
       }
       if (lenient && failures.length) result.skipped = failures;
-      const all = allItems(draft),
-        lookup = new Map(all.map((i) => [i.id, i]));
-      for (const id of result.created) {
+      // Created items and items moved to make room, compared with shapes on their own page.
+      const lookup = new Map<string, Item>(),
+        pageOfItem = new Map<string, Item[]>();
+      for (const page of draft.pages) {
+        const list = flattenItems(page.items);
+        for (const item of list) {
+          lookup.set(item.id, item);
+          pageOfItem.set(item.id, list);
+        }
+      }
+      const placed: [string, number, boolean][] = [
+        ...result.created.map((id): [string, number, boolean] => [
+          id,
+          creationOps.get(id) ?? 0,
+          false,
+        ]),
+        ...[...moved].map(([id, index]): [string, number, boolean] => [id, index, true]),
+      ];
+      for (const [id, index, shifted] of placed) {
         const item = lookup.get(id);
-        if (!item) continue;
-        if (
-          item.kind !== 'connector' &&
-          all.some(
+        if (!item || item.kind === 'connector' || item.children?.length) continue;
+        const box = itemBounds(item, lookup);
+        const other = pageOfItem
+          .get(id)!
+          .find(
             (other) =>
               other.id !== id &&
               !other.children?.length &&
               other.kind !== 'connector' &&
-              intersects(itemBounds(item, lookup), itemBounds(other, lookup)),
-          )
-        )
+              overlaps(box, itemBounds(other, lookup)),
+          );
+        if (other)
           result.warnings.push({
-            index: creationOps.get(id) ?? 0,
+            index,
             code: 'OVERLAPS_EXISTING',
-            message: `Item ${id} overlaps another item.`,
+            message: shifted
+              ? `Item ${id}, moved to make room, overlaps ${other.id}.`
+              : `Item ${id} overlaps another item.`,
           });
       }
       result.ok = true;
-      if (moved.size) result.moved = [...moved];
+      if (moved.size) result.moved = [...moved.keys()];
       if (applyOptions.dryRun || !concrete.length) return result;
       const entry: Entry = {
         ops: concrete,
         inverse,
-        before: state,
-        after: draft,
+        before: trace(state, inverse),
+        after: trace(draft, inverse),
         origin,
         label: applyOptions.label,
       };
+      const committed = state;
       state = draft;
       reindex();
       const previous = history.at(-1);
@@ -1039,7 +1153,8 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
       ) {
         previous.ops.push(...entry.ops);
         previous.inverse.unshift(...entry.inverse);
-        previous.after = state;
+        previous.before = traceBefore(previous.before, entry.before);
+        previous.after = trace(state, previous.inverse);
       } else {
         history.push(entry);
         if (history.length > LIMITS.maxHistory) history.shift();
@@ -1049,7 +1164,7 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
         ...entry,
         revision: commitSession(
           { origin, label: applyOptions.label, ops: concrete },
-          entry.before,
+          committed,
           state,
         ),
       });
@@ -1097,11 +1212,13 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
       const entry = history[index],
         selective = index !== history.length - 1,
         ops = selective ? selectiveInverse(entry, state) : entry.inverse,
-        draft = clone(state),
+        draft = cloneDoc(state),
         actual: Op[] = [],
         redo: Op[] = [];
       try {
-        for (const op of ops) {
+        for (const raw of ops) {
+          const op = selective ? fitToDoc(raw, draft) : raw;
+          if (!op) continue;
           const result = perform(draft, op, 'user', options);
           actual.push(result.op);
           redo.unshift(...result.inverse);
@@ -1113,8 +1230,8 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
       const reverse: Entry = {
         ops: actual,
         inverse: redo,
-        before: state,
-        after: draft,
+        before: trace(state, redo),
+        after: trace(draft, redo),
         origin: entry.origin,
         label: entry.label,
       };
@@ -1139,12 +1256,15 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
         ? walkBack(future, (origin) => !agentOrigin(origin))
         : future.length - 1;
       if (index < 0) return false;
-      const reverse = future[index];
-      const draft = clone(state),
+      const reverse = future[index],
+        selective = index !== future.length - 1;
+      const draft = cloneDoc(state),
         ops: Op[] = [],
         inverse: Op[] = [];
       try {
-        for (const op of reverse.inverse) {
+        for (const raw of reverse.inverse) {
+          const op = selective ? fitToDoc(raw, draft) : raw;
+          if (!op) continue;
           const change = perform(draft, op, 'user', options);
           ops.push(change.op);
           inverse.unshift(...change.inverse);
@@ -1156,8 +1276,8 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
       const entry: Entry = {
         ops,
         inverse,
-        before: state,
-        after: draft,
+        before: trace(state, inverse),
+        after: trace(draft, inverse),
         origin: reverse.origin,
         label: reverse.label,
       };

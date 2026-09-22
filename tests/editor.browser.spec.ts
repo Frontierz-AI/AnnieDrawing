@@ -159,7 +159,16 @@ test('readonly boards reject writes', async ({ page }) => {
 });
 
 test('JSON, SVG and PNG exports work; pages and autosave survive reload', async ({ page }) => {
-  await ready(page);
+  // `?blank` never autosaves, so this starts from the saved playground and clears it on purpose.
+  await page.goto('/');
+  await page.waitForFunction(() => !!window.__anniedrawing?.[0]);
+  await page.evaluate(async () => {
+    const b = window.__anniedrawing![0];
+    await b.ready;
+    b.clear();
+    b.setGrid(false);
+    b.stage.lens.set({ x: 0, y: 0, zoom: 1 });
+  });
   await page.evaluate(() =>
     window.__anniedrawing![0].apply(
       [

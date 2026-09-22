@@ -1,6 +1,6 @@
 # AnnieDrawing
 
-AnnieDrawing is a TypeScript library that renders a drawing board in the browser with HTML and SVG. Frontierz maintains it. The license is MIT.
+AnnieDrawing\* is a TypeScript library that renders a drawing board in the browser with HTML and SVG. Frontierz maintains it. The license is MIT.
 
 Live demo: [anniedrawing.com](https://anniedrawing.com). Manual: [anniedrawing.com/docs](https://anniedrawing.com/docs/). Package: [`anniedrawing` on npm](https://www.npmjs.com/package/anniedrawing).
 
@@ -12,7 +12,7 @@ Item kinds: `rect`, `ellipse`, `diamond`, `line`, `connector`, `path`, `text`, `
 
 ## Requirements
 
-Developing this repository, installing it from git (`prepare` runs the build), and running the MCP example need Node.js 24 or newer. The published library is ES2022. Browser hosts need Pointer Events, SVG, ResizeObserver, and `structuredClone`. Headless `createDoc` runs in Node without those browser APIs. All JavaScript exports are ESM.
+Developing this repository, installing it from git (`prepare` runs the build), and running the MCP example need Node.js 24 or newer. The published library is ES2022. Browser hosts need Pointer Events, SVG, ResizeObserver, and `structuredClone`. Headless `createDoc` runs in Node without those browser APIs. All JavaScript exports are ESM. CommonJS hosts can `require()` the headless entry points.
 
 ## Install and run the demo
 
@@ -81,7 +81,7 @@ console.log(board.describe());
 
 `theme` is `'light'` when omitted, `'dark'`, or `'auto'` to follow the system. `ui: false` omits editor chrome. `ui.menu` is the AnnieDrawing control (default on). `ui.export` defaults to PNG and SVG; pass `'json'` to offer AnnieDoc, or `false` to hide Export. `ui.pages: false` hides page chips. The local demo uses `export: ['png', 'svg', 'json']`. Other defaults: `exposeGlobal` false, `agentPresence` true, `agentHistory` `'shared'`, `agentReveal` `'fit'`. Programmatic `board.export` also accepts `'jpeg'` and `'webp'`.
 
-The host element must have a nonzero width and height, for example `height: 600px`. Call `board.destroy()` when the host is removed. Await `board.ready` before edits that depend on restored autosave content. `import 'anniedrawing/style.css'` loads editor styles only; it does not change the host page's `html` or `body` layout.
+The host element must have a nonzero width and height, for example `height: 600px`. Call `board.destroy()` when the host is removed. Await `board.ready` before edits that depend on restored autosave content. Autosave never overwrites a drawing saved from another tab; it reports a `save` conflict and asks which version to keep. `import 'anniedrawing/style.css'` loads editor styles only; it does not change the host page's `html` or `body` layout.
 
 `board.getPointer()` returns a copy of the last human pointer: `{ x, y, pageId, inside, pointerType, ageMs, itemId }`, or `null` before a pointer is observed, after a page switch, or after destruction. Coordinates are page-space. While `inside` is true they follow pan and zoom; `itemId` is the topmost hittable item or `null`. Editor controls are excluded. Leaving, blur, hidden tabs, cancel, or touch release sets `inside: false` and preserves the last point. `ageMs` measures time since the last pointer event, not camera changes. Treat an outside point as historical; ask the user to point again when ambiguous. Pointer state is never serialized.
 

@@ -46,7 +46,7 @@ import { exportRaster } from './porter/png';
 import { ANNIE_MIME, exportJSON } from './porter/json';
 import { mountUI, type UiOptions } from './ui/index';
 export type { UiOptions, UiExportFormat } from './ui/index';
-import { openAutosave } from './input/autosave';
+import { openAutosave, type SaveEvent } from './input/autosave';
 import { measureText } from './input/measure';
 import { cursorForTool } from './input/cursors';
 import type { PasteHost } from './input/urlPaste';
@@ -84,7 +84,7 @@ type Events = {
   view: LensState;
   tool: string;
   page: string;
-  save: { status: 'saving' | 'saved' | 'error'; message?: string };
+  save: SaveEvent;
 };
 type Drag = {
   kind: 'pan' | 'move' | 'resize' | 'rotate' | 'marquee' | 'draw' | 'erase';
@@ -203,6 +203,9 @@ export class Board {
         if (!this.document.pages.some((page) => page.id === this.pageId))
           this.pageId = this.document.pages[0].id;
         this.refreshGeometry();
+        // Some engines fire no blur when a remote edit removes the item being edited.
+        const editing = this.editor?.closest<HTMLElement>('[data-ad-id]')?.dataset.adId;
+        if (this.editor && (!editing || !this.get(editing))) this.finishEditor?.(false);
         if (
           (this.drag &&
             ['move', 'resize', 'rotate', 'erase'].includes(this.drag.kind) &&
@@ -264,7 +267,7 @@ export class Board {
     bind('cut', this.cutEvent);
     bind('paste', this.pasteEvent);
     bind('dragover', (e) => {
-      if (!this.readonly) {
+      if (!this.readonly && !this.isUI(e.target)) {
         e.preventDefault();
         if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
       }
@@ -392,6 +395,10 @@ export class Board {
       },
     };
   }
+  /** The portable document, the same copy `createDoc().toJSON()` returns. */
+  toJSON(options?: { compact?: boolean }): AnnieDoc {
+    return this.model.toJSON(options);
+  }
   read(scope: Scope | { scope?: Scope; includeDrafts?: boolean } = 'doc'): AnnieDoc {
     const options = typeof scope === 'string' ? { scope } : scope;
     const doc = this.model.toJSON();
@@ -499,13 +506,14 @@ export class Board {
         let item = op.item;
         if (origin.startsWith('agent:') && item.kind === 'text' && item.autoWidth === undefined)
           item = { ...item, autoWidth: true };
+        const label = typeof item.text === 'string' ? { value: item.text } : item.text;
         if (
           item.kind === 'text' &&
           item.autoWidth &&
-          typeof item.text?.value === 'string' &&
-          item.text.value.length <= LIMITS.maxTextLength
+          typeof label?.value === 'string' &&
+          label.value.length <= LIMITS.maxTextLength
         )
-          item = { ...item, ...measureText(this.host.ownerDocument, item.text) };
+          item = { ...item, ...measureText(this.host.ownerDocument, label) };
         return { ...op, item, ...(!op.page && !op.parent ? { page: this.pageId } : {}) };
       }
       if (op.op === 'set' && op.patch) {
@@ -515,7 +523,8 @@ export class Board {
           (op.patch.autoWidth ?? item.autoWidth ?? origin.startsWith('agent:')) &&
           (op.patch.text || op.patch.autoWidth)
         ) {
-          const text = { ...item.text, ...(op.patch.text as { value?: string } | undefined) };
+          const patch = op.patch.text;
+          const text = { ...item.text, ...(typeof patch === 'string' ? { value: patch } : patch) };
           if (typeof text.value === 'string' && text.value.length <= LIMITS.maxTextLength)
             return {
               ...op,
@@ -939,7 +948,7 @@ export class Board {
     const selection = window.getSelection();
     selection?.removeAllRanges();
     selection?.addRange(range);
-    const finish = (save = true) => {
+    const finish = (save = true, refocus = true) => {
       if (this.editor !== text) return;
       this.editor = undefined;
       this.finishEditor = undefined;
@@ -965,12 +974,16 @@ export class Board {
       text!.textContent = saved?.text?.value ?? before;
       text!.style.display = saved?.text ? 'flex' : 'none';
       this.render();
-      this.focus();
+      if (refocus) this.focus();
     };
     this.finishEditor = finish;
-    const blur = () => finish();
+    // Clicking a field outside the board keeps focus there, so its keys do not edit the board.
+    const blur = (e: FocusEvent) =>
+      finish(true, !(e.relatedTarget instanceof Node) || this.host.contains(e.relatedTarget));
     const key = (e: KeyboardEvent) => {
       e.stopPropagation();
+      // Escape and Enter during IME composition belong to the input method, not the editor.
+      if (e.isComposing || e.keyCode === 229) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         finish(false);
@@ -985,9 +998,13 @@ export class Board {
   }
   cancel() {
     this.clearInteractive();
+    this.finishEditor?.(false);
+    this.cancelGesture();
+  }
+  /** End the pointer gesture only; an open text edit and activated embeds stay. */
+  private cancelGesture() {
     clearTimeout(this.longPressTimer);
     this.lastTouchTap = undefined;
-    this.finishEditor?.(false);
     if (this.drag) {
       this.drag = undefined;
       this.drafts.clear();
@@ -1158,6 +1175,9 @@ export class Board {
       this.updateCursor();
       this.drafts.clear();
       this.drawPreview = undefined;
+      // Drop the first finger's marquee and draft positions before the pinch takes over.
+      this.stage.setMarquee(undefined);
+      this.render();
       const [a, b] = [...this.pointers.values()],
         center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       this.pinch = {
@@ -1592,7 +1612,10 @@ export class Board {
           const copies = copyItems(changed, 0);
           ops.push(...copies.map((item) => ({ op: 'add' as const, item, page: this.pageId })));
           this.selectionSignal.value = copies.map((i) => i.id);
-        } else for (const [id, patch] of this.drafts) ops.push({ op: 'set', id, patch });
+        } else
+          for (const [id, patch] of this.drafts)
+            // An agent may remove a dragged item mid-gesture; keep the rest of the move.
+            if (this.get(id)) ops.push({ op: 'set', id, patch });
       }
     }
     if (drag.kind === 'marquee' && drag.moved) {
@@ -1613,7 +1636,10 @@ export class Board {
           .map((i) => i.id),
       ]);
     }
-    if (drag.kind === 'erase') ops.push(...drag.ids.map((id) => ({ op: 'remove' as const, id })));
+    if (drag.kind === 'erase')
+      ops.push(
+        ...drag.ids.filter((id) => this.get(id)).map((id) => ({ op: 'remove' as const, id })),
+      );
     if (drag.kind === 'draw' && drag.item) {
       const item = drag.item;
       if (!drag.moved) {
@@ -1708,7 +1734,14 @@ export class Board {
       }
     }
   };
-  private pointerCancel = () => this.cancel();
+  private pointerCancel = (e: PointerEvent) => {
+    // A native text drag in the editor cancels its pointer; other pointers leave the drag alone.
+    if (this.drag && this.drag.pointer !== e.pointerId) {
+      this.pointers.delete(e.pointerId);
+      return;
+    }
+    this.cancelGesture();
+  };
   private wheel = (e: WheelEvent) => {
     if (this.isUI(e.target)) return;
     e.preventDefault();
@@ -1987,7 +2020,8 @@ export class Board {
     }
   }
   private drop = (e: DragEvent) => {
-    if (this.readonly) return;
+    // Drops on controls or into the text editor keep their native behavior.
+    if (this.readonly || this.isUI(e.target)) return;
     e.preventDefault();
     const p = this.stage.lens.toPage(this.point(e));
     const files = [...(e.dataTransfer?.files ?? [])];

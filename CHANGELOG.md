@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.6.1
+
+Bug fixes, speedups, and cleanup. The document format is unchanged.
+
+Agent diagrams:
+
+- An `agent:` batch whose arrows omit `id` now places coordinate-free nodes from those arrows. Before, a chain such as `A → B → C` sent without arrow ids turned into an L, with `C` and later steps stacked under `B`.
+- `apply` accepts a plain string for `text` on `add`, `page.add`, and `set`: `text: 'Start'` stores `{ value: 'Start' }`, and a string `set` patch changes only the value and keeps size, alignment, and font. The `board_apply` tool schema advertises both forms. Documents still store the object form. `NewItemSchema` validates `add` input; `ItemSchema` still validates stored items.
+- Agent id remapping follows batch order. An op that comes before a colliding create keeps referring to the item already on the board, so `[set a, add a]` edits the old `a`. A `remove` frees its ids for later creates in the same batch, so `[remove a, add a]` stores `a` again. A `set` that resends a group's `children` keeps their ids and bound connectors instead of renaming them `c1_1`.
+- A connector inside a group that moves to make room moves once, and undo restores it.
+- A group that holds locked work, or sits inside a locked group, stays put. When an insert meets a locked occupant, the new node stacks beside it instead of covering it.
+- A node inserted before an item inside a group reads the arrows to that item instead of treating the whole group as the occupant.
+- Stacking beside an occupant keeps clear of the reference. A zero `gap` works: touching boxes do not count as occupied, and `near` keeps searching outward. Up to 256 siblings of one reference get their own slots instead of piling up after 64.
+- `OVERLAPS_EXISTING` compares only items on the same page, and also reports items moved to make room.
+- `describe()` JSON-quotes ids, kinds, colors, connector ends, and data keys that are not plain tokens, so document text cannot add lines or fields to an agent's view of the board. Plain ids print as before.
+
+Editing and undo:
+
+- Undo history keeps only the items, pages, metadata, and media each entry changed, and document copies share media. A board with one 8 MB photo grew by about 8 MB per edit (320 MB after 40 edits); it now stays flat. Each stored image is validated once instead of on every commit, so an edit beside four 8 MB photos takes 0.1 ms instead of 29 ms.
+- Selective undo and redo (`undo({ origin })` and `agentHistory: 'hidden'`) no longer get stuck when later edits shortened a list or removed a parent group. The restored item returns at the nearest valid index, or to the page when its group is gone.
+- The browser board no longer pulls focus back after a text edit ends by clicking a field outside the board, so typing there cannot change tools or delete the selection.
+- A remote removal closes an open editor on that item in every engine. A cancelled pointer or a native text drop inside the editor keeps the edit. Escape during input-method composition no longer discards the edit.
+- An item moved while its agent arrival fades in ends at the new position. A drag or erase keeps the rest of its change when an agent removes one of its items mid-gesture. A second finger clears the first finger's marquee.
+
+Browser autosave no longer loses work:
+
+- Each save records a stamp beside the drawing and checks it in the same transaction. A tab never overwrites a drawing another tab saved after it last read; it reports a `save` event with status `conflict` and a `resolve('load' | 'keep')` callback. An idle tab follows another tab's saves instead, keeping its camera and page.
+- Edits made before the saved drawing finished loading raise the same conflict instead of replacing that drawing. With nothing saved yet, those edits save right away.
+- An unreadable saved drawing is copied to `<key>#unreadable-<time>` and new work keeps saving. Before, one bad record stopped autosave for the whole session.
+- A write that aborts, including a full storage quota, reports an `error` instead of staying on `saving`.
+- The built-in UI shows autosave errors and conflicts, with Use saved version and Keep this version buttons, until a save succeeds. `SaveEvent` is exported.
+- The demo's `?blank` and `?benchmark` pages no longer autosave, so opening them cannot replace the saved playground drawing.
+
+Speed: automatic elbow routing resumes one ordered lane pass per page instead of replaying every earlier connector for each one. Routes are unchanged. A page with 160 nodes and 240 elbows renders in about 40 ms instead of 3 s, and moving one node no longer freezes the board for seconds. `describe({ freeSpace })`, `query({ within })`, and detaching arrows from a removed node get the same speedup.
+
+Security: fill and stroke values that are not palette tokens, named colors, hex, or CSS color functions render as ink. A `url(...)` paint could make the browser fetch a remote URL on render and in exported SVG, bypassing `allowedImageOrigins`. The MCP example's bridge closes a socket that sends a JSON value other than an object instead of exiting.
+
+Package:
+
+- The build imports `@preact/signals-core`, `nanoid`, `perfect-freehand`, `rbush`, and `valibot` from the consumer's install instead of bundling copies. A host that uses `@preact/signals-core` now shares one runtime with the board, so its own `effect` and `computed` track `itemSignal`, `fieldSignal`, and `childrenSignal`. The size check measures the editor bundled with those dependencies plus its styles, and fails on an import that is not a declared dependency.
+- Every export has a `default` condition, and `anniedrawing/package.json` is exported. CommonJS hosts can `require('anniedrawing/core')` and `require('anniedrawing/agent')`.
+- `board.toJSON(options?)` returns the portable document, as the docs already described.
+- The tarball no longer includes the demo site's `public/` docs and favicon.
+- The API reference lists apply and tool error codes. Docs no longer say agent `place` only slides, and several examples and defaults are corrected.
+
+The package lockfile matches `0.6.1`. The private MCP example stays `0.1.0`.
+
 ## 0.6.0
 
 An `agent:` node sent without `x`, `y`, or `place` is placed from the arrows in its batch. It goes right of the first source already on the page, otherwise left of the first such target, and a taken slot uses the insert, pass, or stack rule below. An unconnected one whose default spot would cover existing work goes right of the page content, top-aligned, instead of landing on the origin. An empty spot, sent coordinates (even one axis), explicit `place`, connectors, lines, paths, groups, children, and non-agent origins are unchanged. Agents can draw a diagram as labeled nodes plus arrows, with no coordinates or `place`.

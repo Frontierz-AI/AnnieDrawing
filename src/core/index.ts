@@ -22,6 +22,7 @@ export {
   LIMITS,
   VISION_PNG,
   ItemSchema,
+  NewItemSchema,
   PlacementSchema,
   DocumentSchema,
   OpSchema,

@@ -410,6 +410,80 @@ function connectorGeometry(
   return { points, d, midpoint, bounds: boxFromPoints(points) };
 }
 
+/**
+ * One ordered lane pass over a lookup. Routing a page asks for every connector, and each one
+ * reserves the lanes of those before it, so the pass is resumed instead of replayed per connector.
+ */
+interface LanePass {
+  outline?: OutlineResolver;
+  items: Item[];
+  signature: unknown[];
+  map: ItemLookup;
+  occupied: Point[][];
+  /** Lanes reserved before `items[index]`, for every index reached so far. */
+  before: number[];
+  routes: Map<number, ConnectorGeometry>;
+}
+const lanePasses = new WeakMap<object, LanePass>();
+
+/** Everything routing reads, so a lookup refilled or mutated in place starts a new pass. */
+function laneFields(item: Item): unknown[] {
+  return [
+    item,
+    item.id,
+    item.kind,
+    item.x,
+    item.y,
+    item.w,
+    item.h,
+    item.rotation,
+    item.hidden,
+    item.route,
+    item.from,
+    item.to,
+    item.waypoints,
+  ];
+}
+const LANE_FIELDS = laneFields({ id: '', kind: '', x: 0, y: 0, w: 0, h: 0 }).length;
+
+function samePass(pass: LanePass, items: Item[], outline?: OutlineResolver): boolean {
+  if (pass.outline !== outline || pass.items.length !== items.length) return false;
+  for (let index = 0; index < items.length; index++) {
+    const fields = laneFields(items[index]);
+    for (let field = 0; field < LANE_FIELDS; field++)
+      if (pass.signature[index * LANE_FIELDS + field] !== fields[field]) return false;
+  }
+  return true;
+}
+
+function lanePass(lookup: object, items: Item[], outline?: OutlineResolver): LanePass {
+  const cached = lanePasses.get(lookup);
+  if (cached && samePass(cached, items, outline)) return cached;
+  const pass: LanePass = {
+    outline,
+    items,
+    signature: items.flatMap(laneFields),
+    map: new Map(items.map((node) => [node.id, node])),
+    occupied: [],
+    before: [],
+    routes: new Map(),
+  };
+  lanePasses.set(lookup, pass);
+  return pass;
+}
+
+/** Route `items[before.length]` up to `stop` (exclusive), reserving visible connector lanes in order. */
+function advance(pass: LanePass, stop: number): void {
+  for (let index = pass.before.length; index < stop; index++) {
+    const previous = pass.items[index];
+    pass.before.push(pass.occupied.length);
+    if (previous.kind !== 'connector' || previous.hidden) continue;
+    const geometry = connectorGeometry(previous, pass.map, pass.outline, pass.items, pass.occupied);
+    pass.routes.set(index, geometry);
+    pass.occupied.push(geometry.points);
+  }
+}
+
 export function routeConnector(
   item: Item,
   lookup?: ItemLookup,
@@ -417,14 +491,17 @@ export function routeConnector(
 ): ConnectorGeometry {
   if (item.route !== 'elbow' || item.waypoints?.length)
     return connectorGeometry(item, lookup, outline);
-  const items = listedItems(lookup);
-  const map = typeof lookup === 'function' ? lookup : new Map(items.map((node) => [node.id, node]));
-  const occupied: Point[][] = [];
-  // Reserve lanes in document order, without recursive connector routing or stale caches.
-  for (const previous of items) {
-    if (previous.id === item.id) break;
-    if (previous.kind === 'connector' && !previous.hidden)
-      occupied.push(connectorGeometry(previous, map, outline, items, occupied).points);
+  if (!lookup || typeof lookup === 'function')
+    return connectorGeometry(item, lookup ?? new Map(), outline, [], []);
+  // Reserve lanes in document order: every connector before this one routes first.
+  const pass = lanePass(lookup, listedItems(lookup), outline);
+  const index = pass.items.findIndex((node) => node.id === item.id);
+  if (index < 0) {
+    advance(pass, pass.items.length);
+    return connectorGeometry(item, pass.map, outline, pass.items, pass.occupied);
   }
-  return connectorGeometry(item, map, outline, items, occupied);
+  advance(pass, index + 1);
+  if (pass.items[index] === item && pass.routes.has(index)) return pass.routes.get(index)!;
+  const lanes = pass.occupied.slice(0, pass.before[index]);
+  return connectorGeometry(item, pass.map, outline, pass.items, lanes);
 }

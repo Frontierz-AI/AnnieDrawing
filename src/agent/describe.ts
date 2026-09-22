@@ -4,6 +4,11 @@ import { boundsOf, flattenItems, itemBounds } from '../geo/box';
 const number = (n: number) => Math.round(n * 10) / 10;
 const title = (i: Item) => i.name ?? i.text?.value;
 const quote = (s: string) => JSON.stringify(s.length > 160 ? `${s.slice(0, 157)}…` : s);
+/**
+ * Ids, kinds, and colors come from the document, which is untrusted. A plain token prints as it is;
+ * anything with spaces, commas, quotes, or line breaks is quoted so it cannot fake a line or a field.
+ */
+const token = (s: string) => (/^[\w.:#-]{1,160}$/.test(s) ? s : quote(s));
 export interface ItemStamp {
   revision: number;
   origin: string;
@@ -65,7 +70,7 @@ export function describeDoc(
       return true;
     });
     lines.push(
-      `Page ${quote(page.name)} (${page.id}): ${since === undefined ? live.length : items.length + gone.length} item${(since === undefined ? live.length : items.length + gone.length) === 1 ? '' : 's'}.${selected.size && since === undefined ? ` Selection: ${[...selected].join(', ')}.` : ''}`,
+      `Page ${quote(page.name)} (${token(page.id)}): ${since === undefined ? live.length : items.length + gone.length} item${(since === undefined ? live.length : items.length + gone.length) === 1 ? '' : 's'}.${selected.size && since === undefined ? ` Selection: ${[...selected].map(token).join(', ')}.` : ''}`,
     );
     if (!items.length && !gone.length) {
       lines.push('An empty board, ready for your first idea.');
@@ -80,14 +85,15 @@ export function describeDoc(
       emitted.add(item.id);
       const b = itemBounds(item, lookup),
         label = title(item);
-      let line = `${item.id} ${item.kind}${label ? ` ${quote(label)}` : ''}`;
+      let line = `${token(item.id)} ${token(item.kind)}${label ? ` ${quote(label)}` : ''}`;
       if (detail !== 'brief')
-        line += ` at (${number(b.x)},${number(b.y)}) ${number(b.w)}×${number(b.h)}${item.style?.fill ? `, fill ${item.style.fill}` : ''}${item.hidden ? ', hidden' : ''}${item.locked ? ', locked' : ''}`;
-      if (item.children?.length) line += ` contains ${item.children.map((i) => i.id).join(', ')}`;
+        line += ` at (${number(b.x)},${number(b.y)}) ${number(b.w)}×${number(b.h)}${item.style?.fill ? `, fill ${token(item.style.fill)}` : ''}${item.hidden ? ', hidden' : ''}${item.locked ? ', locked' : ''}`;
+      if (item.children?.length)
+        line += ` contains ${item.children.map((i) => token(i.id)).join(', ')}`;
       if (detail === 'full' && item.data)
         line += ` [${Object.entries(item.data)
           .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-          .map(([key, value]) => `data.${key}=${JSON.stringify(value)}`)
+          .map(([key, value]) => `data.${token(key)}=${JSON.stringify(value)}`)
           .join(', ')}]`;
       if (detail !== 'brief' && session?.written.get(item.id)?.origin.startsWith('agent:'))
         line += ', by agent';
@@ -101,8 +107,8 @@ export function describeDoc(
         shown++;
         emitted.add(item.id);
         const endpoint = (p: Item['from']) =>
-          !p ? 'unset' : 'item' in p ? p.item : `(${number(p.x)},${number(p.y)})`;
-        let line = `  ${item.id}: ${endpoint(item.from)} → ${endpoint(item.to)}${title(item) ? ` ${quote(title(item)!)}` : ''} (${item.route ?? 'straight'})`;
+          !p ? 'unset' : 'item' in p ? token(p.item) : `(${number(p.x)},${number(p.y)})`;
+        let line = `  ${token(item.id)}: ${endpoint(item.from)} → ${endpoint(item.to)}${title(item) ? ` ${quote(title(item)!)}` : ''} (${item.route ?? 'straight'})`;
         if (detail !== 'brief' && session?.written.get(item.id)?.origin.startsWith('agent:'))
           line += ', by agent';
         lines.push(line);
@@ -112,7 +118,9 @@ export function describeDoc(
       if (shown >= limit) continue;
       shown++;
       emitted.add(id);
-      lines.push(detail === 'brief' ? `removed ${id}` : `removed ${id} ${stamp.kind}`);
+      lines.push(
+        detail === 'brief' ? `removed ${token(id)}` : `removed ${token(id)} ${token(stamp.kind)}`,
+      );
     }
     if (options.relations && detail !== 'brief') {
       const relations: string[] = [];
@@ -122,7 +130,9 @@ export function describeDoc(
         if (!b) continue;
         const gap = b.x - a.x - a.w;
         if (gap >= 0 && Math.abs(a.y - b.y) < 5)
-          relations.push(`${a.id} is left of ${b.id}, tops aligned, gap ${number(gap)}`);
+          relations.push(
+            `${token(a.id)} is left of ${token(b.id)}, tops aligned, gap ${number(gap)}`,
+          );
       }
       if (relations.length) lines.push(`Layout: ${relations.join('; ')}.`);
     }

@@ -12,6 +12,8 @@ import {
   SVG_NS,
 } from './paint';
 
+/** Transform and opacity each view last painted, so an arrival animation can end on a later move. */
+export const painted = new WeakMap<HTMLElement, { transform: string; opacity: string }>();
 export class ItemView implements KindView {
   readonly element = document.createElement('div');
   readonly shape = document.createElementNS(SVG_NS, 'svg');
@@ -36,6 +38,10 @@ export class ItemView implements KindView {
     this.text.className = 'ad-text';
     this.auxiliary.className = 'ad-auxiliary';
     this.element.append(this.shape, this.text, this.auxiliary);
+  }
+  private remember(value: { transform?: string; opacity?: string }) {
+    const last = painted.get(this.element) ?? { transform: '', opacity: '1' };
+    painted.set(this.element, { ...last, ...value });
   }
   private changed(key: string, value: string): boolean {
     if (this.previous.get(key) === value) return false;
@@ -86,6 +92,7 @@ export class ItemView implements KindView {
       : `translate3d(${item.x}px,${item.y}px,0) rotate(${item.rotation ?? 0}deg)`;
     if (this.changed('transform', transform)) {
       this.element.style.transform = transform;
+      this.remember({ transform });
       changed.add('transform');
     }
     const size = `${item.w}|${item.h}`;
@@ -98,7 +105,9 @@ export class ItemView implements KindView {
     }
     const style = JSON.stringify([item.style, theme]);
     if (this.changed('style', style)) {
-      this.element.style.opacity = String(item.style?.opacity ?? 1);
+      const opacity = String(item.style?.opacity ?? 1);
+      this.element.style.opacity = opacity;
+      this.remember({ opacity });
       this.element.style.color = color('ink', theme);
       this.text.style.color = labelColor(item, theme);
       changed.add('style');

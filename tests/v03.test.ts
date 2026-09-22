@@ -127,6 +127,43 @@ describe('agent history and lenient apply', () => {
     expect(doc.undo({ origin: 'agent:x' })).toBe(true);
     expect(doc.get('a')).toBeUndefined();
   });
+  it('undoes a person under later agent removals that shortened the list', () => {
+    const doc = createDoc(undefined, { agentHistory: 'hidden' });
+    doc.apply(
+      Array.from({ length: 6 }, (_, i): Op => ({ op: 'add', item: rect(`r${i}`, i * 200) })),
+    );
+    doc.apply([{ op: 'set', id: 'r0', patch: { y: 50 } }], { origin: 'user' });
+    doc.apply([{ op: 'remove', id: 'r5' }], { origin: 'user' });
+    doc.apply(
+      ['r1', 'r2', 'r3'].map((id): Op => ({ op: 'remove', id })),
+      { origin: 'agent:x' },
+    );
+    expect(doc.undo()).toBe(true);
+    expect(doc.query().map((item) => item.id)).toEqual(['r0', 'r4', 'r5']);
+    expect(doc.undo()).toBe(true);
+    expect(doc.get('r0')!.y).toBe(0);
+  });
+  it('restores an agent removal to the page when the person removed its group', () => {
+    const doc = createDoc();
+    doc.apply([
+      {
+        op: 'add',
+        item: {
+          id: 'g',
+          kind: 'group',
+          x: 0,
+          y: 0,
+          w: 300,
+          h: 80,
+          children: [rect('c1'), rect('c2', 150)],
+        },
+      },
+    ]);
+    doc.apply([{ op: 'remove', id: 'c1' }], { origin: 'agent:a' });
+    doc.apply([{ op: 'remove', id: 'g' }], { origin: 'user' });
+    expect(doc.undo({ origin: 'agent:a' })).toBe(true);
+    expect(doc.query().map((item) => item.id)).toEqual(['c1']);
+  });
   it('commits good operations when lenient and rolls back when not', () => {
     const ops: Op[] = [
       { op: 'add', item: rect('good') },

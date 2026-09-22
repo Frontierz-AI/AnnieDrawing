@@ -4,8 +4,11 @@ import './style.css';
 import { parseLinkPreview, unfurlPage } from '../src/core/paste';
 import { createBoard } from '../src/index';
 
+const params = new URLSearchParams(location.search);
+// A blank or benchmark board never touches the saved playground drawing.
+const scratch = params.has('blank') || params.has('benchmark');
 const board = createBoard(document.querySelector<HTMLElement>('#app')!, {
-  autosaveKey: 'annie-playground-v2',
+  autosaveKey: scratch ? undefined : 'annie-playground-v2',
   theme: 'light',
   exposeGlobal: true,
   ui: { export: ['png', 'svg', 'json'] }, // demo offers AnnieDoc; library default is PNG and SVG
@@ -29,9 +32,7 @@ function resetView() {
   board.view.center = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 }
 
-const params = new URLSearchParams(location.search);
-if (params.has('blank') || params.has('benchmark')) {
-  board.clear();
+if (scratch) {
   resetView();
 } else if (board.read().pages.every((page) => !page.items.length)) {
   resetView();

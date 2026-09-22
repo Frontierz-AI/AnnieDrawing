@@ -526,6 +526,34 @@
   width: 100%;
   margin-bottom: 12px;
 }
+.ad-save-notice {
+  position: absolute;
+  top: calc(max(var(--ad-edge), env(safe-area-inset-top, 0px)) + 62px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 2 * var(--ad-inset));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 12px 10px 16px;
+  color: var(--ad-ui-text);
+  background: var(--ad-ui-bg);
+  border: 1px solid var(--ad-ui-border);
+  border-radius: 16px;
+  box-shadow: var(--ad-shadow);
+}
+.ad-save-notice[hidden] {
+  display: none;
+}
+.ad-save-notice[data-status='error'] {
+  border-color: #e7112d;
+}
+.ad-save-message {
+  flex: 1 1 200px;
+  font-weight: 650;
+}
 .ad-dialog-error {
   color: #c14745;
   font-size: 13px;
