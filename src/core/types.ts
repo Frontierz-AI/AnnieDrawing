@@ -227,6 +227,8 @@ export interface ApplyResult {
   created: string[];
   errors: ApplyIssue[];
   warnings: ApplyIssue[];
+  /** Present when an agent `place` inserted a node and moved existing items to make room. */
+  moved?: string[];
   /** Present only when lenient: operations that did not commit. */
   skipped?: ApplyIssue[];
 }

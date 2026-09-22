@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2
+
+An `agent:` add whose directional `place` slot is taken no longer slides to the end of the row. It reads the arrows in the same batch: a node that flows between the reference and the occupant is inserted there, and the occupant with everything downstream of it moves over by the node's size plus the gap; a node that follows the occupant goes past it; an unconnected node stacks beside it. `result.moved` lists the ids moved to make room, the moves are ordinary `set` operations in history and session slices, and locked items stay. Other origins keep sliding.
+
+The package lockfile matches `0.5.2`. The private MCP example stays `0.1.0`.
+
 ## 0.5.1
 
 A short wide diamond keeps its label vertically centered. The label inset no longer grows with the diamond's width.

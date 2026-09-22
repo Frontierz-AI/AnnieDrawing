@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDoc, type Op } from '../src/core';
+import { createDoc, type Op, type Placement } from '../src/core';
 
 const fellow = { origin: 'agent:fellow' as const };
 const labels = [
@@ -373,5 +373,221 @@ describe('agent flowchart placement', () => {
       fellow,
     );
     expect(doc.get('b')).toMatchObject({ x: 180, y: 0 });
+  });
+});
+
+type AddOp = Extract<Op, { op: 'add' }>;
+
+describe('agent placement beside a taken slot', () => {
+  const node = (id: string, label: string, at?: { x: number; y: number }): AddOp => ({
+    op: 'add',
+    item: { id, kind: 'rect', w: 180, h: 110, text: { value: label }, ...at },
+  });
+  const arrow = (from: string, to: string): Op => ({
+    op: 'add',
+    item: { id: `${from}_${to}`, kind: 'arrow', from, to },
+  });
+  const beside = (id: string, place: Placement, label = id): AddOp => ({
+    ...node(id, label),
+    place,
+  });
+
+  function row() {
+    const doc = createDoc(undefined, { agentPlaceGap: 120 });
+    const result = doc.apply(
+      [
+        node('watch', 'Watch', { x: 0, y: 0 }),
+        beside('triage', { rightOf: 'watch' }, 'Triage'),
+        beside('print', { rightOf: 'triage' }, 'Print'),
+        beside('save', { below: 'print' }, 'Save'),
+        beside('review', { below: 'triage' }, 'Review?'),
+        node('note', 'Legend', { x: 900, y: -600 }),
+        arrow('watch', 'triage'),
+        arrow('triage', 'print'),
+        {
+          op: 'add',
+          item: {
+            id: 'print_save',
+            kind: 'arrow',
+            from: 'print',
+            to: 'save',
+            waypoints: [[700, 170]],
+          },
+        },
+        arrow('triage', 'review'),
+        {
+          op: 'add',
+          item: {
+            id: 'loop',
+            kind: 'arrow',
+            from: 'review',
+            to: 'save',
+            waypoints: [[390, 420]],
+          },
+        },
+      ],
+      fellow,
+    );
+    expect(result.ok).toBe(true);
+    return doc;
+  }
+
+  it('inserts a step before the node it flows into and moves that side of the flow', () => {
+    const doc = row();
+    const before = Object.fromEntries(doc.query().map((item) => [item.id, { ...item }]));
+    const result = doc.apply(
+      [
+        beside('extract', { rightOf: 'triage' }, 'Extract'),
+        arrow('triage', 'extract'),
+        arrow('extract', 'print'),
+      ],
+      fellow,
+    );
+    expect(result.ok).toBe(true);
+    const { triage, extract, print, save, review, watch, note } = Object.fromEntries(
+      doc.query().map((item) => [item.id, item]),
+    );
+    expect(extract.x).toBe(triage.x + triage.w + 120);
+    expect(extract.y).toBe(triage.y);
+    const delta = extract.w + 120;
+    expect(print).toMatchObject({ x: before.print.x + delta, y: before.print.y });
+    expect(save).toMatchObject({ x: before.save.x + delta, y: before.save.y });
+    for (const id of ['watch', 'triage', 'review', 'note'] as const)
+      expect(doc.get(id)).toMatchObject({ x: before[id].x, y: before[id].y });
+    expect(doc.get('print_save')!.waypoints).toEqual([[700 + delta, 170]]);
+    expect(doc.get('loop')!.waypoints).toEqual([[390, 420]]);
+    expect(result.moved).toEqual(expect.arrayContaining(['print', 'save', 'print_save']));
+    expect(result.moved).toHaveLength(3);
+    expect(result.warnings.some((warning) => warning.code === 'OVERLAPS_EXISTING')).toBe(false);
+    expect(doc.get('extract_print')).toMatchObject({
+      from: { item: 'extract' },
+      to: { item: 'print' },
+    });
+    void watch;
+    void review;
+    void note;
+    expect(doc.undo()).toBe(true);
+    expect(doc.get('extract')).toBeUndefined();
+    for (const id of ['print', 'save'] as const)
+      expect(doc.get(id)).toMatchObject({ x: before[id].x, y: before[id].y });
+    expect(doc.get('print_save')!.waypoints).toEqual([[700, 170]]);
+    expect(doc.redo()).toBe(true);
+    expect(doc.get('print')!.x).toBe(before.print.x + delta);
+  });
+
+  it('inserts below and before a leftOf occupant when the arrows put the node between', () => {
+    const doc = row();
+    const print = doc.get('print')!,
+      save = doc.get('save')!;
+    const result = doc.apply(
+      [
+        beside('second', { below: 'print' }, 'Second?'),
+        arrow('print', 'second'),
+        arrow('second', 'save'),
+      ],
+      fellow,
+    );
+    expect(result.ok).toBe(true);
+    const second = doc.get('second')!;
+    expect(second.y).toBe(print.y + print.h + 120);
+    expect(doc.get('save')).toMatchObject({ x: save.x, y: second.y + second.h + 120 });
+    expect(doc.get('review')).toMatchObject({ x: doc.get('review')!.x });
+    expect(result.moved).toEqual(['save']);
+
+    const left = createDoc(undefined, { agentPlaceGap: 120 });
+    left.apply(
+      [node('p', 'P', { x: 600, y: 0 }), beside('q', { leftOf: 'p' }, 'Q'), arrow('q', 'p')],
+      fellow,
+    );
+    const q = left.get('q')!;
+    expect(
+      left.apply([beside('x', { leftOf: 'p' }, 'X'), arrow('q', 'x'), arrow('x', 'p')], fellow).ok,
+    ).toBe(true);
+    const x = left.get('x')!;
+    expect(x.x + x.w + 120).toBe(600);
+    expect(left.get('q')!.x + q.w + 120).toBe(x.x);
+  });
+
+  it('goes past the occupant when the node follows it, and past a lane neighbor', () => {
+    const doc = row();
+    const print = doc.get('print')!;
+    const result = doc.apply(
+      [beside('after', { rightOf: 'triage' }, 'After'), arrow('print', 'after')],
+      fellow,
+    );
+    expect(result.ok).toBe(true);
+    expect(doc.get('after')).toMatchObject({ x: print.x + print.w + 120, y: print.y });
+    expect(result.moved).toBeUndefined();
+    const chain = doc.apply(
+      [beside('tail', { rightOf: 'watch' }, 'Tail'), arrow('after', 'tail')],
+      fellow,
+    );
+    expect(chain.ok).toBe(true);
+    const after = doc.get('after')!;
+    expect(doc.get('tail')).toMatchObject({ x: after.x + after.w + 120, y: after.y });
+  });
+
+  it('stacks unconnected siblings beside the occupant', () => {
+    const doc = row();
+    const triage = doc.get('triage')!;
+    const result = doc.apply(
+      [
+        beside('branch', { rightOf: 'watch' }, 'Branch'),
+        beside('other', { rightOf: 'watch' }, 'Other'),
+        arrow('watch', 'branch'),
+        arrow('watch', 'other'),
+      ],
+      fellow,
+    );
+    expect(result.ok).toBe(true);
+    const review = doc.get('review')!;
+    const branch = doc.get('branch')!;
+    expect(branch).toMatchObject({ x: triage.x, y: review.y + review.h + 120 });
+    expect(doc.get('other')).toMatchObject({ x: branch.x, y: branch.y + branch.h + 120 });
+    expect(doc.get('triage')).toMatchObject({ x: triage.x, y: triage.y });
+    expect(result.moved).toBeUndefined();
+
+    const inboxes = createDoc(undefined, { agentPlaceGap: 120 });
+    inboxes.apply([node('hub', 'Hub', { x: 600, y: 0 })], fellow);
+    const fan = inboxes.apply(
+      [
+        beside('one', { leftOf: 'hub' }, 'One'),
+        beside('two', { leftOf: 'hub' }, 'Two'),
+        beside('three', { leftOf: 'hub' }, 'Three'),
+        arrow('one', 'hub'),
+        arrow('two', 'hub'),
+        arrow('three', 'hub'),
+      ],
+      fellow,
+    );
+    expect(fan.ok).toBe(true);
+    const one = inboxes.get('one')!,
+      two = inboxes.get('two')!;
+    expect(one.x + one.w + 120).toBe(600);
+    expect(two).toMatchObject({ x: one.x, y: one.y + one.h + 120 });
+    expect(inboxes.get('three')).toMatchObject({ x: one.x, y: two.y + two.h + 120 });
+    expect(inboxes.get('hub')).toMatchObject({ x: 600, y: 0 });
+  });
+
+  it('leaves locked nodes in place and keeps sliding for other origins', () => {
+    const doc = row();
+    doc.apply([{ op: 'set', id: 'save', patch: { locked: true } }]);
+    const save = doc.get('save')!;
+    const result = doc.apply(
+      [beside('extract', { rightOf: 'triage' }, 'Extract'), arrow('extract', 'print')],
+      fellow,
+    );
+    expect(result.ok).toBe(true);
+    expect(doc.get('save')).toMatchObject({ x: save.x, y: save.y });
+    expect(result.moved).toEqual(['print']);
+
+    const api = row();
+    const print = api.get('print')!;
+    expect(
+      api.apply([beside('extract', { rightOf: 'triage' }, 'Extract'), arrow('extract', 'print')])
+        .ok,
+    ).toBe(true);
+    expect(api.get('extract')!.x).toBe(print.x + print.w + 32);
+    expect(api.get('print')).toMatchObject({ x: print.x });
   });
 });
