@@ -3,6 +3,7 @@ import type {
   AnnieDoc,
   ApplyIssue,
   ApplyResult,
+  Box,
   ChangeEvent,
   ChangeSlice,
   DocModel,
@@ -11,6 +12,7 @@ import type {
   NewItem,
   Op,
   Page,
+  Placement,
   Style,
 } from './types';
 import { kindsSince } from './catalog';
@@ -33,7 +35,7 @@ import { placeItem } from '../agent/place';
 import { queryDoc } from '../agent/query';
 import { describeDoc } from '../agent/describe';
 import { MEDIA_DATA_URL, normalizeHref, parseVideo } from './links';
-import { growAgentLabeledTree } from './textFit';
+import { growAgentLabeledTree, LABEL_BOX_KINDS } from './textFit';
 interface Location {
   item: Item;
   list: Item[];
@@ -275,6 +277,62 @@ function sanitizeAgentItems(item: Item, sanitizeHTML?: DocOptions['sanitizeHTML'
 const AGENT_NODE_KINDS = new Set(['rect', 'ellipse', 'diamond', 'note']);
 const AGENT_FILLS = ['teal', 'sky', 'violet', 'amber', 'rose', 'coral', 'moss'];
 
+const PLACE_RELATIONS = ['rightOf', 'leftOf', 'above', 'below', 'inside', 'near'] as const;
+
+/** One relation on `item.place` becomes `op.place` and is not stored. Valid `gap` and `align` stay. */
+function takeItemPlace(item: Item): Placement | undefined {
+  const raw = item.place;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;
+  const source = raw as Record<string, unknown>;
+  const relations = PLACE_RELATIONS.filter((key) => {
+    const value = source[key];
+    return typeof value === 'string' && value.length > 0;
+  });
+  if (relations.length !== 1) return;
+  delete item.place;
+  const key = relations[0];
+  const place: Placement = { [key]: source[key] as string };
+  const gap = source.gap;
+  if (typeof gap === 'number' && Number.isFinite(gap) && gap >= 0 && gap <= LIMITS.maxCoordinate)
+    place.gap = gap;
+  if (source.align === 'start' || source.align === 'middle' || source.align === 'end')
+    place.align = source.align;
+  return place;
+}
+
+function overlapArea(a: Box, b: Box): number {
+  const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+  const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+  return w > 0 && h > 0 ? w * h : 0;
+}
+
+function sameLabelSlot(a: Box, b: Box): boolean {
+  const smaller = Math.min(a.w * a.h, b.w * b.h);
+  const larger = Math.max(a.w * a.h, b.w * b.h);
+  // 2/5 is 40%. Multiply so the boundary stays exact for integer sizes.
+  if (!(smaller > 0) || smaller * 5 < larger * 2) return false;
+  return overlapArea(a, b) * 2 >= smaller;
+}
+
+function labeledBox(item: Item): Box | undefined {
+  const value = item.text?.value;
+  if (!LABEL_BOX_KINDS.has(item.kind) || typeof value !== 'string' || !value.trim()) return;
+  return { x: item.x, y: item.y, w: item.w, h: item.h };
+}
+
+/** Last labeled node on the page that shares this grown box. */
+function labelStackAnchor(item: Item, existing: Item[]): string | undefined {
+  const box = labeledBox(item);
+  if (!box) return;
+  let anchor: string | undefined;
+  for (const other of existing) {
+    if (other.id === item.id) continue;
+    const otherBox = labeledBox(other);
+    if (otherBox && sameLabelSlot(box, otherBox)) anchor = other.id;
+  }
+  return anchor;
+}
+
 /** Persist omitted agent fills and elbow routes so export, undo, and later edits keep them. */
 function agentDefaults(item: Item, nextColor: () => string): void {
   if (AGENT_NODE_KINDS.has(item.kind)) {
@@ -305,6 +363,14 @@ function perform(
     let item = normalizeItem(op.item, kindDefaults);
     if (origin !== 'user') sanitizeAgentItems(item, options.sanitizeHTML);
     cleanHref(item);
+    if (origin.startsWith('agent:')) {
+      // Grow before the parent is chosen so nested `inside` selects the group and later steps see the real size.
+      growAgentLabeledTree(item);
+      if (!op.place) {
+        const lifted = takeItemPlace(item);
+        if (lifted) op.place = lifted;
+      }
+    }
     const parentId = op.parent ?? op.place?.inside,
       parent = parentId ? requireItem(doc, parentId) : undefined;
     if (parent && parent.item.kind !== 'group')
@@ -314,9 +380,12 @@ function perform(
     if (parent && op.page && op.page !== parent.page.id)
       throw new Error('Parent and page must refer to the same page.');
     if (origin.startsWith('agent:')) {
-      growAgentLabeledTree(item);
-      let colorIndex = flattenItems(page.items).filter((item) =>
-        AGENT_NODE_KINDS.has(item.kind),
+      if (!op.place) {
+        const anchor = labelStackAnchor(item, flattenItems(page.items));
+        if (anchor) op.place = { rightOf: anchor };
+      }
+      let colorIndex = flattenItems(page.items).filter((entry) =>
+        AGENT_NODE_KINDS.has(entry.kind),
       ).length;
       agentDefaults(item, () => AGENT_FILLS[colorIndex++ % AGENT_FILLS.length]);
     }

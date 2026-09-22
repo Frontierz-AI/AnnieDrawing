@@ -1,5 +1,13 @@
 # Design decisions
 
+## 2026-09-22: Agent labels do not share one origin
+
+Models draw flowcharts by omitting `x`/`y`, repeating one coordinate, or putting `place` on the item instead of the operation. `normalizeItem` stores omitted coordinates as `0`, and `perform` only ran `placeItem` for `op.place`, so every step landed on the same corner. Label growth then made the widest box stick out of the pile while connectors still bound.
+
+For an `agent:` add, after the label grows: if `op.place` is absent and the item carries exactly one of `rightOf`, `leftOf`, `above`, `below`, `inside`, or `near`, that relation becomes `op.place` and is not stored. `gap` and `align` are kept when they are valid. Same-batch id remap rewrites that relation first. If there is still no `place`, and the grown item is a labeled `rect`, `ellipse`, `diamond`, `note`, or `text` covering a similar label already on the page, `place` becomes `{ rightOf: that id }`. The existing `placeItem` path then uses `agentPlaceGap`. Later steps in the batch see the moved boxes, and `nextFree` slides past a taken slot.
+
+Two labels share a slot when the smaller area is at least 40% of the larger and the overlap is at least half the smaller box, using grown `w` and `h`. The latest match on the page wins. A crater inside a much larger shape fails the area test and stays. An explicit `op.place`, a free `0,0`, user origins, and connectors, lines, and paths are unchanged.
+
 ## 2026-09-20: Elbows miss boxes; place does not stack
 
 Agent diagrams go wrong in two cheap ways: several `rightOf` the same node land on one point, and a straight or midpoint elbow walks through the node in between. Orthogonal routing literature (channel + obstacle) and simple packing fix both without a graph layout pass.

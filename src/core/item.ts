@@ -56,7 +56,8 @@ const PLACE_KEYS = ['rightOf', 'leftOf', 'above', 'below', 'inside', 'near'] as 
 
 /**
  * Agent creates keep colliding ids by storing `id_1`, `id_2`, … and rewriting
- * same-batch place, parent, and endpoint refs. Mutates a clone of `ops`.
+ * same-batch place (including `place` on the item), parent, and endpoint refs.
+ * Mutates a clone of `ops`.
  */
 export function remapAgentCreateIds(
   doc: AnnieDoc,
@@ -97,12 +98,23 @@ export function remapAgentCreateIds(
     if (value && 'item' in value) return { ...value, item: rewriteId(value.item) ?? value.item };
     return value;
   };
+  const rewritePlace = (place: unknown) => {
+    if (!place || typeof place !== 'object') return;
+    const record = place as Record<string, unknown>;
+    for (const key of PLACE_KEYS) {
+      const target = record[key];
+      if (typeof target !== 'string') continue;
+      const next = rewriteId(target);
+      if (typeof next === 'string') record[key] = next;
+    }
+  };
   const rewriteTree = (item: NewItem | Item | undefined) => {
     if (!item || typeof item !== 'object') return;
     if ('from' in item && item.from !== undefined)
       (item as NewItem).from = rewriteEndpoint(item.from as EndpointInput);
     if ('to' in item && item.to !== undefined)
       (item as NewItem).to = rewriteEndpoint(item.to as EndpointInput);
+    if ('place' in item) rewritePlace(item.place);
     item.children?.forEach(rewriteTree);
   };
   for (const op of batch) {
