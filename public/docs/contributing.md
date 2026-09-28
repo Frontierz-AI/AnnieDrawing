@@ -2,7 +2,7 @@
 
 Read [AGENTS.md](agents-repository.md), run the demo, and keep each change to one understandable improvement.
 
-Use Node.js 24 or newer to develop this repository, and `npm ci`. `npm run dev` starts the demo on port 5173. For a code change, run `npm run check`. For interface changes, also build the demo and run the browser checks. Document the behavior you changed, the checks you actually ran, and any known limits. Add a regression test when it protects an invariant.
+Use Node.js 22.12 or newer to develop this repository, and `npm ci`. `npm run dev` starts the demo on port 5173. For a code change, run `npm run check`. For interface changes, also build the demo and run the browser checks. Document the behavior you changed, the checks you actually ran, and any known limits. Add a regression test when it protects an invariant.
 
 ## Independent work and dependency policy
 

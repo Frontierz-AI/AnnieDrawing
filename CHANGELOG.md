@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.2
+
+The package and the MCP example now accept Node.js 22.12 or newer, down from 24. Installing on Node 22 LTS no longer prints an `EBADENGINE` warning. Nothing else changed: the library, the build, and the tests already ran on Node 22. CI now also runs the checks on Node 22.12.
+
+The package lockfile matches `0.6.2`. The private MCP example stays `0.1.0`.
+
 ## 0.6.1
 
 Bug fixes, speedups, and cleanup. The document format is unchanged.

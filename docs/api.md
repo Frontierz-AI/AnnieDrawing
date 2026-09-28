@@ -11,7 +11,7 @@
 | `anniedrawing/fellow`    | `createFellowBoard` embed preset                                                   |
 | `anniedrawing/style.css` | Editor styles                                                                      |
 
-Use Node.js 24 or newer to develop this repository and to install it from git. The published library is ES2022. Browser hosts need Pointer Events, SVG, ResizeObserver, and `structuredClone`. All JavaScript exports are ESM.
+Use Node.js 22.12 or newer to develop this repository and to install it from git. The published library is ES2022. Browser hosts need Pointer Events, SVG, ResizeObserver, and `structuredClone`. All JavaScript exports are ESM.
 
 ## createBoard and createDoc
 

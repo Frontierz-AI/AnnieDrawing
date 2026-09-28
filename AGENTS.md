@@ -4,7 +4,7 @@ AnnieDrawing is a TypeScript library and a local demo. Keep the library small an
 
 ## Run and verify
 
-- Node.js 24+. Install with `npm ci`.
+- Node.js 22.12+. Install with `npm ci`.
 - `npm run dev` starts the demo on http://127.0.0.1:5173. If that port is already in use, Vite prints the next available address.
 - `npm run check` checks TypeScript, unit tests, library build, gzipped size, and dependency licenses.
 - `npm run build:demo` builds the standalone demo.

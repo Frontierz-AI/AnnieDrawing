@@ -12,7 +12,7 @@ Item kinds: `rect`, `ellipse`, `diamond`, `line`, `connector`, `path`, `text`, `
 
 ## Requirements
 
-Developing this repository, installing it from git (`prepare` runs the build), and running the MCP example need Node.js 24 or newer. The published library is ES2022. Browser hosts need Pointer Events, SVG, ResizeObserver, and `structuredClone`. Headless `createDoc` runs in Node without those browser APIs. All JavaScript exports are ESM. CommonJS hosts can `require()` the headless entry points.
+Developing this repository, installing it from git (`prepare` runs the build), and running the MCP example need Node.js 22.12 or newer. The published library is ES2022. Browser hosts need Pointer Events, SVG, ResizeObserver, and `structuredClone`. Headless `createDoc` runs in Node without those browser APIs. All JavaScript exports are ESM. CommonJS hosts can `require()` the headless entry points.
 
 ## Install and run the demo
 
