@@ -1,5 +1,9 @@
 # Design decisions
 
+## 2026-09-28: Support Node.js 22.12 and newer
+
+The Node.js 24 floor came with the initial import. Nothing in the code needed it, but consumer servers on Node 22 LTS got an `EBADENGINE` warning at every `npm ci`. `engines` now matches the tools' real floor: `nanoid` needs Node 22, and Vite, Vitest, and the `require()` of ESM in the CommonJS consumer path need 22.12. A git install runs `prepare`, which needs the build tools, so a single range covers development and use. CI runs the checks, the consumer smoke test, and the MCP tests on 22.12. The browser, performance, and main suites stay on Node 24. The anniedrawing.com deploy script keeps its own Node 24.
+
 ## 2026-09-22: Autosave asks before replacing, placement respects locked groups, describe quotes
 
 Autosave kept one IndexedDB record per key and wrote it whenever the page changed. Two tabs, a late load, or opening a blank demo page silently replaced saved work. A save stamp now sits beside the record and is checked in the same readwrite transaction as the write, so the check cannot interleave with another tab. A tab that finds a newer stamp does not write; it raises a conflict and the person picks a version. Tabs without unsaved edits follow saves announced on a `BroadcastChannel`. The stored drawing keeps its old format and key, so earlier saves still load. An unreadable record is copied to a separate key before new work is saved over it; if the copy fails, autosave stops rather than risk the only copy.

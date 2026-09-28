@@ -1,6 +1,6 @@
 {
   "name": "anniedrawing",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "A small, joyful HTML and SVG drawing board for people and AI agents. By Frontierz.",
   "type": "module",
   "license": "MIT",
@@ -121,6 +121,6 @@
     "vitest": "^5.0.1"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=22.12.0"
   }
 }
