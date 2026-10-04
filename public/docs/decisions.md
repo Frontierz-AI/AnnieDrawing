@@ -1,5 +1,11 @@
 # Design decisions
 
+## 2026-10-04: Node types follow the engines floor, CI runs once per change
+
+`@types/node` now tracks Node.js 22, the `engines` floor, instead of 24. Newer types would let TypeScript accept Node APIs that fail on 22.12, and the node-floor CI job would only catch them where tests reach that code. Dependabot ignores major `@types/node` updates; raise them together with `engines`. Minor and patch development updates, MCP example updates, and GitHub Actions updates arrive as one grouped pull request each.
+
+CI ran on every push and again for the pull request, so each pull request ran the browser suites twice. Push runs are now limited to `main`. Checkouts no longer persist the token, since no step pushes or fetches with it. A CodeQL workflow scans the TypeScript and the workflow files on pull requests, on `main`, and weekly.
+
 ## 2026-09-28: Support Node.js 22.12 and newer
 
 The Node.js 24 floor came with the initial import. Nothing in the code needed it, but consumer servers on Node 22 LTS got an `EBADENGINE` warning at every `npm ci`. `engines` now matches the tools' real floor: `nanoid` needs Node 22, and Vite, Vitest, and the `require()` of ESM in the CommonJS consumer path need 22.12. A git install runs `prepare`, which needs the build tools, so a single range covers development and use. CI runs the checks, the consumer smoke test, and the MCP tests on 22.12. The browser, performance, and main suites stay on Node 24. The anniedrawing.com deploy script keeps its own Node 24.

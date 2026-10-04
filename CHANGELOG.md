@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+Development and CI only; the published package is unchanged. Development tools are up to date (Vite 8.3.2, Vitest 5.0.3, Prettier 3.9.9, DOMPurify 3.4.16 for tests), `@types/node` follows the Node.js 22 floor, and the MCP example uses `ws` 8.22.0. CI runs once per pull request, uses the current GitHub Actions, and adds CodeQL scanning. Dependabot groups minor and patch updates.
+
 ## 0.6.2
 
 The package and the MCP example now accept Node.js 22.12 or newer, down from 24. Installing on Node 22 LTS no longer prints an `EBADENGINE` warning. Nothing else changed: the library, the build, and the tests already ran on Node 22. CI now also runs the checks on Node 22.12.

@@ -1,6 +1,7 @@
 name: Verify
 on:
   push:
+    branches: [main]
   pull_request:
 permissions:
   contents: read
@@ -8,8 +9,10 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -26,7 +29,7 @@ jobs:
       - run: node examples/mcp/live-smoke.mjs
       - run: npm run test:e2e
       - run: npm run test:perf
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: browser-test-results
@@ -38,8 +41,10 @@ jobs:
   node-floor:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
         with:
           node-version: 22.12.0
           cache: npm
@@ -55,9 +60,10 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Check contributor sign-offs
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
