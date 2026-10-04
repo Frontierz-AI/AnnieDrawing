@@ -7,7 +7,7 @@ Publication is a maintainer action. The repository URL, issue tracker, and priva
 - Confirm access to the `anniedrawing` npm package. Check the intended release version and update the changelog.
 - Keep SECURITY.md and CODE_OF_CONDUCT.md pointed at pau@frontierz.com, and keep GitHub private vulnerability reporting enabled.
 - Review the license, third-party notices, DCO requirements, and provenance. Keep full dependency and font notices in distributed bundles where required.
-- Keep branch protection, required CI, Dependabot, and secret scanning enabled on the public repository.
+- Keep branch protection, required CI, Dependabot, CodeQL, and secret scanning enabled on the public repository.
 
 ## Verify the release tree
 
