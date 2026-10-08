@@ -1,5 +1,9 @@
 # Design decisions
 
+## 2026-10-08: Editor classes use the annie- prefix
+
+Ad blockers ship generic rules that hide elements with ad-like class names. With one active in Firefox the board showed blank: `.ad-root { display: none !important }` came from the extension, ahead of the page's own styles, so the page could not override it. The editor's classes now use `annie-`, a prefix with no ad meaning. The `--ad-*` custom properties stay, since selectors cannot match them and hosts may theme with them. The `data-ad-*` attributes stay because browser agents read them (`AGENTS.md`); the reported failure came from class rules. The events stay so host listeners keep working.
+
 ## 2026-10-04: Node types follow the engines floor, CI runs once per change
 
 `@types/node` now tracks Node.js 22, the `engines` floor, instead of 24. Newer types would let TypeScript accept Node APIs that fail on 22.12, and the node-floor CI job would only catch them where tests reach that code. Dependabot ignores major `@types/node` updates; raise them together with `engines`. Minor and patch development updates, MCP example updates, and GitHub Actions updates arrive as one grouped pull request each.

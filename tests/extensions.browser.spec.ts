@@ -38,10 +38,10 @@ test('Tab follows reading order while paint order stays in document order', asyn
     board.stage.lens.set({ x: 0, y: 0, zoom: 1 });
     board.focus();
   });
-  await expect(page.locator('.ad-item')).toHaveCount(2);
+  await expect(page.locator('.annie-item')).toHaveCount(2);
   expect(
     await page
-      .locator('.ad-item')
+      .locator('.annie-item')
       .evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).dataset.adId)),
   ).toEqual(['i_top', 'i_bottom']);
   expect(
@@ -96,11 +96,11 @@ test('text color uses the selected stroke while shape labels retain readable ink
     board.stage.lens.set({ x: 0, y: 0, zoom: 1 });
     return board.export('svg');
   });
-  await expect(page.locator('[data-ad-id="i_text"] .ad-text')).toHaveCSS(
+  await expect(page.locator('[data-ad-id="i_text"] .annie-text')).toHaveCSS(
     'color',
     'rgb(143, 147, 249)',
   );
-  await expect(page.locator('[data-ad-id="i_rect"] .ad-text')).toHaveCSS(
+  await expect(page.locator('[data-ad-id="i_rect"] .annie-text')).toHaveCSS(
     'color',
     'rgb(16, 54, 57)',
   );
@@ -137,7 +137,7 @@ test('custom kinds validate fields, keep mounted DOM, use outlines, and export c
         mounts++;
         const label = document.createElement('span');
         label.className = 'custom-mount';
-        view.element.querySelector('.ad-auxiliary').append(label);
+        view.element.querySelector('.annie-auxiliary').append(label);
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         view.shape.append(path);
         return () => {
@@ -336,7 +336,7 @@ test('custom polygon connectors match the drawn edge, exported SVG, bounds, and 
     ]);
     board.stage.lens.set({ x: 0, y: 0, zoom: 1 });
   });
-  const path = page.locator('[data-ad-id="i_link"] .ad-shape path').first();
+  const path = page.locator('[data-ad-id="i_link"] .annie-shape path').first();
   await expect(path).toHaveAttribute('d', 'M 250 150 L 500 150');
   const exported = await page.evaluate(async () => {
     const board = window.__anniedrawing![0];

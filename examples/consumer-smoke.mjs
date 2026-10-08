@@ -114,7 +114,7 @@ try {
     stop();
     assert.equal(seen.at(-1),42);
     for (const path of ['anniedrawing','anniedrawing/core','anniedrawing/agent','anniedrawing/ui','anniedrawing/fellow','anniedrawing/style.css']) assert(import.meta.resolve(path));
-    assert(readFileSync(new URL(import.meta.resolve('anniedrawing/style.css')),'utf8').includes('.ad-root'));
+    assert(readFileSync(new URL(import.meta.resolve('anniedrawing/style.css')),'utf8').includes('.annie-root'));
     console.log('Tarball consumer passed: version2 pages, headless operations, six tools, shared signals, CSS and all package exports.');
   `,
     ],

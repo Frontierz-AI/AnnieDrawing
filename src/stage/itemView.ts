@@ -27,16 +27,16 @@ export class ItemView implements KindView {
   item!: Item;
   bounds!: Box;
   constructor(readonly id: string) {
-    this.element.className = 'ad-item';
+    this.element.className = 'annie-item';
     this.element.style.display = 'none';
     this.element.dataset.adId = id;
     this.element.tabIndex = 0;
     this.element.setAttribute('role', 'img');
-    this.shape.classList.add('ad-shape');
+    this.shape.classList.add('annie-shape');
     this.shape.setAttribute('aria-hidden', 'true');
     this.shape.setAttribute('overflow', 'visible');
-    this.text.className = 'ad-text';
-    this.auxiliary.className = 'ad-auxiliary';
+    this.text.className = 'annie-text';
+    this.auxiliary.className = 'annie-auxiliary';
     this.element.append(this.shape, this.text, this.auxiliary);
   }
   private remember(value: { transform?: string; opacity?: string }) {
@@ -71,7 +71,7 @@ export class ItemView implements KindView {
       const display = this.element.style.display;
       this.element.removeAttribute('style');
       this.element.style.display = display;
-      this.element.className = 'ad-item';
+      this.element.className = 'annie-item';
       delete this.element.dataset.adInteractive;
       this.shape.removeAttribute('style');
       this.text.removeAttribute('style');
@@ -80,10 +80,11 @@ export class ItemView implements KindView {
       this.shape.replaceChildren();
       this.text.replaceChildren();
       this.auxiliary.replaceChildren();
-      this.auxiliary.className = 'ad-auxiliary';
+      this.auxiliary.className = 'annie-auxiliary';
       this.shape.style.display = '';
       this.element.dataset.adKind = item.kind;
-      if (['image', 'video', 'link'].includes(item.kind)) this.auxiliary.classList.add('ad-card');
+      if (['image', 'video', 'link'].includes(item.kind))
+        this.auxiliary.classList.add('annie-card');
       mount = true;
     }
     const connector = item.kind === 'connector' ? routeConnector(item, lookup, outline) : undefined;
@@ -212,14 +213,14 @@ export class ItemView implements KindView {
             if (this.previous.get('auxiliary') === stamp) paintCard(this.auxiliary, item, this.doc);
           });
         } else if (item.kind === 'html') {
-          this.auxiliary.classList.add('ad-html-content');
+          this.auxiliary.classList.add('annie-html-content');
           if (sanitizeHTML) this.auxiliary.innerHTML = sanitizeHTML(item.html ?? '');
           else this.auxiliary.textContent = item.html ?? 'HTML content';
         } else if (!definition) this.placeholder(`Unknown kind: ${item.kind}`);
       }
     }
     if (this.changed('access', `${item.locked}|${item.hidden}`)) {
-      this.element.classList.toggle('ad-locked', !!item.locked);
+      this.element.classList.toggle('annie-locked', !!item.locked);
       this.element.tabIndex = item.hidden ? -1 : 0;
     }
     const label =
@@ -260,7 +261,7 @@ export class ItemView implements KindView {
   }
   private placeholder(label: string): void {
     const placeholder = document.createElement('div');
-    placeholder.className = 'ad-placeholder';
+    placeholder.className = 'annie-placeholder';
     placeholder.innerHTML = `<span aria-hidden="true">◇</span><span>${esc(label)}</span>`;
     this.auxiliary.append(placeholder);
   }

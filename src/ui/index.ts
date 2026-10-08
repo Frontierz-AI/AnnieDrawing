@@ -70,7 +70,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text?
   if (text) node.textContent = text;
   return node;
 }
-function textButton(label: string, action: () => void, kind = 'ad-button') {
+function textButton(label: string, action: () => void, kind = 'annie-button') {
   const b = el('button', kind, label);
   b.type = 'button';
   b.addEventListener('click', () => {
@@ -80,8 +80,8 @@ function textButton(label: string, action: () => void, kind = 'ad-button') {
   return b;
 }
 function field(label: string, input: HTMLElement) {
-  const wrapper = el('label', 'ad-field');
-  wrapper.append(el('span', 'ad-field-label', label), input);
+  const wrapper = el('label', 'annie-field');
+  wrapper.append(el('span', 'annie-field-label', label), input);
   return wrapper;
 }
 function select(values: [string, string][], value: string, change: (value: string) => void) {
@@ -111,12 +111,12 @@ function download(content: string | Blob, name: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 export function mountUI(board: Board, options: UiOptions = {}): () => void {
-  const ui = el('div', 'ad-ui');
+  const ui = el('div', 'annie-ui');
   const showMenu = options.menu !== false;
   const showPages = options.pages !== false;
-  if (showMenu) ui.classList.add('ad-ui-menu');
-  if (showPages) ui.classList.add('ad-ui-pages');
-  if (showMenu || showPages) ui.classList.add('ad-ui-bars');
+  if (showMenu) ui.classList.add('annie-ui-menu');
+  if (showPages) ui.classList.add('annie-ui-pages');
+  if (showMenu || showPages) ui.classList.add('annie-ui-bars');
   board.stage.root.append(ui);
   const unsubs: (() => void)[] = [];
   let activeDialog: HTMLDialogElement | undefined;
@@ -124,8 +124,8 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     closePopover();
     activeDialog?.close();
     const previous = document.activeElement as HTMLElement;
-    const d = el('dialog', 'ad-dialog');
-    const head = el('div', 'ad-dialog-head');
+    const d = el('dialog', 'annie-dialog');
+    const head = el('div', 'annie-dialog-head');
     const copy = el('div');
     copy.append(el('h2', '', title));
     head.append(
@@ -171,7 +171,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       return;
     }
     closePopover();
-    const panel = el('div', 'ad-popover');
+    const panel = el('div', 'annie-popover');
     panel.popover = 'auto';
     panel.setAttribute('role', 'group');
     panel.setAttribute('aria-label', label);
@@ -228,10 +228,10 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       width = Math.min(228, bounds.width - 24);
     panel.style.width = `${width}px`;
     const height = panel.getBoundingClientRect().height;
-    const besideToolbar = trigger.closest('.ad-toolbar') && !mobile;
+    const besideToolbar = trigger.closest('.annie-toolbar') && !mobile;
     const left = besideToolbar
       ? anchor.right + 12
-      : trigger.closest('.ad-header') && anchor.left < bounds.left + bounds.width / 2
+      : trigger.closest('.annie-header') && anchor.left < bounds.left + bounds.width / 2
         ? anchor.left
         : anchor.right - width;
     const top = besideToolbar
@@ -250,7 +250,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     const panel = popover(undefined, label)!;
     // A native auto popover dismisses on the right-button release that opened it.
     panel.popover = 'manual';
-    panel.classList.add('ad-context-menu');
+    panel.classList.add('annie-context-menu');
     panel.setAttribute('role', 'menu');
     panel.tabIndex = -1;
     const add = (label: string, glyph: string, action: () => void, disabled = false) => {
@@ -261,12 +261,12 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
           board.focus();
           action();
         },
-        'ad-tool-option',
+        'annie-tool-option',
       );
       option.insertAdjacentHTML('afterbegin', icon(glyph));
       option.setAttribute('role', 'menuitem');
       option.disabled = board.readonly || disabled;
-      if (glyph === 'trash') option.classList.add('ad-danger');
+      if (glyph === 'trash') option.classList.add('annie-danger');
       panel.append(option);
     };
     const show = () => {
@@ -298,15 +298,15 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     svg: ['SVG Image', 'image'],
     json: ['AnnieDoc format', 'code'],
   };
-  const header = el('header', 'ad-header');
+  const header = el('header', 'annie-header');
   let brand: HTMLButtonElement | undefined;
   let drawingInput: HTMLInputElement | undefined;
   let exportButton: HTMLButtonElement | undefined;
   let chromeButton: HTMLButtonElement;
   if (showMenu) {
-    brand = button('Board menu', 'chevron', openMenu, 'ad-brand');
+    brand = button('Board menu', 'chevron', openMenu, 'annie-brand');
     brand.innerHTML =
-      '<span class="ad-brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M9 29 20 8l11 21M14 22h12" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="32" cy="9" r="2.5" fill="currentColor"/></svg></span><span class="ad-brand-name">AnnieDrawing</span>' +
+      '<span class="annie-brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M9 29 20 8l11 21M14 22h12" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="32" cy="9" r="2.5" fill="currentColor"/></svg></span><span class="annie-brand-name">AnnieDrawing</span>' +
       icon('chevron');
     brand.setAttribute('aria-haspopup', 'true');
     brand.setAttribute('aria-expanded', 'false');
@@ -325,9 +325,13 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     };
     header.append(brand);
   }
-  const actions = el('div', 'ad-header-actions');
+  const actions = el('div', 'annie-header-actions');
   if (formats.length) {
-    exportButton = textButton('Export', openExport, 'ad-button ad-primary ad-header-export');
+    exportButton = textButton(
+      'Export',
+      openExport,
+      'annie-button annie-primary annie-header-export',
+    );
     exportButton.insertAdjacentHTML('afterbegin', icon('download'));
     if (formats.length > 1) {
       exportButton.setAttribute('aria-haspopup', 'true');
@@ -336,16 +340,16 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     actions.append(exportButton);
   }
   chromeButton = button('Board controls', 'more', openChrome);
-  chromeButton.classList.add('ad-chrome');
+  chromeButton.classList.add('annie-chrome');
   chromeButton.setAttribute('aria-haspopup', 'true');
   chromeButton.setAttribute('aria-expanded', 'false');
   actions.append(chromeButton);
   header.append(actions);
-  if (!showMenu) header.classList.add('ad-header-end');
+  if (!showMenu) header.classList.add('annie-header-end');
   ui.append(header);
   if (drawingInput) ui.append(drawingInput);
   // Autosave problems stay visible until a save succeeds; a conflict asks which version to keep.
-  const saveNotice = el('div', 'ad-save-notice');
+  const saveNotice = el('div', 'annie-save-notice');
   saveNotice.setAttribute('role', 'status');
   saveNotice.hidden = true;
   ui.append(saveNotice);
@@ -360,16 +364,16 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     if ((event.status !== 'error' && event.status !== 'conflict') || event === shownSave) return;
     shownSave = event;
     saveNotice.dataset.status = event.status;
-    saveNotice.replaceChildren(el('span', 'ad-save-message', event.message ?? ''));
+    saveNotice.replaceChildren(el('span', 'annie-save-message', event.message ?? ''));
     const resolve = event.resolve;
     if (resolve)
       saveNotice.append(
         textButton('Use saved version', () => resolve('load')),
-        textButton('Keep this version', () => resolve('keep'), 'ad-button ad-primary'),
+        textButton('Keep this version', () => resolve('keep'), 'annie-button annie-primary'),
       );
     saveNotice.hidden = false;
   };
-  const toolbar = el('nav', 'ad-toolbar');
+  const toolbar = el('nav', 'annie-toolbar');
   toolbar.setAttribute('aria-label', 'Drawing tools');
   function toolButton(id: string, expanded = false) {
     const [, label, key] = tools.find((tool) => tool[0] === id)!;
@@ -381,12 +385,14 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
         board.setTool(id);
         board.focus();
       },
-      expanded ? 'ad-tool-option' : 'ad-icon-button',
+      expanded ? 'annie-tool-option' : 'annie-icon-button',
     );
     b.dataset.tool = id;
     b.setAttribute('aria-keyshortcuts', key);
     b.setAttribute('aria-pressed', String(board.tool === id));
-    b.innerHTML += expanded ? `<span>${label}</span>` : `<span class="ad-tooltip">${label}</span>`;
+    b.innerHTML += expanded
+      ? `<span>${label}</span>`
+      : `<span class="annie-tooltip">${label}</span>`;
     if (board.readonly && id !== 'hand' && id !== 'select') b.disabled = true;
     return b;
   }
@@ -394,14 +400,14 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   const shapeButton = button('Shapes', 'shapes', () => {
     const panel = popover(shapeButton, 'Shapes');
     if (!panel) return;
-    panel.classList.add('ad-tool-options');
+    panel.classList.add('annie-tool-options');
     panel.append(...shapeKinds.map((id) => toolButton(id, true)));
     showPopover(panel, shapeButton);
   });
   shapeButton.setAttribute('aria-haspopup', 'true');
   shapeButton.setAttribute('aria-expanded', 'false');
   shapeButton.innerHTML +=
-    '<span class="ad-tool-corner"></span><span class="ad-tooltip">Shapes</span>';
+    '<span class="annie-tool-corner"></span><span class="annie-tooltip">Shapes</span>';
   const imageInput = el('input');
   imageInput.type = 'file';
   imageInput.accept = 'image/png,image/jpeg,image/webp,image/gif,image/avif';
@@ -414,15 +420,15 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     closePopover();
     imageInput.click();
   });
-  imageButton.innerHTML += '<span class="ad-tooltip">Add image</span>';
+  imageButton.innerHTML += '<span class="annie-tooltip">Add image</span>';
   imageButton.disabled = board.readonly;
   const hand = toolButton('hand');
-  if (showMenu) hand.classList.add('ad-desktop-tool');
+  if (showMenu) hand.classList.add('annie-desktop-tool');
   toolbar.append(
     toolButton('select'),
     hand,
     toolButton('eraser'),
-    el('div', 'ad-toolbar-divider'),
+    el('div', 'annie-toolbar-divider'),
     shapeButton,
     toolButton('path'),
     toolButton('text'),
@@ -431,22 +437,22 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     imageInput,
   );
   ui.append(toolbar);
-  const styleDock = el('aside', 'ad-style-dock');
+  const styleDock = el('aside', 'annie-style-dock');
   styleDock.setAttribute('aria-label', 'Selection style');
   styleDock.hidden = true;
-  const stylePanel = el('div', 'ad-style-panel');
+  const stylePanel = el('div', 'annie-style-panel');
   const deselect = button('Deselect', 'chevron', () => board.select([]));
-  deselect.classList.add('ad-style-dismiss');
+  deselect.classList.add('annie-style-dismiss');
   styleDock.append(deselect, stylePanel);
   ui.append(styleDock);
-  const footer = el('footer', 'ad-footer');
+  const footer = el('footer', 'annie-footer');
   const undo = button('Undo', 'undo', () => board.undo()),
     redo = button('Redo', 'redo', () => board.redo());
   undo.setAttribute('aria-keyshortcuts', 'Meta+Z Control+Z');
   redo.setAttribute('aria-keyshortcuts', 'Meta+Shift+Z Control+Shift+Z');
-  const pagesBar = el('nav', 'ad-pages');
+  const pagesBar = el('nav', 'annie-pages');
   pagesBar.setAttribute('aria-label', 'Pages');
-  const pageTabs = el('div', 'ad-page-tabs');
+  const pageTabs = el('div', 'annie-page-tabs');
   pageTabs.setAttribute('role', 'tablist');
   pageTabs.setAttribute('aria-label', 'Pages');
   const overflow = button('All pages', 'more', openPages);
@@ -478,7 +484,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
         board.setPage(id);
         pageTabs.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus();
       },
-      tab ? 'ad-page-tab' : 'ad-tool-option',
+      tab ? 'annie-page-tab' : 'annie-tool-option',
     );
     pick.title = name;
     pick.dataset.pageId = id;
@@ -545,7 +551,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   function fitPageTabs() {
     if (fittingPages) return;
     fittingPages = true;
-    const probe = el('div', 'ad-page-tabs');
+    const probe = el('div', 'annie-page-tabs');
     try {
       const tabs = [...pageTabs.querySelectorAll<HTMLButtonElement>('button')];
       probe.style.cssText =
@@ -628,9 +634,9 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   function openPages() {
     const panel = popover(overflow, 'All pages');
     if (!panel) return;
-    panel.classList.add('ad-pages-popover');
+    panel.classList.add('annie-pages-popover');
     for (const page of board.read().pages) {
-      const row = el('div', 'ad-page-row');
+      const row = el('div', 'annie-page-row');
       row.append(pageButton(page.id, page.name));
       const actions = button(`Actions for ${page.name}`, 'more', () => {
         const bounds = actions.getBoundingClientRect();
@@ -642,23 +648,23 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     showPopover(panel, overflow);
     panel.querySelector<HTMLElement>('[aria-current="true"]')?.scrollIntoView({ block: 'nearest' });
   }
-  const footerRight = el('div', 'ad-footer-right');
-  const zoom = el('div', 'ad-zoom');
+  const footerRight = el('div', 'annie-footer-right');
+  const zoom = el('div', 'annie-zoom');
   const percentage = textButton(
     '100%',
     () => {
       const panel = popover(percentage, 'Zoom controls');
       if (!panel) return;
-      const row = el('div', 'ad-zoom-controls');
+      const row = el('div', 'annie-zoom-controls');
       row.append(
         button('Zoom out', 'minus', () => (board.view.zoom /= 1.2)),
-        textButton('100%', () => (board.view.zoom = 1), 'ad-zoom-value'),
+        textButton('100%', () => (board.view.zoom = 1), 'annie-zoom-value'),
         button('Zoom in', 'plus', () => (board.view.zoom *= 1.2)),
       );
       panel.append(row);
       showPopover(panel, percentage, fitButton);
     },
-    'ad-zoom-value',
+    'annie-zoom-value',
   );
   percentage.setAttribute('aria-label', 'Zoom controls');
   percentage.setAttribute('aria-haspopup', 'true');
@@ -687,11 +693,11 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
             });
           d.close();
         },
-        'ad-button ad-primary',
+        'annie-button annie-primary',
       ),
     );
     input.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') d.querySelector<HTMLButtonElement>('.ad-primary')?.click();
+      if (event.key === 'Enter') d.querySelector<HTMLButtonElement>('.annie-primary')?.click();
     });
     d.addEventListener(
       'close',
@@ -722,7 +728,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     input.maxLength = 2000;
     input.value = item.href ?? '';
     input.setAttribute('aria-label', video ? 'Video URL' : 'URL');
-    const error = el('p', 'ad-dialog-error');
+    const error = el('p', 'annie-dialog-error');
     error.setAttribute('role', 'alert');
     error.hidden = true;
     const save = textButton(
@@ -748,7 +754,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
           d.close();
         })();
       },
-      'ad-button ad-primary',
+      'annie-button annie-primary',
     );
     d.append(field(video ? 'Video URL' : 'URL', input), error, save);
     input.addEventListener('input', () => {
@@ -756,7 +762,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       input.removeAttribute('aria-invalid');
     });
     input.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') d.querySelector<HTMLButtonElement>('.ad-primary')?.click();
+      if (event.key === 'Enter') d.querySelector<HTMLButtonElement>('.annie-primary')?.click();
     });
     input.focus();
     input.select();
@@ -790,7 +796,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
         : undefined;
     const focusLabel =
       focused?.getAttribute('aria-label') ?? (stylePopup?.focused ? stylePopup.label : undefined);
-    const focusField = focused?.closest('label')?.querySelector('.ad-field-label')?.textContent;
+    const focusField = focused?.closest('label')?.querySelector('.annie-field-label')?.textContent;
     if (stylePopup) closePopover();
     const items = board.selection.map((id) => board.get(id)!).filter(Boolean);
     const selectedKey = items.map((item) => item.id).join(',');
@@ -814,7 +820,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     const hasText = items.every(
       (i) => !['image', 'path', 'line', 'group', 'html', 'video', 'link'].includes(i.kind),
     );
-    const colorControls = el('div', 'ad-color-controls');
+    const colorControls = el('div', 'annie-color-controls');
     function colorControl(label: string, key: 'fill' | 'stroke') {
       const current =
         item.style?.[key] ?? (key === 'fill' ? (item.kind === 'note' ? 'moss' : 'none') : 'ink');
@@ -823,9 +829,9 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
         () => {
           const panel = popover(trigger, `${label} color`);
           if (!panel) return;
-          panel.classList.add('ad-color-popover');
+          panel.classList.add('annie-color-popover');
           for (const [token, name] of palette) {
-            const b = el('button', `ad-swatch ${token === 'none' ? 'ad-swatch-none' : ''}`);
+            const b = el('button', `annie-swatch ${token === 'none' ? 'annie-swatch-none' : ''}`);
             b.type = 'button';
             b.style.setProperty('--swatch', resolveColor(token, board.stage.resolvedTheme));
             b.setAttribute('aria-label', `${label}: ${name}`);
@@ -841,12 +847,15 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
           }
           showPopover(panel, trigger);
         },
-        'ad-color-control',
+        'annie-color-control',
       );
       trigger.setAttribute('aria-label', label);
       trigger.setAttribute('aria-haspopup', 'true');
       trigger.setAttribute('aria-expanded', 'false');
-      const swatch = el('span', `ad-color-preview ${current === 'none' ? 'ad-swatch-none' : ''}`);
+      const swatch = el(
+        'span',
+        `annie-color-preview ${current === 'none' ? 'annie-swatch-none' : ''}`,
+      );
       swatch.style.setProperty('--swatch', resolveColor(current, board.stage.resolvedTheme));
       trigger.prepend(swatch);
       colorControls.append(trigger);
@@ -859,7 +868,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       () => {
         const panel = popover(opacityButton, 'Opacity controls');
         if (!panel) return;
-        panel.classList.add('ad-opacity-popover');
+        panel.classList.add('annie-opacity-popover');
         const input = el('input');
         input.type = 'range';
         input.setAttribute('aria-label', 'Opacity');
@@ -868,7 +877,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
         input.value = String(Math.round((board.get(item.id)?.style?.opacity ?? 1) * 100));
         const value = el('output', '', `${input.value}%`);
         const label = field('Opacity', input);
-        label.querySelector('.ad-field-label')!.append(value);
+        label.querySelector('.annie-field-label')!.append(value);
         let first = true;
         input.oninput = () => {
           value.textContent = `${input.value}%`;
@@ -889,7 +898,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
         showPopover(panel, opacityButton);
         input.focus();
       },
-      'ad-color-control',
+      'annie-color-control',
     );
     opacityButton.insertAdjacentHTML('afterbegin', icon('opacity'));
     opacityButton.setAttribute('aria-label', 'Opacity');
@@ -907,11 +916,11 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
         { origin: 'user', label: 'Text style' },
       );
     function styleRow(label: string) {
-      const row = el('div', 'ad-style-row');
-      const group = el('div', 'ad-segments');
+      const row = el('div', 'annie-style-row');
+      const group = el('div', 'annie-segments');
       group.setAttribute('role', 'group');
       group.setAttribute('aria-label', label);
-      row.append(el('span', 'ad-style-label', label), group);
+      row.append(el('span', 'annie-style-label', label), group);
       stylePanel.append(row);
       return group;
     }
@@ -922,7 +931,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       change: (value: string) => void,
     ) {
       return values.map(([value, label, content]) => {
-        const b = textButton(label, () => change(value), 'ad-segment');
+        const b = textButton(label, () => change(value), 'annie-segment');
         b.setAttribute('aria-label', label);
         b.title = label;
         b.setAttribute('aria-pressed', String(items.every((item) => current(item) === value)));
@@ -1028,7 +1037,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       );
     if (single && (item.kind === 'video' || item.kind === 'link')) {
       const label = hrefAction(item.kind);
-      const edit = textButton(label, () => editHref(item.id), 'ad-button ad-href-edit');
+      const edit = textButton(label, () => editHref(item.id), 'annie-button annie-href-edit');
       edit.setAttribute('aria-label', label);
       stylePanel.append(edit);
     }
@@ -1038,7 +1047,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       () => board.updateSelection({ locked: !locked }),
     );
     lock.setAttribute('aria-pressed', String(locked));
-    const row = el('div', 'ad-selection-actions');
+    const row = el('div', 'annie-selection-actions');
     row.append(
       button('Duplicate selection', 'copy', () => board.duplicate()),
       button('More arrangement options', 'align', openArrange),
@@ -1059,7 +1068,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       stylePanel.querySelector<HTMLElement>(`[aria-label="${CSS.escape(focusLabel)}"]`)?.focus();
     else if (focusField)
       [...stylePanel.querySelectorAll('label')]
-        .find((label) => label.querySelector('.ad-field-label')?.textContent === focusField)
+        .find((label) => label.querySelector('.annie-field-label')?.textContent === focusField)
         ?.querySelector<HTMLElement>('input,select')
         ?.focus();
     if (focused || stylePopup?.focused)
@@ -1067,7 +1076,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   }
   function openArrange() {
     const d = dialog('Give it a little order');
-    const actions = el('div', 'ad-action-grid');
+    const actions = el('div', 'annie-action-grid');
     const item = board.selection.length === 1 ? board.get(board.selection[0]) : undefined;
     if (item) {
       actions.append(
@@ -1138,8 +1147,8 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   function openChrome() {
     const panel = popover(chromeButton, 'Board controls');
     if (!panel) return;
-    panel.classList.add('ad-chrome-popover');
-    const history = el('div', 'ad-chrome-history');
+    panel.classList.add('annie-chrome-popover');
+    const history = el('div', 'annie-chrome-history');
     const chromeUndo = button('Undo', 'undo', () => {
       board.undo();
       chromeUndo.disabled = !board.canUndo;
@@ -1155,26 +1164,26 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     history.append(chromeUndo, chromeRedo);
     panel.append(history);
     if (showPages) {
-      const section = el('section', 'ad-chrome-section');
-      section.append(el('p', 'ad-chrome-label', 'Pages'));
-      const list = el('div', 'ad-chrome-pages');
+      const section = el('section', 'annie-chrome-section');
+      section.append(el('p', 'annie-chrome-label', 'Pages'));
+      const list = el('div', 'annie-chrome-pages');
       for (const page of board.read().pages) list.append(pageButton(page.id, page.name));
-      const add = button('Add page', 'plus', addPage, 'ad-tool-option');
+      const add = button('Add page', 'plus', addPage, 'annie-tool-option');
       add.innerHTML += '<span>Add page</span>';
       add.disabled = board.readonly;
       section.append(list, add);
       panel.append(section);
     }
-    const view = el('section', 'ad-chrome-section');
-    view.append(el('p', 'ad-chrome-label', 'View'));
-    const zoomRow = el('div', 'ad-zoom-controls');
+    const view = el('section', 'annie-chrome-section');
+    view.append(el('p', 'annie-chrome-label', 'View'));
+    const zoomRow = el('div', 'annie-zoom-controls');
     const zoomLabel = textButton(
       `${Math.round(board.view.zoom * 100)}%`,
       () => {
         board.view.zoom = 1;
         zoomLabel.textContent = '100%';
       },
-      'ad-zoom-value',
+      'annie-zoom-value',
     );
     zoomLabel.setAttribute('aria-label', 'Reset zoom');
     const syncZoom = () => {
@@ -1198,8 +1207,8 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     view.append(zoomRow);
     panel.append(view);
     if (formats.length) {
-      const exported = el('section', 'ad-chrome-section');
-      exported.append(el('p', 'ad-chrome-label', 'Export'));
+      const exported = el('section', 'annie-chrome-section');
+      exported.append(el('p', 'annie-chrome-label', 'Export'));
       for (const format of formats) {
         const [label, glyph] = exportChoices[format];
         const option = button(
@@ -1209,7 +1218,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
             closePopover();
             saveExport(format);
           },
-          'ad-tool-option',
+          'annie-tool-option',
         );
         option.innerHTML += `<span>${label}</span>`;
         exported.append(option);
@@ -1248,7 +1257,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     if (!exportButton) return;
     const panel = popover(exportButton, 'Export');
     if (!panel) return;
-    panel.classList.add('ad-tool-options');
+    panel.classList.add('annie-tool-options');
     for (const format of formats) {
       const [label, glyph] = exportChoices[format];
       const option = button(
@@ -1258,7 +1267,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
           closePopover();
           saveExport(format);
         },
-        'ad-tool-option',
+        'annie-tool-option',
       );
       option.innerHTML += `<span>${label}</span>`;
       panel.append(option);
@@ -1269,7 +1278,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     if (!brand) return;
     const panel = popover(brand, 'Board menu');
     if (!panel) return;
-    panel.classList.add('ad-tool-options');
+    panel.classList.add('annie-tool-options');
     const add = (label: string, glyph: string, action: () => void, disabled = false) => {
       const option = button(
         label,
@@ -1278,7 +1287,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
           closePopover();
           action();
         },
-        'ad-tool-option',
+        'annie-tool-option',
       );
       option.innerHTML += `<span>${label}</span>`;
       option.disabled = disabled;
@@ -1299,16 +1308,16 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     add('Documentation', 'book', () => {
       window.open('./docs/index.html', '_blank', 'noopener');
     });
-    const github = el('a', 'ad-tool-option');
+    const github = el('a', 'annie-tool-option');
     github.href = GITHUB_REPO_URL;
     github.target = '_blank';
     github.rel = 'noopener noreferrer';
     github.title = 'GitHub';
     github.innerHTML = `${icon('github')}<span>GitHub</span>`;
     github.addEventListener('click', () => closePopover());
-    const separator = el('div', 'ad-menu-separator');
+    const separator = el('div', 'annie-menu-separator');
     separator.setAttribute('role', 'separator');
-    panel.append(github, separator, el('p', 'ad-menu-version', `v${PACKAGE_VERSION}`));
+    panel.append(github, separator, el('p', 'annie-menu-version', `v${PACKAGE_VERSION}`));
     showPopover(panel, brand);
   }
   function refresh() {
@@ -1347,7 +1356,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       },
       locked,
     );
-    const separator = el('div', 'ad-menu-separator');
+    const separator = el('div', 'annie-menu-separator');
     separator.setAttribute('role', 'separator');
     menu.panel.append(separator);
     menu.add(

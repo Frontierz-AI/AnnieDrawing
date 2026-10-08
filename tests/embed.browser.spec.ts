@@ -77,7 +77,7 @@ test('a host agentName labels the cursor without apply.agentName', async ({ page
       { origin: 'agent:fellow' },
     );
   });
-  const cursor = page.locator('.ad-agent-cursor span');
+  const cursor = page.locator('.annie-agent-cursor span');
   await expect(cursor).toHaveText('Alex');
 });
 
@@ -95,10 +95,10 @@ test('agentPresence maxStops dumps the rest of the batch after one stop', async 
       { origin: 'agent:tool' },
     );
   });
-  await expect(page.locator('.ad-agent-cursor')).toHaveCount(1);
+  await expect(page.locator('.annie-agent-cursor')).toHaveCount(1);
   await expect(page.locator('[data-ad-id="one"]')).toBeHidden();
   await page.waitForFunction(() => {
-    const pending = document.querySelectorAll('.ad-agent-pending');
+    const pending = document.querySelectorAll('.annie-agent-pending');
     return pending.length <= 1;
   });
   await expect(page.locator('[data-ad-id="two"]')).toBeVisible();
@@ -223,7 +223,7 @@ test('chrome hit targets stay on the 16px pixel scale when rem is 10px', async (
     window.__anniedrawing![0].select(['sel']);
   });
   const width = await page
-    .locator('.ad-style-row')
+    .locator('.annie-style-row')
     .first()
     .evaluate((row) => {
       const columns = getComputedStyle(row).gridTemplateColumns.split(' ')[0];
@@ -253,7 +253,7 @@ test('createFellowBoard applies the host embed preset', async ({ page }) => {
       agentName: board.agentName,
       theme: board.theme,
       global: window.__anniedrawing?.includes(board) ?? false,
-      pages: !!document.querySelector('.ad-pages'),
+      pages: !!document.querySelector('.annie-pages'),
       menu: !!document.querySelector('[aria-label="Board menu"]'),
       canUndo: board.canUndo,
       afterUndo: (board.undo(), !!board.get('taught') && !board.get('mine')),

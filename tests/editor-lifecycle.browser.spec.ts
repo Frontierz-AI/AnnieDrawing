@@ -42,14 +42,14 @@ test('finishing an edit by clicking a host field leaves focus and keys there', a
 test('a remote removal closes the editor so the next item can be edited', async ({ page }) => {
   await ready(page);
   await page.evaluate(() => window.__anniedrawing![0].editText('n'));
-  await expect(page.locator('.ad-editing')).toHaveCount(1);
+  await expect(page.locator('.annie-editing')).toHaveCount(1);
   await page.evaluate(() => {
     const b = window.__anniedrawing![0];
     b.apply([{ op: 'remove', id: 'n' }], { origin: 'agent:helper' });
     b.apply([{ op: 'add', item: { id: 'm', kind: 'note', x: 40, y: 40, w: 160, h: 120 } }]);
     b.editText('m');
   });
-  await expect(page.locator('[data-ad-id="m"] .ad-editing')).toHaveCount(1);
+  await expect(page.locator('[data-ad-id="m"] .annie-editing')).toHaveCount(1);
 });
 
 test('a cancelled pointer and a text drop inside the editor keep the edit', async ({ page }) => {
@@ -57,7 +57,7 @@ test('a cancelled pointer and a text drop inside the editor keep the edit', asyn
   await page.evaluate(() => window.__anniedrawing![0].editText('n'));
   await page.keyboard.type('typed words');
   await page.evaluate(() => {
-    const editor = document.querySelector<HTMLElement>('.ad-editing')!;
+    const editor = document.querySelector<HTMLElement>('.annie-editing')!;
     editor.dispatchEvent(
       new PointerEvent('pointercancel', { bubbles: true, pointerId: 1, pointerType: 'mouse' }),
     );
@@ -67,7 +67,7 @@ test('a cancelled pointer and a text drop inside the editor keep the edit', asyn
       new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }),
     );
   });
-  await expect(page.locator('.ad-editing')).toHaveCount(1);
+  await expect(page.locator('.annie-editing')).toHaveCount(1);
   await page.keyboard.press('Control+Enter');
   const items = await page.evaluate(() =>
     window.__anniedrawing![0].query().map((item) => [item.id, item.text?.value]),
@@ -87,7 +87,7 @@ test('an item moved while it fades in ends at the new position', async ({ page }
         });
         const element = b.stage.world.querySelector<HTMLElement>('[data-ad-id="a"]')!;
         const wait = () => {
-          if (element.classList.contains('ad-agent-pending')) requestAnimationFrame(wait);
+          if (element.classList.contains('annie-agent-pending')) requestAnimationFrame(wait);
           else {
             b.apply([{ op: 'set', id: 'a', patch: { x: 600 } }]);
             resolve();
@@ -96,7 +96,7 @@ test('an item moved while it fades in ends at the new position', async ({ page }
         wait();
       }),
   );
-  await expect(page.locator('.ad-agent-cursor')).toHaveCount(0);
+  await expect(page.locator('.annie-agent-cursor')).toHaveCount(0);
   await expect
     .poll(() =>
       page.evaluate(

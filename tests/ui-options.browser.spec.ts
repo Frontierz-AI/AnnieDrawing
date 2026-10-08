@@ -31,7 +31,7 @@ test('hosts can hide the AnnieDrawing menu and the export control', async ({ pag
 
 test('hosts can offer AnnieDoc and choose dark appearance', async ({ page }) => {
   await mount(page, { theme: 'dark', ui: { export: ['png', 'svg', 'json'] } });
-  await expect(page.locator('.ad-root')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('.annie-root')).toHaveAttribute('data-theme', 'dark');
   await page.getByRole('button', { name: 'Export', exact: true }).click();
   await expect(page.getByRole('button', { name: 'AnnieDoc format', exact: true })).toBeVisible();
 });
@@ -39,7 +39,7 @@ test('hosts can offer AnnieDoc and choose dark appearance', async ({ page }) => 
 test('auto appearance follows the system color scheme', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' });
   await mount(page, { theme: 'auto' });
-  await expect(page.locator('.ad-root')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('.annie-root')).toHaveAttribute('data-theme', 'dark');
 });
 
 test('a single export format downloads without opening a menu', async ({ page }) => {

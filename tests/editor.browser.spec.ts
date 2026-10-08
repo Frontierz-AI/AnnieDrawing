@@ -28,12 +28,12 @@ test('creates every drawing tool with pointer input and edits text', async ({ pa
     ['line', 'l'],
     ['path', 'p'],
   ]) {
-    await page.locator('.ad-root').press(shortcut);
+    await page.locator('.annie-root').press(shortcut);
     await drag(page, 400, 250, 160, 110);
     expect(await count(page, kind)).toBe(1);
-    await page.locator('.ad-root').press('Escape');
+    await page.locator('.annie-root').press('Escape');
   }
-  await page.locator('.ad-root').press('t');
+  await page.locator('.annie-root').press('t');
   await page.mouse.click(740, 400);
   await expect(page.getByRole('textbox', { name: 'Edit text' })).toBeVisible();
   await page.getByRole('textbox', { name: 'Edit text' }).fill('Hello from a person');
@@ -41,7 +41,7 @@ test('creates every drawing tool with pointer input and edits text', async ({ pa
   expect(
     await page.evaluate(() => window.__anniedrawing![0].query({ kind: 'text' })[0].text?.value),
   ).toBe('Hello from a person');
-  await page.locator('.ad-root').press('n');
+  await page.locator('.annie-root').press('n');
   await page.mouse.click(740, 250);
   await page.getByRole('textbox', { name: 'Edit text' }).fill('A sticky thought');
   await page.keyboard.press('ControlOrMeta+Enter');
@@ -81,7 +81,7 @@ test('move drafts stay out of JSON, undo is one step, resize, rotate and cancel 
   ).toBe(450);
   await page.mouse.up();
   expect(await page.evaluate(() => window.__anniedrawing![0].get('i_box')?.x)).toBe(450);
-  await page.locator('.ad-root').press('ControlOrMeta+z');
+  await page.locator('.annie-root').press('ControlOrMeta+z');
   expect(await page.evaluate(() => window.__anniedrawing![0].get('i_box')?.x)).toBe(400);
   const resize = page.locator('[data-ad-handle="se"]');
   await expect(resize).toHaveAttribute('x', '556');
@@ -124,14 +124,14 @@ test('connectors attach to shapes, follow drafts and survive target deletion', a
       },
     ]),
   );
-  await page.locator('.ad-root').press('a');
+  await page.locator('.annie-root').press('a');
   await drag(page, 470, 300, 340, 0);
   const connector = await page.evaluate(
     () => window.__anniedrawing![0].query({ kind: 'connector' })[0],
   );
   expect(connector.from).toMatchObject({ item: 'i_a' });
   expect(connector.to).toMatchObject({ item: 'i_b' });
-  const path = page.locator(`[data-ad-id="${connector.id}"] .ad-shape path`).first();
+  const path = page.locator(`[data-ad-id="${connector.id}"] .annie-shape path`).first();
   const before = await path.getAttribute('d');
   await page.evaluate(() =>
     window.__anniedrawing![0].apply([{ op: 'set', id: 'i_a', patch: { y: 400 } }]),
@@ -253,11 +253,11 @@ test('grouping, arrangement and appearance are usable', async ({ page }) => {
   });
   expect(await count(page, 'group')).toBe(1);
   expect(await page.evaluate(() => window.__anniedrawing![0].get('i_b')?.y)).toBe(250);
-  await page.locator('.ad-root').press('ControlOrMeta+Shift+g');
+  await page.locator('.annie-root').press('ControlOrMeta+Shift+g');
   expect(await count(page, 'group')).toBe(0);
   await page.getByRole('button', { name: 'Board menu' }).click();
   await page.getByRole('button', { name: 'Dark appearance' }).click();
-  await expect(page.locator('.ad-root')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('.annie-root')).toHaveAttribute('data-theme', 'dark');
 });
 
 test('mobile tools, touch and pen preserve a usable viewport', async ({ page }) => {
@@ -265,7 +265,7 @@ test('mobile tools, touch and pen preserve a usable viewport', async ({ page }) 
   await ready(page);
   await page.getByRole('button', { name: 'Shapes', exact: true }).click();
   await page.getByRole('button', { name: 'Rectangle', exact: true }).click();
-  await page.locator('.ad-root').dispatchEvent('pointerdown', {
+  await page.locator('.annie-root').dispatchEvent('pointerdown', {
     pointerId: 7,
     pointerType: 'touch',
     clientX: 80,
@@ -274,7 +274,7 @@ test('mobile tools, touch and pen preserve a usable viewport', async ({ page }) 
     buttons: 1,
     isPrimary: true,
   });
-  await page.locator('.ad-root').dispatchEvent('pointermove', {
+  await page.locator('.annie-root').dispatchEvent('pointermove', {
     pointerId: 7,
     pointerType: 'touch',
     clientX: 210,
@@ -283,7 +283,7 @@ test('mobile tools, touch and pen preserve a usable viewport', async ({ page }) 
     buttons: 1,
     isPrimary: true,
   });
-  await page.locator('.ad-root').dispatchEvent('pointerup', {
+  await page.locator('.annie-root').dispatchEvent('pointerup', {
     pointerId: 7,
     pointerType: 'touch',
     clientX: 210,
@@ -333,13 +333,13 @@ test('hand, marquee, alt-duplicate and eraser work through their pointer tools',
   await drag(page, 450, 300, 0, 170);
   await page.keyboard.up('Alt');
   expect(await page.evaluate(() => window.__anniedrawing![0].items.length)).toBe(4);
-  await page.locator('.ad-root').press('Escape');
-  await page.locator('.ad-root').press('e');
+  await page.locator('.annie-root').press('Escape');
+  await page.locator('.annie-root').press('e');
   await page.mouse.click(450, 300);
   expect(await count(page, 'rect')).toBe(1);
-  await page.locator('.ad-root').press('ControlOrMeta+z');
+  await page.locator('.annie-root').press('ControlOrMeta+z');
   expect(await count(page, 'rect')).toBe(2);
-  await page.locator('.ad-root').press('h');
+  await page.locator('.annie-root').press('h');
   await drag(page, 900, 550, -120, 40);
   expect(await page.evaluate(() => window.__anniedrawing![0].stage.lens.state)).toMatchObject({
     x: -120,
@@ -349,7 +349,7 @@ test('hand, marquee, alt-duplicate and eraser work through their pointer tools',
 
 test('double clicking a newly drawn shape edits its label immediately', async ({ page }) => {
   await ready(page);
-  await page.locator('.ad-root').press('r');
+  await page.locator('.annie-root').press('r');
   await drag(page, 400, 250, 180, 100);
   await page.mouse.dblclick(490, 300);
   await expect(page.getByRole('textbox', { name: 'Edit text' })).toBeVisible();
@@ -373,7 +373,7 @@ test('agent rectangles grow so a paragraph stays inside the box', async ({ page 
     );
     const item = board.get('i_card')!;
     const node = board.stage.world.querySelector<HTMLElement>('[data-ad-id="i_card"]')!;
-    const label = node.querySelector<HTMLElement>('.ad-text')!;
+    const label = node.querySelector<HTMLElement>('.annie-text')!;
     return {
       w: item.w,
       h: item.h,
@@ -402,7 +402,9 @@ test('agent text titles stay on one line past the old 200 width', async ({ page 
       { origin: 'agent:planner', reveal: 'none' },
     );
     const item = board.get('i_title')!;
-    const label = board.stage.world.querySelector<HTMLElement>('[data-ad-id="i_title"] .ad-text')!;
+    const label = board.stage.world.querySelector<HTMLElement>(
+      '[data-ad-id="i_title"] .annie-text',
+    )!;
     const font = parseFloat(getComputedStyle(label).fontSize);
     return { w: item.w, h: item.h, scrollH: label.scrollHeight, font };
   });

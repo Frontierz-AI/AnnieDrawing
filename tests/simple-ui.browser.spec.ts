@@ -23,7 +23,7 @@ test('demo host fills the viewport without library CSS on html or body', async (
     const html = document.documentElement;
     const body = document.body;
     const app = document.getElementById('app')!;
-    const root = document.querySelector('.ad-root') as HTMLElement;
+    const root = document.querySelector('.annie-root') as HTMLElement;
     return {
       innerHeight: window.innerHeight,
       appHeight: app.getBoundingClientRect().height,
@@ -67,9 +67,9 @@ test('board menu stays focused and image upload remains available in the sidebar
     }),
   ).toHaveCount(0);
   await page.keyboard.press('Escape');
-  await page.locator('.ad-root').press('?');
+  await page.locator('.annie-root').press('?');
   await expect(menu).toHaveCount(0);
-  await page.locator('.ad-root').press('r');
+  await page.locator('.annie-root').press('r');
   await expect.poll(() => page.evaluate(() => window.__anniedrawing![0].tool)).toBe('rect');
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Add image', exact: true }).click();
@@ -126,7 +126,7 @@ test('selection inspector shows only relevant controls and opens colors on deman
   expect(applied.ok, JSON.stringify(applied.errors)).toBe(true);
   await selectItem(page, 'i_shape');
   await expect(inspector).toBeVisible();
-  await expect(inspector.locator('.ad-panel-label')).toHaveCount(0);
+  await expect(inspector.locator('.annie-panel-label')).toHaveCount(0);
   await expect(inspector.getByRole('button', { name: 'Fill', exact: true })).toBeVisible();
   await expect(inspector.getByRole('button', { name: 'Line', exact: true })).toBeVisible();
   await expect(
@@ -163,7 +163,7 @@ test('selection inspector shows only relevant controls and opens colors on deman
     text: { value: '', size: 'l', font: 'serif', align: 'end' },
     style: { fill: 'moss', strokeWidth: 4, dash: 'dashed' },
   });
-  await expect(page.locator('[data-ad-id="i_shape"] .ad-shape path').first()).toHaveAttribute(
+  await expect(page.locator('[data-ad-id="i_shape"] .annie-shape path').first()).toHaveAttribute(
     'stroke-dasharray',
     '8 6',
   );
@@ -248,7 +248,7 @@ test('page chips allow contextual renaming and zoom controls stay compact', asyn
   await expect(zoom).toBeFocused();
   const fit = page.getByRole('button', { name: 'Fit drawing', exact: true });
   const undo = page.getByRole('button', { name: 'Undo', exact: true });
-  const pages = page.locator('.ad-pages');
+  const pages = page.locator('.annie-pages');
   await expect(fit).toBeVisible();
   const fitBox = await fit.boundingBox();
   const undoBox = await undo.boundingBox();
@@ -364,14 +364,13 @@ test('color controls match rendered defaults and retain focus after a live agent
       origin: 'agent:test',
     }),
   );
-  await expect(page.locator('.ad-popover')).toHaveCount(0);
+  await expect(page.locator('.annie-popover')).toHaveCount(0);
   await expect(fill).toBeFocused();
   await fill.click();
   await page.getByRole('button', { name: 'Fill: Orange', exact: true }).click();
-  await expect(page.locator('[data-ad-id="i_note_color"] .ad-shape path').first()).toHaveAttribute(
-    'fill',
-    '#FF9302',
-  );
+  await expect(
+    page.locator('[data-ad-id="i_note_color"] .annie-shape path').first(),
+  ).toHaveAttribute('fill', '#FF9302');
   await selectItem(page, 'i_rect_color');
   await expect(inspector.getByRole('group', { name: 'Line', exact: true })).toBeVisible();
   await expect(inspector.getByRole('group', { name: 'Pattern', exact: true })).toBeVisible();
@@ -481,7 +480,7 @@ test('inspector and context menu can change a video or link URL', async ({ page 
   ).toBeVisible();
   await expect(inspector.getByRole('button', { name: 'Edit URL', exact: true })).toHaveCount(0);
   await inspector.getByRole('button', { name: 'Edit Video URL', exact: true }).click();
-  const videoDialog = page.locator('dialog.ad-dialog');
+  const videoDialog = page.locator('dialog.annie-dialog');
   await expect(
     videoDialog.getByRole('heading', { name: 'Edit video URL', exact: true }),
   ).toBeVisible();
@@ -511,7 +510,7 @@ test('inspector and context menu can change a video or link URL', async ({ page 
   await expect(menu.getByRole('menuitem', { name: 'Edit URL', exact: true })).toBeVisible();
   await expect(menu.getByRole('menuitem', { name: 'Edit text', exact: true })).toHaveCount(0);
   await menu.getByRole('menuitem', { name: 'Edit URL', exact: true }).click();
-  const linkDialog = page.locator('dialog.ad-dialog');
+  const linkDialog = page.locator('dialog.annie-dialog');
   await expect(linkDialog.getByRole('heading', { name: 'Edit URL', exact: true })).toBeVisible();
   await linkDialog.getByLabel('URL', { exact: true }).fill('frontierz.com/notes');
   await linkDialog.getByRole('button', { name: 'Save URL', exact: true }).click();
@@ -522,7 +521,7 @@ test('inspector and context menu can change a video or link URL', async ({ page 
       href: 'https://frontierz.com/notes',
       text: { value: 'Frontierz' },
     });
-  await expect(page.locator('[data-ad-id="i_site"] .ad-link-url')).toHaveText(
+  await expect(page.locator('[data-ad-id="i_site"] .annie-link-url')).toHaveText(
     'frontierz.com/notes',
   );
 });

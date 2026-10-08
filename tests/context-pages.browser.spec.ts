@@ -65,7 +65,7 @@ test('context actions affect the clicked element and support keyboard dismissal 
   expect(
     await page.evaluate(() => window.__anniedrawing![0].read().pages[0].items.map(({ id }) => id)),
   ).toEqual(['target', 'other']);
-  await page.locator('.ad-root').press('Shift+F10');
+  await page.locator('.annie-root').press('Shift+F10');
   await expect(menu.getByRole('menuitem', { name: 'Edit text' })).toBeFocused();
   await page.keyboard.press('End');
   await expect(menu.getByRole('menuitem', { name: 'Delete', exact: true })).toBeFocused();
@@ -80,7 +80,7 @@ test('context actions affect the clicked element and support keyboard dismissal 
   await menu.getByRole('menuitem', { name: 'Duplicate' }).click();
   const copy = await page.evaluate(() => window.__anniedrawing![0].selection[0]);
   expect(copy).not.toBe('target');
-  await page.locator('.ad-root').press('Shift+F10');
+  await page.locator('.annie-root').press('Shift+F10');
   await menu.getByRole('menuitem', { name: 'Delete', exact: true }).click();
   expect(await page.evaluate((id) => window.__anniedrawing![0].get(id), copy)).toBeUndefined();
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
@@ -119,7 +119,7 @@ test('opacity stays open while adjusting and locking can be reversed through the
   await slider.press('Escape');
   await inspector.getByRole('button', { name: 'Lock selection', exact: true }).click();
   expect(await page.evaluate(() => window.__anniedrawing![0].get('target')?.locked)).toBe(true);
-  await page.locator('.ad-root').press('Escape');
+  await page.locator('.annie-root').press('Escape');
   const locked = await page.locator('[data-ad-id="target"]').boundingBox();
   await page.mouse.click(locked!.x + locked!.width / 2, locked!.y + locked!.height / 2, {
     button: 'right',
@@ -175,11 +175,11 @@ test('page chips overflow, rename, switch and delete the chosen page at 1440px',
   await expect(active).toHaveAttribute('aria-selected', 'true');
   const overflow = page.getByRole('button', { name: 'All pages', exact: true });
   await expect(overflow).toBeVisible();
-  await page.locator('.ad-pages').screenshot({ path: info.outputPath('page-chips.png') });
-  const rail = await page.locator('.ad-pages').boundingBox();
+  await page.locator('.annie-pages').screenshot({ path: info.outputPath('page-chips.png') });
+  const rail = await page.locator('.annie-pages').boundingBox();
   expect(rail!.x).toBeGreaterThanOrEqual(0);
   expect(rail!.x + rail!.width).toBeLessThanOrEqual(1440);
-  const children = await page.locator('.ad-pages button:visible').all();
+  const children = await page.locator('.annie-pages button:visible').all();
   for (const child of children) {
     const box = await child.boundingBox();
     expect(box!.x + box!.width).toBeLessThanOrEqual(rail!.x + rail!.width);

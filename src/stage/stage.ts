@@ -63,13 +63,13 @@ export class Stage {
     readonly options: StageOptions = {},
   ) {
     this.kinds = createKindRegistry(options.kinds);
-    this.root.className = 'ad-root';
+    this.root.className = 'annie-root';
     this.root.tabIndex = 0;
     this.root.setAttribute('role', 'application');
     this.root.setAttribute('aria-label', 'Drawing board');
-    this.grid.className = 'ad-grid';
-    this.world.className = 'ad-world';
-    this.overlay.classList.add('ad-overlay');
+    this.grid.className = 'annie-grid';
+    this.world.className = 'annie-world';
+    this.overlay.classList.add('annie-overlay');
     this.overlay.setAttribute('aria-label', 'Selection controls');
     this.root.append(this.grid, this.world, this.overlay);
     host.append(this.root);
@@ -371,7 +371,7 @@ export class Stage {
       const box = single ? items[0] : boundsOf(items, this.lookup, this.resolveOutline);
       const rotation = single ? (items[0].rotation ?? 0) : 0;
       const points = boxCorners(box, rotation).map((point) => this.lens.toScreen(point));
-      parts.push(`<path class="ad-selection-outline" d="${pathFromPoints(points, true)}"/>`);
+      parts.push(`<path class="annie-selection-outline" d="${pathFromPoints(points, true)}"/>`);
       const positions: [string, Point, string][] = [
         ['nw', points[0], 'nwse-resize'],
         [
@@ -401,14 +401,14 @@ export class Stage {
       if (!items.some((item) => this.locked.has(item.id))) {
         for (const [handle, point, cursor] of positions)
           parts.push(
-            `<rect class="ad-selection-handle" data-ad-handle="${handle}" x="${point.x - 4}" y="${point.y - 4}" width="8" height="8" rx="2" style="cursor:${cursor}" aria-label="Resize ${handle}"/>`,
+            `<rect class="annie-selection-handle" data-ad-handle="${handle}" x="${point.x - 4}" y="${point.y - 4}" width="8" height="8" rx="2" style="cursor:${cursor}" aria-label="Resize ${handle}"/>`,
           );
         {
           const top = positions[1][1];
           const theta = (rotation * Math.PI) / 180;
           const point = { x: top.x + Math.sin(theta) * 26, y: top.y - Math.cos(theta) * 26 };
           parts.push(
-            `<path class="ad-selection-outline" d="M${top.x},${top.y}L${point.x},${point.y}"/><circle class="ad-selection-handle" data-ad-handle="rotate" cx="${point.x}" cy="${point.y}" r="4.5" style="cursor:grab" aria-label="Rotate"/>`,
+            `<path class="annie-selection-outline" d="M${top.x},${top.y}L${point.x},${point.y}"/><circle class="annie-selection-handle" data-ad-handle="rotate" cx="${point.x}" cy="${point.y}" r="4.5" style="cursor:grab" aria-label="Rotate"/>`,
           );
         }
       }
@@ -425,14 +425,14 @@ export class Stage {
           y: item.y + item.h / 2 + dx * Math.sin(angle) + dy * Math.cos(angle),
         });
         parts.push(
-          `<circle class="ad-selection-handle ad-custom-handle" data-ad-custom-handle="${esc(handle.id)}" data-ad-handle="custom:${esc(handle.id)}" cx="${point.x}" cy="${point.y}" r="5" style="cursor:${esc(handle.cursor ?? 'crosshair')}" aria-label="${esc(handle.label ?? handle.id)}"/>`,
+          `<circle class="annie-selection-handle annie-custom-handle" data-ad-custom-handle="${esc(handle.id)}" data-ad-handle="custom:${esc(handle.id)}" cx="${point.x}" cy="${point.y}" r="5" style="cursor:${esc(handle.cursor ?? 'crosshair')}" aria-label="${esc(handle.label ?? handle.id)}"/>`,
         );
       }
     }
     if (this.marquee) {
       const p = this.lens.toScreen(this.marquee);
       parts.push(
-        `<rect class="ad-marquee" x="${p.x}" y="${p.y}" width="${Math.max(0, this.marquee.w * this.lens.zoom)}" height="${Math.max(0, this.marquee.h * this.lens.zoom)}"/>`,
+        `<rect class="annie-marquee" x="${p.x}" y="${p.y}" width="${Math.max(0, this.marquee.w * this.lens.zoom)}" height="${Math.max(0, this.marquee.h * this.lens.zoom)}"/>`,
       );
     }
     const markup = parts.join('');

@@ -1,4 +1,4 @@
-.ad-root {
+.annie-root {
   position: relative;
   isolation: isolate;
   width: 100%;
@@ -18,31 +18,31 @@
   user-select: none;
   -webkit-user-select: none;
 }
-.ad-root[data-theme='dark'] {
+.annie-root[data-theme='dark'] {
   --ad-paper: #122f32;
   --ad-ink: #e9f7f3;
   --ad-grid-color: #426160;
   --ad-focus: #05d9ab;
 }
-.ad-grid,
-.ad-world,
-.ad-overlay {
+.annie-grid,
+.annie-world,
+.annie-overlay {
   position: absolute;
   inset: 0;
   transform-origin: 0 0;
 }
-.ad-grid {
+.annie-grid {
   pointer-events: none;
   background-image: radial-gradient(circle, var(--ad-grid-color, #dce6df) 1px, transparent 1px);
   background-size: 24px 24px;
 }
-.ad-world {
+.annie-world {
   width: 0;
   height: 0;
   overflow: visible;
   contain: layout style;
 }
-.ad-item {
+.annie-item {
   position: absolute;
   top: 0;
   left: 0;
@@ -51,15 +51,15 @@
   outline: none;
   overflow: visible;
 }
-.ad-item:focus-visible {
+.annie-item:focus-visible {
   outline: 2px solid var(--ad-focus, #007d65);
   outline-offset: 6px;
 }
-.ad-agent-pending {
+.annie-agent-pending {
   visibility: hidden;
   pointer-events: none;
 }
-.ad-agent-cursor {
+.annie-agent-cursor {
   position: absolute;
   top: 0;
   left: 0;
@@ -70,7 +70,7 @@
   transform-origin: 7px 7px;
   will-change: transform;
 }
-.ad-agent-cursor svg {
+.annie-agent-cursor svg {
   display: block;
   transform-origin: 7px 7px;
   fill: #8f93f9;
@@ -79,7 +79,7 @@
   stroke-linejoin: round;
   filter: drop-shadow(0 2px 4px #10363926);
 }
-.ad-agent-cursor span {
+.annie-agent-cursor span {
   position: absolute;
   top: 26px;
   left: 25px;
@@ -92,11 +92,11 @@
   line-height: 16px;
   white-space: nowrap;
 }
-.ad-root[data-theme='dark'] .ad-agent-cursor svg {
+.annie-root[data-theme='dark'] .annie-agent-cursor svg {
   filter: none;
   stroke: #122f32;
 }
-.ad-shape {
+.annie-shape {
   position: absolute;
   top: 0;
   left: 0;
@@ -104,7 +104,7 @@
   pointer-events: none;
   overflow: visible;
 }
-.ad-text {
+.annie-text {
   position: absolute;
   inset: 0;
   display: flex;
@@ -122,23 +122,23 @@
     cursive;
 }
 /* Vertical padding is a percentage of width, so a wide short diamond shoved the label down. */
-.ad-item[data-ad-kind='diamond'] .ad-text {
+.annie-item[data-ad-kind='diamond'] .annie-text {
   padding: 0 20%;
 }
-.ad-item[data-ad-kind='ellipse'] .ad-text {
+.annie-item[data-ad-kind='ellipse'] .annie-text {
   padding: 15%;
 }
-.ad-item[data-ad-kind='text'] .ad-text {
+.annie-item[data-ad-kind='text'] .annie-text {
   padding: 0;
 }
-.ad-item[data-ad-kind='note'] .ad-text {
+.annie-item[data-ad-kind='note'] .annie-text {
   padding: 20px;
   line-height: 1.5;
 }
-.ad-item[data-ad-kind='note'] .ad-shape {
+.annie-item[data-ad-kind='note'] .annie-shape {
   filter: var(--ad-cs);
 }
-.ad-item[data-ad-kind='connector'] .ad-text {
+.annie-item[data-ad-kind='connector'] .annie-text {
   width: max-content;
   height: auto;
   max-width: 240px;
@@ -150,8 +150,8 @@
   line-height: 1.25;
   font-size: 14px;
 }
-.ad-text[contenteditable='plaintext-only'],
-.ad-text[contenteditable='true'] {
+.annie-text[contenteditable='plaintext-only'],
+.annie-text[contenteditable='true'] {
   pointer-events: auto;
   user-select: text;
   -webkit-user-select: text;
@@ -161,24 +161,24 @@
   min-width: 20px;
   cursor: text;
 }
-.ad-auxiliary {
+.annie-auxiliary {
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
-.ad-auxiliary img {
+.annie-auxiliary img {
   position: absolute;
   width: 100%;
   height: 100%;
   object-fit: fill;
   pointer-events: none;
 }
-.ad-card {
+.annie-card {
   overflow: hidden;
   border-radius: 12px;
   filter: var(--ad-cs);
 }
-.ad-html-content {
+.annie-html-content {
   overflow: auto;
   white-space: pre-wrap;
   padding: 12px;
@@ -186,12 +186,12 @@
   border: 1px solid #d9e3df;
   border-radius: 8px;
 }
-.ad-item[data-ad-interactive='true'] .ad-html-content {
+.annie-item[data-ad-interactive='true'] .annie-html-content {
   pointer-events: auto;
   user-select: text;
   -webkit-user-select: text;
 }
-.ad-placeholder {
+.annie-placeholder {
   height: 100%;
   width: 100%;
   display: flex;
@@ -206,36 +206,36 @@
   text-align: center;
   padding: 8px;
 }
-.ad-overlay {
+.annie-overlay {
   width: 100%;
   height: 100%;
   overflow: visible;
   pointer-events: none;
 }
-.ad-selection-outline {
+.annie-selection-outline {
   fill: none;
   stroke: var(--ad-focus, #00876c);
   stroke-width: 1.4;
   vector-effect: non-scaling-stroke;
 }
-.ad-selection-handle {
+.annie-selection-handle {
   fill: var(--ad-paper, #fff);
   stroke: var(--ad-focus, #00876c);
   stroke-width: 1.5;
   pointer-events: all;
 }
-.ad-selection-handle:hover {
+.annie-selection-handle:hover {
   fill: #aaf1ac;
 }
-.ad-marquee {
+.annie-marquee {
   fill: #05d9ab16;
   stroke: #00876c;
   stroke-width: 1;
 }
-.ad-no-grid .ad-grid {
+.annie-no-grid .annie-grid {
   display: none;
 }
-.ad-custom-handle {
+.annie-custom-handle {
   fill: #05d9ab;
   stroke: #103639;
 }

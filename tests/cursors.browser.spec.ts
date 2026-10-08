@@ -15,7 +15,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('native SVG cursors decode and keep precise select and drawing hotspots', async ({ page }) => {
-  const initial = await page.locator('.ad-root').evaluate((el) => getComputedStyle(el).cursor);
+  const initial = await page.locator('.annie-root').evaluate((el) => getComputedStyle(el).cursor);
   expect(initial).toContain('data:image/svg+xml,');
   expect(initial).toMatch(/7 7,\s*default$/);
   const artwork = await page.evaluate(async () => {
@@ -36,15 +36,15 @@ test('native SVG cursors decode and keep precise select and drawing hotspots', a
     { width: 28, height: 28 },
   ]);
   await page.evaluate(() => (window as any).__cursorBoard.setTool('rect'));
-  await expect(page.locator('.ad-root')).toHaveCSS('cursor', /14 14,\s*crosshair$/);
+  await expect(page.locator('.annie-root')).toHaveCSS('cursor', /14 14,\s*crosshair$/);
   await page.evaluate(() => (window as any).__cursorBoard.setTool('text'));
-  await expect(page.locator('.ad-root')).toHaveCSS('cursor', 'text');
+  await expect(page.locator('.annie-root')).toHaveCSS('cursor', 'text');
 });
 
 test('panning shows grab and grabbing while selection handles keep native resize cursors', async ({
   page,
 }) => {
-  const stage = page.locator('.ad-root');
+  const stage = page.locator('.annie-root');
   await page.evaluate(() => (window as any).__cursorBoard.setTool('hand'));
   await expect(stage).toHaveCSS('cursor', 'grab');
   await page.mouse.move(300, 250);

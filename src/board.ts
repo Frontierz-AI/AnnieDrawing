@@ -645,7 +645,7 @@ export class Board {
   }
   setGrid(value: boolean) {
     this.grid = value;
-    this.stage.root.classList.toggle('ad-no-grid', !value);
+    this.stage.root.classList.toggle('annie-no-grid', !value);
   }
   on<K extends keyof Events>(name: K, callback: (event: Events[K]) => void) {
     const set = this.listeners.get(name) ?? new Set();
@@ -927,10 +927,10 @@ export class Board {
     if (!item || this.isLocked(id)) return;
     const view = this.stage.world.querySelector<HTMLElement>(`[data-ad-id="${CSS.escape(id)}"]`);
     if (!view) return;
-    let text = view.querySelector<HTMLElement>('.ad-text');
+    let text = view.querySelector<HTMLElement>('.annie-text');
     if (!text) {
       text = document.createElement('div');
-      text.className = 'ad-text';
+      text.className = 'annie-text';
       view.append(text);
     }
     text.contentEditable = 'plaintext-only';
@@ -938,7 +938,7 @@ export class Board {
     text.setAttribute('aria-label', 'Edit text');
     text.style.pointerEvents = 'auto';
     text.style.display = 'flex';
-    text.classList.add('ad-editing');
+    text.classList.add('annie-editing');
     this.editor = text;
     const before = item.text?.value ?? '';
     text.textContent = before;
@@ -954,7 +954,7 @@ export class Board {
       this.finishEditor = undefined;
       const value = text!.innerText;
       text!.contentEditable = 'false';
-      text!.classList.remove('ad-editing');
+      text!.classList.remove('annie-editing');
       text!.removeAttribute('role');
       text!.removeAttribute('aria-label');
       text!.removeEventListener('blur', blur);
@@ -1060,7 +1060,7 @@ export class Board {
     return (
       target instanceof Element &&
       !!target.closest(
-        '.ad-ui, .ad-dialog, input, textarea, select, button, [contenteditable="plaintext-only"], [data-ad-interactive="true"], a',
+        '.annie-ui, .annie-dialog, input, textarea, select, button, [contenteditable="plaintext-only"], [data-ad-interactive="true"], a',
       )
     );
   }
@@ -1804,7 +1804,7 @@ export class Board {
     this.clearInteractive();
     view.dataset.adInteractive = 'true';
     if (item.kind !== 'html') return;
-    const content = view.querySelector<HTMLElement>('.ad-html-content');
+    const content = view.querySelector<HTMLElement>('.annie-html-content');
     if (!content) return;
     content.tabIndex = 0;
     content.focus();
