@@ -49,7 +49,7 @@ test('pasted video, image and website URLs create card items', async ({ page }) 
     return !!(
       board.query({ kind: 'image' }).length &&
       document.querySelector('[data-ad-kind="video"] iframe')?.getAttribute('src') &&
-      document.querySelector('.ad-link-open')
+      document.querySelector('.annie-link-open')
     );
   });
   const result = await page.evaluate(() => {
@@ -66,10 +66,12 @@ test('pasted video, image and website URLs create card items', async ({ page }) 
       link: {
         href: link?.href,
         title: link?.text?.value,
-        url: board.stage.world.querySelector('.ad-link-url')?.textContent,
+        url: board.stage.world.querySelector('.annie-link-url')?.textContent,
       },
-      radius: videoEl ? getComputedStyle(videoEl.querySelector('.ad-auxiliary')!).borderRadius : '',
-      open: !!board.stage.world.querySelector('.ad-link-open'),
+      radius: videoEl
+        ? getComputedStyle(videoEl.querySelector('.annie-auxiliary')!).borderRadius
+        : '',
+      open: !!board.stage.world.querySelector('.annie-link-open'),
     };
   });
   expect(result.video.href).toBe('https://www.youtube.com/watch?v=ihe1QbeGt7U&list=RDihe1QbeGt7U');
@@ -342,7 +344,7 @@ test('aligning a group translates descendants once and text cancellation restore
   expect(await page.evaluate(() => window.__anniedrawing![0].get('i_text')!.text!.value)).toBe(
     'Original',
   );
-  await expect(page.locator('[data-ad-id="i_text"] .ad-text')).toHaveText('Original');
+  await expect(page.locator('[data-ad-id="i_text"] .annie-text')).toHaveText('Original');
   await page.evaluate(() => window.__anniedrawing![0].editText('i_text'));
   await page
     .getByRole('textbox', { name: 'Edit text' })

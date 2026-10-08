@@ -113,7 +113,7 @@ test('dragging, duplication, keyboard edits, double click and erasing cannot cha
     ']',
     'Enter',
   ]) {
-    await page.locator('.ad-root').press(key);
+    await page.locator('.annie-root').press(key);
   }
   await page.locator('[data-ad-id="locked"]').dblclick();
   await expect(page.getByRole('textbox', { name: 'Edit text' })).toHaveCount(0);
@@ -156,7 +156,7 @@ test('a mixed selection stays unchanged until its locked items are unlocked', as
   const before = await scene(page);
   await drag(page, 580, 260, true);
   for (const key of ['ArrowRight', 'Delete', 'ControlOrMeta+d', 'ControlOrMeta+g', ']'])
-    await page.locator('.ad-root').press(key);
+    await page.locator('.annie-root').press(key);
   await page.evaluate(() => window.__anniedrawing![0].align('left'));
   expect(await scene(page)).toEqual(before);
   expect(await page.evaluate(() => window.__anniedrawing![0].selection)).toEqual([
@@ -165,7 +165,7 @@ test('a mixed selection stays unchanged until its locked items are unlocked', as
   ]);
   await page.getByRole('button', { name: 'Unlock selection', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Delete selection', exact: true })).toBeEnabled();
-  await page.locator('.ad-root').press('ArrowRight');
+  await page.locator('.annie-root').press('ArrowRight');
   expect(
     await page.evaluate(() => ['locked', 'free'].map((id) => window.__anniedrawing![0].get(id)?.x)),
   ).toEqual([241, 501]);
@@ -208,7 +208,7 @@ test('group locks protect descendants and a locked descendant protects group ope
   expect(await page.evaluate(() => window.__anniedrawing![0].selection)).toEqual(['group']);
   await page.locator('[data-ad-id="child"]').dblclick();
   await drag(page, 540, 470);
-  await page.locator('.ad-root').press('ControlOrMeta+Shift+g');
+  await page.locator('.annie-root').press('ControlOrMeta+Shift+g');
   expect(await scene(page)).toEqual(before);
   await page.evaluate(() => window.__anniedrawing![0].select(['child']));
   await expect(page.getByRole('button', { name: 'Unlock selection', exact: true })).toBeEnabled();
@@ -218,7 +218,7 @@ test('group locks protect descendants and a locked descendant protects group ope
   await page.evaluate(() => window.__anniedrawing![0].select(['group']));
   const childLocked = await scene(page);
   await drag(page, 540, 470);
-  await page.locator('.ad-root').press('Delete');
+  await page.locator('.annie-root').press('Delete');
   expect(await scene(page)).toEqual(childLocked);
   await page.getByRole('button', { name: 'Unlock selection', exact: true }).click();
   expect(await page.evaluate(() => window.__anniedrawing![0].get('child')?.locked)).toBe(false);

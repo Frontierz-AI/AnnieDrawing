@@ -59,7 +59,7 @@ export function button(
   label: string,
   name: string,
   handler: () => void,
-  className = 'ad-icon-button',
+  className = 'annie-icon-button',
 ) {
   const el = document.createElement('button');
   el.type = 'button';

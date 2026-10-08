@@ -65,7 +65,7 @@ export class AgentPresence {
       placement.elements = placement.elements.filter((element) => !this.pending.has(element));
       if (!placement.elements.length) continue;
       for (const element of placement.elements) {
-        element.classList.add('ad-agent-pending');
+        element.classList.add('annie-agent-pending');
         element.tabIndex = -1;
         this.pending.add(element);
       }
@@ -105,7 +105,7 @@ export class AgentPresence {
     for (const restore of this.restore.values()) restore();
     this.restore.clear();
     for (const element of this.pending) {
-      element.classList.remove('ad-agent-pending');
+      element.classList.remove('annie-agent-pending');
       if (element.tabIndex < 0) element.tabIndex = 0;
     }
     this.pending.clear();
@@ -224,7 +224,7 @@ export class AgentPresence {
 
   private show(generation: number, element: HTMLElement) {
     if (!this.pending.has(element)) return;
-    element.classList.remove('ad-agent-pending');
+    element.classList.remove('annie-agent-pending');
     element.tabIndex = 0;
     this.pending.delete(element);
     this.reveal(generation, element);
@@ -273,7 +273,7 @@ export class AgentPresence {
       const target = this.center(placement.box);
       if (!this.cursor) {
         this.cursor = document.createElement('div');
-        this.cursor.className = 'ad-agent-cursor';
+        this.cursor.className = 'annie-agent-cursor';
         this.cursor.setAttribute('aria-hidden', 'true');
         this.cursor.innerHTML = `<svg width="36" height="36" viewBox="0 0 36 36"><path d="${cursorArrow}"/></svg>${this.name ? `<span>${esc(this.name)}</span>` : ''}`;
         const edge = this.edge(this.lens.toScreen(target));

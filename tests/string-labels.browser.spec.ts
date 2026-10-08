@@ -24,7 +24,7 @@ test('a browser board stores and measures labels sent as plain strings', async (
       title: board.get('title')!.text,
       box: board.get('box')!.text,
       grew: board.get('title')!.w > width,
-      label: document.querySelector('[data-ad-id="box"] .ad-text')?.textContent,
+      label: document.querySelector('[data-ad-id="box"] .annie-text')?.textContent,
     };
   });
   expect(stored).toEqual({

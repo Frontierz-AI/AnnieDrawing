@@ -60,7 +60,7 @@ test('draft movement reuses DOM and paints only the changed item and attached co
     const { stage, doc } = (window as any).__stageFixture;
     const node = stage.world.querySelector('[data-ad-id="i_a"]');
     const path = node.querySelector('path');
-    const text = node.querySelector('.ad-text').firstChild;
+    const text = node.querySelector('.annie-text').firstChild;
     const connector = stage.world.querySelector('[data-ad-id="i_c"] path').getAttribute('d');
     const untouched = stage.world.querySelector('[data-ad-id="i_b"]').outerHTML;
     stage.render(doc, 's_main', new Map([['i_a', { x: 140, y: 120 }]]));
@@ -68,7 +68,7 @@ test('draft movement reuses DOM and paints only the changed item and attached co
     const same =
       node === stage.world.querySelector('[data-ad-id="i_a"]') &&
       path === node.querySelector('path') &&
-      text === node.querySelector('.ad-text').firstChild;
+      text === node.querySelector('.annie-text').firstChild;
     const changedConnector =
       connector !== stage.world.querySelector('[data-ad-id="i_c"] path').getAttribute('d');
     const unchanged = untouched === stage.world.querySelector('[data-ad-id="i_b"]').outerHTML;
@@ -109,7 +109,7 @@ test('a short diamond centers its label vertically', async ({ page }) => {
     stage.render(next, 's_main');
     const item = stage.world.querySelector('[data-ad-id="i_d"]');
     const range = document.createRange();
-    range.selectNodeContents(item.querySelector('.ad-text'));
+    range.selectNodeContents(item.querySelector('.annie-text'));
     const textBox = range.getBoundingClientRect();
     const itemBox = item.getBoundingClientRect();
     return textBox.top + textBox.height / 2 - (itemBox.top + itemBox.height / 2);

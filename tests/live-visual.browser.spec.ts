@@ -24,7 +24,9 @@ test('desktop keeps essential controls visible and groups secondary tools', asyn
   await expect(page.getByRole('button', { name: 'Export', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Board controls', exact: true })).toHaveCount(0);
   await expect(
-    page.locator('.ad-welcome, .ad-title-wrap, .ad-save-status, .ad-footer-center, .ad-tool-key'),
+    page.locator(
+      '.annie-welcome, .annie-title-wrap, .annie-save-status, .annie-footer-center, .annie-tool-key',
+    ),
   ).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'For agents', exact: true })).toHaveCount(0);
   await expect(page.getByRole('tab', { name: 'Page 1', exact: true })).toHaveAttribute(
@@ -35,7 +37,7 @@ test('desktop keeps essential controls visible and groups secondary tools', asyn
     name: 'Page 1',
     items: [],
   });
-  const toolbar = page.locator('.ad-toolbar');
+  const toolbar = page.locator('.annie-toolbar');
   await expect(toolbar.getByRole('button')).toHaveCount(8);
   await expect(toolbar.getByRole('button', { name: 'Select', exact: true })).toHaveAttribute(
     'aria-keyshortcuts',
@@ -60,7 +62,7 @@ test('phone has seven reachable tools and secondary actions in the board menu', 
   await page.setViewportSize({ width: 390, height: 844 });
   await openDemo(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
-  const toolbar = page.locator('.ad-toolbar');
+  const toolbar = page.locator('.annie-toolbar');
   await expect(toolbar.getByRole('button')).toHaveCount(7);
   const visibleTools = await toolbar.getByRole('button').all();
   for (const tool of visibleTools) {
@@ -103,9 +105,13 @@ test('phone has seven reachable tools and secondary actions in the board menu', 
 
 async function chromeMetrics(page: Page) {
   return page.evaluate(() => {
-    const toolbar = document.querySelector('.ad-toolbar')!.getBoundingClientRect();
-    const tool = document.querySelector('.ad-toolbar .ad-icon-button')!.getBoundingClientRect();
-    const icon = document.querySelector('.ad-toolbar .ad-icon-button svg')!.getBoundingClientRect();
+    const toolbar = document.querySelector('.annie-toolbar')!.getBoundingClientRect();
+    const tool = document
+      .querySelector('.annie-toolbar .annie-icon-button')!
+      .getBoundingClientRect();
+    const icon = document
+      .querySelector('.annie-toolbar .annie-icon-button svg')!
+      .getBoundingClientRect();
     return {
       toolbarLeft: toolbar.left,
       toolbarMid: toolbar.top + toolbar.height / 2,
@@ -122,10 +128,12 @@ test('short desktop keeps the tool sidebar centered with tighter chrome', async 
   await page.setViewportSize({ width: 1440, height: 520 });
   await openDemo(page);
   const metrics = await page.evaluate(() => {
-    const toolbar = document.querySelector('.ad-toolbar')!.getBoundingClientRect();
-    const header = document.querySelector('.ad-header')!.getBoundingClientRect();
-    const footer = document.querySelector('.ad-footer')!.getBoundingClientRect();
-    const icon = document.querySelector('.ad-toolbar .ad-icon-button svg')!.getBoundingClientRect();
+    const toolbar = document.querySelector('.annie-toolbar')!.getBoundingClientRect();
+    const header = document.querySelector('.annie-header')!.getBoundingClientRect();
+    const footer = document.querySelector('.annie-footer')!.getBoundingClientRect();
+    const icon = document
+      .querySelector('.annie-toolbar .annie-icon-button svg')!
+      .getBoundingClientRect();
     return {
       toolbarMid: toolbar.top + toolbar.height / 2,
       toolbarHeight: toolbar.height,
@@ -158,8 +166,8 @@ test('short desktop without menu and pages uses a middle tool size until 500px',
       ui: { menu: false, export: false, pages: false },
     });
   });
-  await expect(page.locator('.ad-toolbar .ad-icon-button').first()).toBeVisible();
-  await expect(page.locator('.ad-ui')).not.toHaveClass(/ad-ui-bars/);
+  await expect(page.locator('.annie-toolbar .annie-icon-button').first()).toBeVisible();
+  await expect(page.locator('.annie-ui')).not.toHaveClass(/annie-ui-bars/);
   await expect(page.getByRole('button', { name: 'Board menu', exact: true })).toHaveCount(0);
   await expect(page.getByRole('tab', { name: 'Page 1', exact: true })).toHaveCount(0);
   const mid = await chromeMetrics(page);
@@ -179,7 +187,7 @@ test('chrome preview pages open a full editor and a board without bars', async (
   await page.goto('/demo/full-editor.html');
   await expect(page.getByRole('button', { name: 'Board menu', exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Page 1', exact: true })).toBeVisible();
-  await expect(page.locator('.ad-ui')).toHaveClass(/ad-ui-bars/);
+  await expect(page.locator('.annie-ui')).toHaveClass(/annie-ui-bars/);
   await page.getByRole('button', { name: '640px', exact: true }).click();
   const fullAt640 = await chromeMetrics(page);
   expect(fullAt640.tool).toBeGreaterThanOrEqual(36);
@@ -190,7 +198,7 @@ test('chrome preview pages open a full editor and a board without bars', async (
   await expect(page.getByRole('button', { name: 'Board menu', exact: true })).toHaveCount(0);
   await expect(page.getByRole('tab', { name: 'Page 1', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Select', exact: true })).toBeVisible();
-  await expect(page.locator('.ad-ui')).not.toHaveClass(/ad-ui-bars/);
+  await expect(page.locator('.annie-ui')).not.toHaveClass(/annie-ui-bars/);
   await page.getByRole('button', { name: '640px', exact: true }).click();
   const bareAt640 = await chromeMetrics(page);
   expect(bareAt640.tool).toBeGreaterThanOrEqual(40);
@@ -211,7 +219,7 @@ test('phone landscape keeps tools on a bottom bar inside the viewport', async ({
   await page.setViewportSize({ width: 844, height: 390 });
   await openDemo(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(844);
-  const toolbar = page.locator('.ad-toolbar');
+  const toolbar = page.locator('.annie-toolbar');
   await expect(toolbar.getByRole('button')).toHaveCount(7);
   const box = await toolbar.boundingBox();
   expect(box!.y).toBeGreaterThan(280);
@@ -243,7 +251,7 @@ test('small phone controls stay inside the viewport and documentation opens', as
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(320);
   }
-  const toolbar = await page.locator('.ad-toolbar').boundingBox();
+  const toolbar = await page.locator('.annie-toolbar').boundingBox();
   expect(toolbar!.x).toBeGreaterThanOrEqual(0);
   expect(toolbar!.x + toolbar!.width).toBeLessThanOrEqual(320);
   await capture(page, info, 'small-phone-default');
@@ -331,7 +339,7 @@ test('dark appearance preserves readable labels and filled-shape text', async ({
   });
   await page.getByRole('button', { name: 'Board menu', exact: true }).click();
   await page.getByRole('button', { name: 'Dark appearance', exact: true }).click();
-  await expect(page.locator('.ad-root')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('.annie-root')).toHaveAttribute('data-theme', 'dark');
   const contrasts = await page.evaluate(() => {
     const luminance = (css: string) => {
       const channels = css
@@ -349,11 +357,11 @@ test('dark appearance preserves readable labels and filled-shape text', async ({
       const b = luminance(background);
       return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
     };
-    const background = getComputedStyle(document.querySelector('.ad-root')!).backgroundColor;
+    const background = getComputedStyle(document.querySelector('.annie-root')!).backgroundColor;
     return ['i_intro', 'i_subtitle', 'i_caption', 'i_note', 'i_step2'].map((id) => {
       const item = document.querySelector(`[data-ad-id="${id}"]`)!;
-      const textColor = getComputedStyle(item.querySelector('.ad-text')!).color;
-      const fill = item.querySelector('.ad-shape path');
+      const textColor = getComputedStyle(item.querySelector('.annie-text')!).color;
+      const fill = item.querySelector('.annie-shape path');
       return {
         id,
         ratio: contrast(

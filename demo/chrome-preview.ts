@@ -32,9 +32,9 @@ export function mountChromePreview(host: HTMLElement, otherHref: string, otherLa
   hud.append(readout, row, link);
   document.body.append(hud);
   const update = () => {
-    const root = host.querySelector('.ad-root');
-    const toolbar = host.querySelector('.ad-toolbar');
-    const tool = host.querySelector('.ad-toolbar .ad-icon-button');
+    const root = host.querySelector('.annie-root');
+    const toolbar = host.querySelector('.annie-toolbar');
+    const tool = host.querySelector('.annie-toolbar .annie-icon-button');
     if (!root || !toolbar || !tool) {
       readout.textContent = 'Board is still loading…';
       return;

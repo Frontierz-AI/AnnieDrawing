@@ -76,7 +76,7 @@ test('an idle tab follows, and concurrent edits ask before overwriting', async (
     board.apply([{ op: 'add', item: { id: 'mine', kind: 'rect', x: 300, y: 40 } }]);
   });
   expect(await edit(page, 'theirs', true)).toBe('saved');
-  const notice = other.locator('.ad-save-notice');
+  const notice = other.locator('.annie-save-notice');
   await expect(notice).toBeVisible();
   await expect(notice).toContainText('changed in another tab');
   expect(ids(await stored(page))).toEqual(expect.arrayContaining(['first', 'theirs']));
@@ -133,9 +133,9 @@ test('an unreadable saved drawing is kept aside and new work still saves', async
   });
   await page.reload();
   await page.waitForFunction(() => !!window.__anniedrawing?.[0]);
-  await expect(page.locator('.ad-save-notice')).toContainText('could not be opened');
+  await expect(page.locator('.annie-save-notice')).toContainText('could not be opened');
   expect(await edit(page, 'fresh')).toBe('saved');
-  await expect(page.locator('.ad-save-notice')).toBeHidden();
+  await expect(page.locator('.annie-save-notice')).toBeHidden();
   expect(ids(await stored(page))).toEqual(['fresh']);
   const keys = await page.evaluate(
     () =>
@@ -165,5 +165,5 @@ test('a write that aborts reports an error instead of staying on saving', async 
     };
   });
   expect(await edit(page, 'lost')).toBe('error');
-  await expect(page.locator('.ad-save-notice')).toContainText('Could not save locally');
+  await expect(page.locator('.annie-save-notice')).toContainText('Could not save locally');
 });

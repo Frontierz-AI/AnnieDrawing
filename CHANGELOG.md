@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-Development and CI only; the published package is unchanged. Development tools are up to date (Vite 8.3.2, Vitest 5.0.3, Prettier 3.9.9, DOMPurify 3.4.16 for tests), `@types/node` follows the Node.js 22 floor, and the MCP example uses `ws` 8.22.0. CI runs once per pull request, uses the current GitHub Actions, and adds CodeQL scanning. Dependabot groups minor and patch updates.
+The editor's CSS classes use the `annie-` prefix instead of `ad-` (`ad-root` is now `annie-root`, `ad-toolbar` is `annie-toolbar`, and so on for all 97). Ad blockers hide elements with ad-like class names, so with one active the board could show blank (`.ad-root { display: none !important }`). Hosts that style or query the editor's classes must rename them. The `--ad-*` custom properties, the `data-ad-*` attributes, the `ad-context` and `ad-error` events, and the document format are unchanged.
+
+Development and CI: development tools are up to date (Vite 8.3.2, Vitest 5.0.3, Prettier 3.9.9, DOMPurify 3.4.16 for tests), `@types/node` follows the Node.js 22 floor, and the MCP example uses `ws` 8.22.0. CI runs once per pull request, uses the current GitHub Actions, and adds CodeQL scanning. Dependabot groups minor and patch updates.
 
 ## 0.6.2
 
