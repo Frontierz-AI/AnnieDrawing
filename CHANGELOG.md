@@ -1,16 +1,18 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
 
-Targets 0.7.0, a minor release, because hosts that style or query the editor's classes must rename them.
+A minor release: hosts that style or query the editor's CSS classes must rename them from `ad-` to `annie-`. The document format is unchanged.
 
-The editor's CSS classes use the `annie-` prefix instead of `ad-` (`ad-root` is now `annie-root`, `ad-toolbar` is `annie-toolbar`, and so on for all 97). Ad blockers hide elements with ad-like class names, so with one active the board could show blank (`.ad-root { display: none !important }`). Hosts that style or query the editor's classes must rename them. The `--ad-*` custom properties, the `data-ad-*` attributes, the `ad-context` and `ad-error` events, and the document format are unchanged.
+The editor's CSS classes use the `annie-` prefix instead of `ad-` (`ad-root` is now `annie-root`, `ad-toolbar` is `annie-toolbar`, and so on for all 97). Ad blockers hide elements with ad-like class names, so with one active the board could show blank (`.ad-root { display: none !important }`). The `--ad-*` custom properties, the `data-ad-*` attributes, the `ad-context` and `ad-error` events, and the document format are unchanged.
 
 Link previews are safer. A page full of unclosed `<title` or `<meta` tags no longer stalls the tab while its preview is read: a 200 KB page took about 13 seconds and now takes under a millisecond. Unfurling follows redirects one hop at a time and checks each target before requesting it, so a public link cannot redirect the request to a private or loopback address. Browsers hide cross-origin redirect targets, so a link that redirects to another site keeps its fallback card instead of a fetched preview. The demo's local unfurl proxy checks each hop the same way.
 
 `nanoid` 6.0.2 is the locked runtime version (6.0.1 before; the `^6.0.1` range is unchanged).
 
 Development and CI: development tools are up to date (Vite 8.3.3, Vitest 5.0.3, Prettier 3.9.9, DOMPurify 3.4.16 for tests), `@types/node` follows the Node.js 22 floor, and the MCP example uses `ws` 8.22.0. CI runs once per pull request, uses the current GitHub Actions, and adds CodeQL scanning. Dependabot groups minor and patch updates. The development lockfile uses `source-map-js` 1.2.2 (GHSA-68fv-2mgg-jv7q, reached only through Vite's CSS tooling), and the HTML sanitizer in the unit tests strips tags in one pass.
+
+The package lockfile matches `0.7.0`. The private MCP example stays `0.1.0`.
 
 ## 0.6.2
 
