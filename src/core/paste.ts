@@ -62,7 +62,8 @@ export function classifyPaste(value: string): PastedContent {
 }
 
 function meta(html: string, name: string): string | undefined {
-  for (const tag of html.match(/<meta\b[^>]*>/gi) ?? []) {
+  // Tags stop at the next `<` so a page full of unclosed tags scans in linear time.
+  for (const tag of html.match(/<meta\b[^<>]*>/gi) ?? []) {
     if (!new RegExp(`(?:property|name|itemprop)\\s*=\\s*["']${name}["']`, 'i').test(tag)) continue;
     const content = tag.match(/\bcontent\s*=\s*["']([^"']*)["']/i)?.[1];
     if (content) return decodeEntities(content.trim());
@@ -73,7 +74,7 @@ export function parseLinkPreview(html: string, base: string): LinkPreview {
   const title =
     meta(html, 'og:title') ??
     meta(html, 'twitter:title') ??
-    decodeEntities(html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim() ?? '');
+    decodeEntities(html.match(/<title\b[^<>]*>([^<]*)<\/title>/i)?.[1]?.trim() ?? '');
   const description =
     meta(html, 'og:description') ?? meta(html, 'twitter:description') ?? meta(html, 'description');
   let image =
@@ -95,21 +96,33 @@ export function parseLinkPreview(html: string, base: string): LinkPreview {
   };
 }
 
+const MAX_REDIRECTS = 5;
+
 export async function unfurlPage(href: string): Promise<LinkPreview | undefined> {
-  const url = normalizeHref(href);
-  if (!url || url.startsWith('data:') || typeof fetch !== 'function' || !isPublicHttpUrl(url))
-    return;
+  if (typeof fetch !== 'function') return;
+  let url = normalizeHref(href);
+  const signal = AbortSignal.timeout(4000);
   try {
-    const response = await fetch(url, {
-      credentials: 'omit',
-      headers: { Accept: 'text/html' },
-      redirect: 'follow',
-      signal: AbortSignal.timeout(4000),
-    });
-    const type = response.headers.get('content-type') ?? '';
-    if (!response.ok || (type && !/html|xml/i.test(type))) return;
-    if (!isPublicHttpUrl(response.url || url)) return;
-    return parseLinkPreview((await response.text()).slice(0, 200000), response.url || url);
+    // Redirects are followed by hand so every hop passes the public-host check before it is
+    // requested. A browser hides cross-origin redirect targets, so those links keep their fallback.
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      if (!url || url.startsWith('data:') || !isPublicHttpUrl(url)) return;
+      const response = await fetch(url, {
+        credentials: 'omit',
+        headers: { Accept: 'text/html' },
+        redirect: 'manual',
+        signal,
+      });
+      const location =
+        response.status >= 300 && response.status < 400 ? response.headers.get('location') : null;
+      if (location) {
+        url = normalizeHref(new URL(location, url).href);
+        continue;
+      }
+      const type = response.headers.get('content-type') ?? '';
+      if (!response.ok || (type && !/html|xml/i.test(type))) return;
+      return parseLinkPreview((await response.text()).slice(0, 200000), url);
+    }
   } catch {
     return;
   }

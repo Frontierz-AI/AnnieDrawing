@@ -1,5 +1,9 @@
 # Design decisions
 
+## 2026-10-08: Unfurl checks every redirect hop
+
+`unfurlPage` used `redirect: 'follow'` and checked only the final URL, so a public link could redirect the request to a private address before the check ran. It now uses `redirect: 'manual'` and checks each `Location` with `isPublicHttpUrl` before requesting it, up to five hops. In a browser a cross-origin redirect is an opaque response, so those links keep the fallback card; that is the cost of never sending the request. The demo proxy does the same with its DNS check. The `<meta>` and `<title>` patterns stop at the next `<`, which keeps parsing linear on hostile pages.
+
 ## 2026-10-08: Editor classes use the annie- prefix
 
 Ad blockers ship generic rules that hide elements with ad-like class names. With one active in Firefox the board showed blank: `.ad-root { display: none !important }` came from the extension, ahead of the page's own styles, so the page could not override it. The editor's classes now use `annie-`, a prefix with no ad meaning. The `--ad-*` custom properties stay, since selectors cannot match them and hosts may theme with them. The `data-ad-*` attributes stay because browser agents read them (`AGENTS.md`); the reported failure came from class rules. The events stay so host listeners keep working.

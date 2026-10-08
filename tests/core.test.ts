@@ -550,10 +550,9 @@ describe('custom kind contracts', () => {
   });
 });
 it('uses an explicitly supplied HTML sanitizer and keeps the default inert', () => {
+  // One pass drops script blocks and every tag except bare <b> and <i>, so no tag can reassemble.
   const sanitizeHTML = (html: string) =>
-    html
-      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+    html.replace(/<script\b[\s\S]*?<\/script\b[^>]*>|<(?!\/?[bi]>)[^>]*>?/gi, '');
   expect(() => createDoc(undefined, { sanitizeHTML: (html) => html })).toThrow(/strip active HTML/);
   const doc = createDoc(undefined, { sanitizeHTML });
   expect(

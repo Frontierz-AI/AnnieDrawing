@@ -53,26 +53,34 @@ function unfurlPlugin(): Plugin {
           return;
         }
         try {
-          const href = new URL(req.url, 'http://127.0.0.1').searchParams.get('url') ?? '';
-          if (!(await isPublicHttpTarget(href))) throw new Error('bad');
-          const response = await fetch(href, {
-            headers: { Accept: 'text/html' },
-            redirect: 'follow',
-            signal: AbortSignal.timeout(4000),
-          });
-          const type = response.headers.get('content-type') ?? '';
-          if (
-            !response.ok ||
-            (type && !/html|xml/i.test(type)) ||
-            !(await isPublicHttpTarget(response.url || href))
-          ) {
+          let href = new URL(req.url, 'http://127.0.0.1').searchParams.get('url') ?? '';
+          const signal = AbortSignal.timeout(4000);
+          let response: Response | undefined;
+          // Follow redirects by hand so each hop is resolved and checked before it is requested.
+          for (let hop = 0; hop <= 5; hop++) {
+            if (!(await isPublicHttpTarget(href))) throw new Error('bad');
+            response = await fetch(href, {
+              headers: { Accept: 'text/html' },
+              redirect: 'manual',
+              signal,
+            });
+            const location =
+              response.status >= 300 && response.status < 400
+                ? response.headers.get('location')
+                : null;
+            if (!location) break;
+            href = new URL(location, href).href;
+            response = undefined;
+          }
+          const type = response?.headers.get('content-type') ?? '';
+          if (!response || !response.ok || (type && !/html|xml/i.test(type))) {
             res.statusCode = 204;
             res.end();
             return;
           }
           res.statusCode = 200;
           res.setHeader('content-type', 'text/html; charset=utf-8');
-          res.setHeader('x-unfurl-url', response.url);
+          res.setHeader('x-unfurl-url', href);
           res.end((await response.text()).slice(0, 200000));
         } catch {
           res.statusCode = 204;
