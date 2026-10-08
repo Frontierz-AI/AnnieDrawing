@@ -275,6 +275,40 @@ describe('public http(s) URLs', () => {
     expect(await unfurlPage('http://localhost:5173/docs')).toBeUndefined();
     expect(await unfurlPage('http://[::ffff:127.0.0.1]/')).toBeUndefined();
   });
+  it('checks every redirect hop before requesting it', async () => {
+    const requested: string[] = [];
+    const fetchMock = vi.fn(async (url: string) => {
+      requested.push(url);
+      if (url === 'https://short.example/a')
+        return new Response(null, {
+          status: 302,
+          headers: { location: 'https://example.com/post' },
+        });
+      if (url === 'https://short.example/b')
+        return new Response(null, {
+          status: 301,
+          headers: { location: 'http://169.254.169.254/' },
+        });
+      return new Response('<title>Post</title>', { headers: { 'content-type': 'text/html' } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      expect(await unfurlPage('https://short.example/a')).toEqual({ title: 'Post' });
+      expect(await unfurlPage('https://short.example/b')).toBeUndefined();
+      expect(requested).toEqual([
+        'https://short.example/a',
+        'https://example.com/post',
+        'https://short.example/b',
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+  it('parses pages full of unclosed tags in linear time', () => {
+    const started = performance.now();
+    parseLinkPreview('<title<meta'.repeat(18000), 'https://example.com/');
+    expect(performance.now() - started).toBeLessThan(250);
+  });
   it('drops Open Graph images that are not public http(s) URLs', () => {
     expect(
       parseLinkPreview(
