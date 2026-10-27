@@ -4,6 +4,8 @@ Custom kinds extend the built-in renderer. They do not appear in `kindsSince` un
 
 ## Sanitized HTML
 
+The host supplies `sanitizeHTML`. DOMPurify is used in this example and in the browser tests; install it in your application if you choose it. AnnieDrawing does not import it or require it as a peer dependency.
+
 ```ts
 import DOMPurify from 'dompurify';
 const board = createBoard(host, {

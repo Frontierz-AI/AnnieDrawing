@@ -1,5 +1,20 @@
-import { customAlphabet } from 'nanoid';
-const random = customAlphabet('346789abcdefghjkmnpqrtwxyz', 6);
+const ID_ALPHABET = '346789abcdefghjkmnpqrtwxyz';
+const ID_LENGTH = 6;
+// Accept only complete sets of alphabet indices so modulo does not bias the output.
+const BYTE_LIMIT = Math.floor(256 / ID_ALPHABET.length) * ID_ALPHABET.length;
+function random(): string {
+  const bytes = new Uint8Array(ID_LENGTH);
+  let result = '';
+  while (result.length < ID_LENGTH) {
+    globalThis.crypto.getRandomValues(bytes);
+    for (const byte of bytes) {
+      if (byte >= BYTE_LIMIT) continue;
+      result += ID_ALPHABET[byte % ID_ALPHABET.length];
+      if (result.length === ID_LENGTH) break;
+    }
+  }
+  return result;
+}
 /** Matches the item-id schema maximum. */
 const ID_MAX = 160;
 export const itemId = () => `i_${random()}`;

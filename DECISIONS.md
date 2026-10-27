@@ -1,5 +1,15 @@
 # Design decisions
 
+## 2026-10-27: Generate tool schemas at build time and reduce runtime dependencies
+
+`nanoid` was used only to generate six-character item, page, and media IDs. A small independently implemented Web Crypto generator preserves the alphabet and prefixes, rejects bytes outside a complete set of alphabet-sized buckets to avoid modulo bias, and reads crypto only when called. The runtime dependency count drops from five to four. The transitive Nano ID used by PostCSS remains build tooling.
+
+`@valibot/to-json-schema` previously ran on import and was bundled into the agent entry. The build now generates a versioned JSON artifact from the same Valibot schemas used by `runTool`. `check:schemas` rejects stale artifacts; parity tests compare every public input schema with the converter output, including snapshot defaults. Run `npm run generate:schemas` after changing a tool validator. Valibot's declared minimum is now 1.5.0, as required by the converter already in the lockfile. The exported API and document format do not change.
+
+The host supplies a `sanitizeHTML` callback, not a particular sanitizer package. DOMPurify therefore remains a development dependency and documented example, but no longer an optional peer. Audit checks include development dependencies because they run in CI and tests. The Forge script selects Node.js 24.22.1 by default; the package and Node types continue to target the supported 22.12 floor.
+
+Terser stays: a same-source comparison produced 72.85 KiB gzipped with Terser and 80.40 KiB with Vite's default minifier. The signals, geometry, spatial index, validation, font, and WebSocket server packages have active uses and remain. Updates follow compatible parent ranges rather than forcing new transitive majors.
+
 ## 2026-10-08: Unfurl checks every redirect hop
 
 `unfurlPage` used `redirect: 'follow'` and checked only the final URL, so a public link could redirect the request to a private address before the check ran. It now uses `redirect: 'manual'` and checks each `Location` with `isPublicHttpUrl` before requesting it, up to five hops. In a browser a cross-origin redirect is an opaque response, so those links keep the fallback card; that is the cost of never sending the request. The demo proxy does the same with its DNS check. The `<meta>` and `<title>` patterns stop at the next `<`, which keeps parsing linear on hostile pages.

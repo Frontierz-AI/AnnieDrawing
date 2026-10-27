@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 // Runtime dependencies and peers resolve from the consumer's install, so a host shares one copy
-// (one signals runtime, one valibot). Dev-only helpers such as the JSON Schema converter stay bundled.
+// (one signals runtime, one valibot). Tool JSON schemas are generated before bundling.
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 const external = [
   ...Object.keys(pkg.dependencies ?? {}),

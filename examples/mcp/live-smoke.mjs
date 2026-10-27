@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { once } from 'node:events';
 import { createServer } from 'vite';
-import { chromium } from 'playwright';
+import { chromium } from '@playwright/test';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const vite = await createServer({

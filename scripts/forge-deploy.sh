@@ -3,7 +3,7 @@
 # Uses a user-local Node 24 so /usr/bin/node (and docs.frontierz.com) stay unchanged.
 set -eu
 cd "$(dirname "$0")/.."
-NODE_VERSION="${ANNIE_NODE_VERSION:-24.8.0}"
+NODE_VERSION="${ANNIE_NODE_VERSION:-24.22.1}"
 NODE_DIR="${HOME}/.local/node-v${NODE_VERSION}"
 if [ ! -x "${NODE_DIR}/bin/node" ]; then
   mkdir -p "${HOME}/.local"
