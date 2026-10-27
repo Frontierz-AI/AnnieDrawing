@@ -20,6 +20,8 @@ jobs:
             package-lock.json
             examples/mcp/package-lock.json
       - run: npm ci
+      - name: Check committed tool schemas
+        run: git diff --exit-code -- src/agent/toolInputSchemas.generated.json
       - run: npm ci --prefix examples/mcp
       - run: npm run check
       - run: npm run build:demo

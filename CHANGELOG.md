@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+The library now has four direct runtime dependencies. IDs use native Web Crypto with the same prefixes, six-character alphabet, and unbiased random selection. The agent tools read JSON schemas generated during the build instead of shipping the converter; their schemas and runtime validation are unchanged. The declared Valibot minimum is 1.5.0, matching the schema converter's peer requirement.
+
+DOMPurify remains a development dependency for sanitizer integration tests and a documented host option; it is no longer an optional peer. Its update to 3.4.17 fixes the reported sanitization advisories. Security checks now include development dependencies in both lockfiles.
+
+Vite 8.3.5, Vitest 5.0.5, Playwright 1.64.1, Prettier 3.9.10, and compatible transitive dependencies are updated. The Forge script defaults to Node.js 24.22.1, and the live MCP smoke test imports the browser launcher from the declared Playwright test package. Node.js 22.12 remains supported.
+
 ## 0.7.0
 
 A minor release: hosts that style or query the editor's CSS classes must rename them from `ad-` to `annie-`. The document format is unchanged.

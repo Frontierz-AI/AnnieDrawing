@@ -112,7 +112,7 @@ The demo sets `exposeGlobal: true` so live boards appear on `window.__anniedrawi
 
 ## HTML items
 
-Rendered HTML requires an explicit sanitizer passed to `createBoard` or `createDoc`. Identity functions are rejected. Plain text never goes through HTML parsing.
+Rendered HTML requires an explicit sanitizer passed to `createBoard` or `createDoc`. Identity functions are rejected. Plain text never goes through HTML parsing. The sanitizer is supplied by the host; DOMPurify is one supported example and is not a peer dependency.
 
 ```sh
 npm install dompurify

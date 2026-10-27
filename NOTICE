@@ -15,11 +15,11 @@ Direct runtime dependencies (MIT)
 - perfect-freehand: Steve Ruiz and contributors
 - rbush: Vladimir Agafonkin
 - valibot: Fabian Hiller and contributors
-- nanoid: Andrey Sitnik
 
-Optional integrations
+Host sanitizer example and optional integrations
 - DOMPurify: dual licensed MPL-2.0 OR Apache-2.0; Cure53 and contributors.
-  AnnieDrawing consumers may use the Apache-2.0 option.
+  Development dependency for browser tests, not imported by the library.
+  AnnieDrawing consumers who choose it may use the Apache-2.0 option.
 - ws in the separate MCP example: MIT; Einar Otto Stangvik and contributors
 
 Demo typography
@@ -29,9 +29,11 @@ Demo typography
   node_modules/@fontsource-variable/nunito/LICENSE.
   The library uses a system fallback when consumers do not supply the font.
 
-The agent entry point also bundles @valibot/to-json-schema under MIT.
+Tool JSON schemas are generated at build time with @valibot/to-json-schema
+under MIT; the converter is not bundled into the library.
 Build and test tooling includes TypeScript, Vite, Vitest, Playwright, Terser
 and their transitive dependencies under the licenses in package-lock.json.
+Nano ID (MIT; Andrey Sitnik) remains a transitive PostCSS tooling dependency.
 Vite 8 uses Lightning CSS (MPL-2.0) to minify CSS; it is not shipped as a
 runtime dependency. Tooling is not a direct runtime dependency.
 
@@ -155,7 +157,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 
---- nanoid ---
+--- nanoid (transitive build tooling) ---
 
 The MIT License (MIT)
 
@@ -278,7 +280,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 
 
---- @valibot/to-json-schema (bundled in the agent entry point) ---
+--- @valibot/to-json-schema (build-time schema generation) ---
 
 MIT License
 

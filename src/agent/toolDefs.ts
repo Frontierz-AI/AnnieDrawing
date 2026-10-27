@@ -1,5 +1,7 @@
 import * as v from 'valibot';
-import { toJsonSchema } from '@valibot/to-json-schema';
+import inputSchemas from './toolInputSchemas.generated.json';
+import { toolSchemas } from './toolSchemas';
+export { toolSchemas } from './toolSchemas';
 import type {
   AnnieDoc,
   ApplyOptions,
@@ -10,37 +12,7 @@ import type {
   Query,
   Scope,
 } from '../core/types';
-import { DescribeSchema, OpsSchema, QuerySchema, VISION_PNG } from '../core/schema';
-const scope = v.optional(v.picklist(['doc', 'page', 'selection', 'viewport']));
-const ReadSchema = v.object({ scope });
-const ApplySchema = v.object({
-  ops: OpsSchema,
-  origin: v.optional(v.string()),
-  label: v.optional(v.string()),
-  dryRun: v.optional(v.boolean()),
-  expectedRevision: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
-  agentName: v.optional(v.string()),
-  reveal: v.optional(v.picklist(['none', 'fit'])),
-});
-const SnapshotSchema = v.object({
-  scope: v.optional(v.picklist(['doc', 'page', 'selection', 'viewport']), 'viewport'),
-  scale: v.optional(v.pipe(v.number(), v.minValue(0.1), v.maxValue(4)), 2),
-  labels: v.optional(v.boolean(), true),
-  colors: v.optional(
-    v.pipe(v.number(), v.integer(), v.minValue(2), v.maxValue(256)),
-    VISION_PNG.colors,
-  ),
-  maxBytes: v.optional(v.pipe(v.number(), v.minValue(1)), VISION_PNG.maxBytes),
-});
-const FitSchema = v.object({ ids: v.optional(v.array(v.string())) });
-export const toolSchemas = {
-  board_describe: DescribeSchema,
-  board_read: ReadSchema,
-  board_query: QuerySchema,
-  board_apply: ApplySchema,
-  board_snapshot: SnapshotSchema,
-  board_view_fit: FitSchema,
-};
+import { VISION_PNG } from '../core/schema';
 const descriptions: Record<keyof typeof toolSchemas, string> = {
   board_describe:
     'Read a deterministic text description of the board, item IDs, connections, and layout. Start here before editing.',
@@ -59,23 +31,12 @@ export interface ToolDefinition {
   description: string;
   inputSchema: Record<string, unknown>;
 }
-export const toolDefs: ToolDefinition[] = Object.entries(toolSchemas).map(([name, schema]) => {
-  const inputSchema = toJsonSchema(schema, { errorMode: 'ignore' }) as unknown as Record<
-    string,
-    unknown
-  >;
-  if (name === 'board_snapshot') {
-    const properties = (inputSchema.properties ?? {}) as Record<string, Record<string, unknown>>;
-    properties.scope = { ...properties.scope, default: 'viewport' };
-    properties.scale = { ...properties.scale, default: 2 };
-    properties.labels = { ...properties.labels, default: true };
-    properties.colors = { ...properties.colors, default: VISION_PNG.colors };
-    properties.maxBytes = { ...properties.maxBytes, default: VISION_PNG.maxBytes };
-  }
+export const toolDefs: ToolDefinition[] = Object.keys(toolSchemas).map((name) => {
+  const key = name as keyof typeof toolSchemas;
   return {
     name,
-    description: descriptions[name as keyof typeof toolSchemas],
-    inputSchema,
+    description: descriptions[key],
+    inputSchema: inputSchemas[key],
   };
 });
 export interface AgentBoard {
