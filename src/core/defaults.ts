@@ -140,7 +140,7 @@ export function minimalItem(item: Item, kindDefaults: Record<string, Partial<Ite
     next.children = next.children.map((child) => minimalItem(child, kindDefaults));
     if (!next.children.length) delete next.children;
   }
-  if (next.kind === 'connector') {
+  if (next.kind === 'connector' || next.kind === 'mark') {
     delete (next as Partial<Item>).x;
     delete (next as Partial<Item>).y;
     delete (next as Partial<Item>).w;

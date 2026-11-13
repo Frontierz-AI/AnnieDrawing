@@ -8,6 +8,7 @@ import {
   lookupItem,
   type ItemLookup,
 } from '../geo/box';
+import { isOverlay } from '../core/mark';
 
 const RELATIONS = ['rightOf', 'leftOf', 'above', 'below', 'inside', 'near'] as const;
 type Relation = (typeof RELATIONS)[number];
@@ -34,7 +35,13 @@ export interface AgentPlacement {
 }
 
 function blocksPlace(item: Item): boolean {
-  return !item.hidden && item.kind !== 'connector' && item.kind !== 'line' && item.kind !== 'path';
+  return (
+    !item.hidden &&
+    !isOverlay(item) &&
+    item.kind !== 'connector' &&
+    item.kind !== 'line' &&
+    item.kind !== 'path'
+  );
 }
 
 function singleRelation(place: Placement): Relation {
@@ -123,7 +130,9 @@ function insideGroup(ref: Item, item: Item, gap: number, lookup: ItemLookup) {
       };
       if (
         contains(b, candidate) &&
-        !children.some((other) => overlaps(candidate, itemBounds(other, lookup)))
+        !children.some(
+          (other) => !isOverlay(other) && overlaps(candidate, itemBounds(other, lookup)),
+        )
       )
         return { x: candidate.x, y: candidate.y };
     }
@@ -143,8 +152,10 @@ function nearReference(b: Box, item: Item, gap: number, items: Item[], lookup: I
     ];
     for (const candidate of candidates)
       if (
-        !items.some((other) =>
-          overlaps({ ...candidate, w: item.w, h: item.h }, itemBounds(other, lookup)),
+        !items.some(
+          (other) =>
+            !isOverlay(other) &&
+            overlaps({ ...candidate, w: item.w, h: item.h }, itemBounds(other, lookup)),
         )
       )
         return candidate;
@@ -234,7 +245,7 @@ export function placeAgentItem(
 
 /** Kinds an unpositioned agent add can place; links, strokes, and groups keep what was sent. */
 export function isFlowNode(item: Item): boolean {
-  return !['connector', 'line', 'path', 'group'].includes(item.kind);
+  return !['connector', 'line', 'path', 'group'].includes(item.kind) && !isOverlay(item);
 }
 
 /** One batch arrow, in the order the operations listed it. */
@@ -263,7 +274,8 @@ export function flowPlacement(
  */
 export function freeSpaceOrigin(item: Item, items: Item[], gap: number): Point | undefined {
   const solid = items.filter(
-    (other) => other.id !== item.id && !other.hidden && other.kind !== 'connector',
+    (other) =>
+      other.id !== item.id && !other.hidden && other.kind !== 'connector' && !isOverlay(other),
   );
   const box = { x: item.x, y: item.y, w: item.w, h: item.h };
   if (!solid.some((other) => overlaps(box, itemBounds(other, items)))) return;
@@ -307,18 +319,23 @@ function stackBeside(
   return nextFree(beside, axis === 'x' ? 'y' : 'x', 1, gap, items, lookup, skip);
 }
 
-/** Move the occupant and its side of the flow so the slot holds the new node with the normal gap. */
-function makeRoom(
+/**
+ * Move the occupant and its side of the flow so the slot holds the new node with the normal gap.
+ * The walk downstream stops at `refId` (one id or a set); `movable` can keep more items in place.
+ */
+export function makeRoom(
   slot: Box,
   hit: Item,
   hitBounds: Box,
-  refId: string,
+  refId: string | ReadonlySet<string>,
   axis: Axis,
   dir: 1 | -1,
   gap: number,
   items: Item[],
   lookup: ItemLookup,
+  movable?: (item: Item) => boolean,
 ): PlaceShift[] {
+  const stop = typeof refId === 'string' ? new Set([refId]) : refId;
   const delta =
     axis === 'x'
       ? dir > 0
@@ -354,7 +371,7 @@ function makeRoom(
   while (queue.length) {
     const current = queue.shift()!;
     for (const next of downstream.get(current) ?? [])
-      if (next !== refId && !component.has(next) && byId.has(next)) {
+      if (!stop.has(next) && !component.has(next) && byId.has(next)) {
         component.add(next);
         queue.push(next);
       }
@@ -362,7 +379,8 @@ function makeRoom(
   const moving = new Set<string>();
   for (const id of component) {
     const entry = byId.get(id)!;
-    if (entry.kind === 'connector' || pinned(entry, items)) continue;
+    if (entry.kind === 'connector' || pinned(entry, items) || (movable && !movable(entry)))
+      continue;
     if (id === hit.id || beyond(itemBounds(entry, lookup))) moving.add(id);
   }
   const ancestorMoving = (id: string): boolean => {

@@ -130,7 +130,8 @@
                                 { "type": "number", "minimum": 1, "maximum": 1000 }
                               ]
                             },
-                            "font": { "enum": ["sans", "serif", "mono", "hand"], "type": "string" }
+                            "font": { "enum": ["sans", "serif", "mono", "hand"], "type": "string" },
+                            "format": { "enum": ["plain", "md"], "type": "string" }
                           },
                           "required": []
                         }
@@ -206,7 +207,32 @@
                           "required": ["x", "y"]
                         }
                       ]
-                    }
+                    },
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "array",
+                        "items": { "type": "string", "maxLength": 2000 },
+                        "maxItems": 50
+                      },
+                      "minItems": 1,
+                      "maxItems": 200
+                    },
+                    "header": { "type": "boolean" },
+                    "cells": {
+                      "type": "object",
+                      "propertyNames": { "type": "string", "pattern": "^\\d+,\\d+$" },
+                      "additionalProperties": { "type": "string", "maxLength": 2000 }
+                    },
+                    "target": { "type": "string", "minLength": 1, "maxLength": 160 },
+                    "mark": {
+                      "enum": ["highlight", "underline", "circle", "box"],
+                      "type": "string"
+                    },
+                    "match": { "type": "string", "maxLength": 100000, "minLength": 1 },
+                    "media": { "type": "string", "minLength": 1, "maxLength": 160 },
+                    "pending": { "type": "boolean" },
+                    "progress": { "type": "number", "minimum": 0, "maximum": 1 }
                   },
                   "required": []
                 }
@@ -342,10 +368,28 @@
       },
       "origin": { "type": "string" },
       "label": { "type": "string" },
+      "layout": {
+        "anyOf": [
+          { "enum": ["auto", "none"], "type": "string" },
+          {
+            "type": "object",
+            "properties": {
+              "direction": { "enum": ["right", "down"], "type": "string" },
+              "shape": { "enum": ["flow", "tree", "radial", "ring"], "type": "string" }
+            },
+            "required": []
+          }
+        ]
+      },
       "dryRun": { "type": "boolean" },
       "expectedRevision": { "type": "integer", "minimum": 0 },
       "agentName": { "type": "string" },
-      "reveal": { "enum": ["none", "fit"], "type": "string" }
+      "reveal": { "enum": ["none", "fit", "created"], "type": "string" },
+      "presentation": {
+        "type": "object",
+        "properties": { "durationMs": { "type": "number", "minimum": 0, "maximum": 60000 } },
+        "required": []
+      }
     },
     "required": ["ops"],
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -388,7 +432,8 @@
                       { "type": "number", "minimum": 1, "maximum": 1000 }
                     ]
                   },
-                  "font": { "enum": ["sans", "serif", "mono", "hand"], "type": "string" }
+                  "font": { "enum": ["sans", "serif", "mono", "hand"], "type": "string" },
+                  "format": { "enum": ["plain", "md"], "type": "string" }
                 },
                 "required": ["value"]
               }
@@ -494,9 +539,26 @@
               "minItems": 2
             }
           },
+          "target": { "type": "string", "minLength": 1, "maxLength": 160 },
+          "mark": { "enum": ["highlight", "underline", "circle", "box"], "type": "string" },
+          "match": { "type": "string", "maxLength": 100000, "minLength": 1 },
           "closed": { "type": "boolean" },
           "autoWidth": { "type": "boolean" },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": { "type": "string", "maxLength": 2000 },
+              "maxItems": 50
+            },
+            "minItems": 1,
+            "maxItems": 200
+          },
+          "header": { "type": "boolean" },
           "media": { "type": "string", "minLength": 1, "maxLength": 160 },
+          "pending": { "type": "boolean" },
+          "progress": { "type": "number", "minimum": 0, "maximum": 1 },
+          "fitMedia": { "type": "boolean" },
           "crop": {
             "type": "object",
             "properties": {

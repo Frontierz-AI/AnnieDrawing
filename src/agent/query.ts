@@ -22,7 +22,9 @@ export function queryDoc(doc: AnnieDoc, selector: Query = {}): Item[] {
       )
         return false;
       if (selector.text) {
-        const value = [item.text?.value, item.name].filter(Boolean).join(' ');
+        const value = [item.text?.value, item.name, ...(item.rows?.flat() ?? [])]
+          .filter(Boolean)
+          .join(' ');
         if (
           typeof selector.text === 'string'
             ? !value.toLowerCase().includes(selector.text.toLowerCase())

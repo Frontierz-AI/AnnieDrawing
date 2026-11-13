@@ -53,4 +53,6 @@ export {
 } from './paste';
 export { allItems, applyDraft, translateItem, copyItems, detachMissingEndpoints } from './item';
 export type { ItemPatch } from './item';
+export { MARK_TYPES, isOverlay } from './mark';
+export type { MarkType, MarkFrame, MarkShape } from './mark';
 export * from '../geo/index';

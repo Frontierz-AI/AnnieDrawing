@@ -16,12 +16,14 @@ describe('kind catalog', () => {
       'diamond',
       'line',
       'connector',
+      'mark',
       'path',
       'text',
       'note',
       'image',
       'video',
       'link',
+      'table',
       'group',
       'html',
     ]);
@@ -46,8 +48,11 @@ describe('kind catalog', () => {
       'ellipse',
       'diamond',
       'connector',
+      'mark',
       'text',
       'note',
+      'image',
+      'table',
     ]);
     expect(kindsSince(CATALOG_VERSION)).toEqual({
       version: CATALOG_VERSION,

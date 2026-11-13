@@ -9,6 +9,7 @@ const approved = new Set([
   'OFL-1.1',
   '(MPL-2.0 OR Apache-2.0)',
   'MPL-2.0',
+  '0BSD',
 ]);
 const manifest = JSON.parse(await readFile(new URL('package.json', root), 'utf8'));
 if (Object.keys(manifest.dependencies ?? {}).length > 5)
@@ -26,5 +27,5 @@ for (const name of ['package-lock.json', 'examples/mcp/package-lock.json']) {
   }
 }
 console.log(
-  `License check passed: ${count} locked packages; ${Object.keys(manifest.dependencies).length} direct runtime dependencies. DOMPurify uses the Apache-2.0 option; OFL applies to demo fonts only; MPL-2.0 applies to Vite's Lightning CSS toolchain.`,
+  `License check passed: ${count} locked packages; ${Object.keys(manifest.dependencies).length} direct runtime dependencies. DOMPurify uses the Apache-2.0 option; OFL applies to demo fonts only; MPL-2.0 applies to Vite's Lightning CSS toolchain; 0BSD applies to tslib, an optional dependency of Rolldown's WebAssembly fallback.`,
 );

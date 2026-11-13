@@ -7,10 +7,22 @@ const ApplySchema = v.object({
   ops: OpsSchema,
   origin: v.optional(v.string()),
   label: v.optional(v.string()),
+  layout: v.optional(
+    v.union([
+      v.picklist(['auto', 'none']),
+      v.object({
+        direction: v.optional(v.picklist(['right', 'down'])),
+        shape: v.optional(v.picklist(['flow', 'tree', 'radial', 'ring'])),
+      }),
+    ]),
+  ),
   dryRun: v.optional(v.boolean()),
   expectedRevision: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
   agentName: v.optional(v.string()),
-  reveal: v.optional(v.picklist(['none', 'fit'])),
+  reveal: v.optional(v.picklist(['none', 'fit', 'created'])),
+  presentation: v.optional(
+    v.object({ durationMs: v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(60000))) }),
+  ),
 });
 export const snapshotDefaults = {
   scope: 'viewport',

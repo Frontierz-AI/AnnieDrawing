@@ -10,6 +10,9 @@ export const LIMITS = {
   maxHistory: 100,
   maxSessionLog: 500,
   maxJsonDepth: 104,
+  maxTableRows: 200,
+  maxTableColumns: 50,
+  maxCellLength: 2000,
 } as const;
 /** Default labeled PNG for vision tools: 32-color indexed, 240 KiB budget. */
 export const VISION_PNG = { colors: 32, maxBytes: 245760 } as const;
@@ -22,6 +25,15 @@ const coordinate = v.pipe(
 const dimension = v.pipe(finite, v.minValue(0), v.maxValue(LIMITS.maxCoordinate));
 const id = v.pipe(v.string(), v.minLength(1), v.maxLength(160));
 const text = v.pipe(v.string(), v.maxLength(LIMITS.maxTextLength));
+const progress = v.pipe(finite, v.minValue(0), v.maxValue(1));
+const cell = v.pipe(v.string(), v.maxLength(LIMITS.maxCellLength));
+const tableRows = v.pipe(
+  v.array(v.pipe(v.array(cell), v.maxLength(LIMITS.maxTableColumns))),
+  v.minLength(1),
+  v.maxLength(LIMITS.maxTableRows),
+);
+const markType = v.picklist(['highlight', 'underline', 'circle', 'box']);
+const phrase = v.pipe(text, v.minLength(1));
 export const PointSchema = v.object({ x: coordinate, y: coordinate });
 export const BoxSchema = v.object({ x: coordinate, y: coordinate, w: dimension, h: dimension });
 export const StyleSchema = v.object({
@@ -41,6 +53,7 @@ export const TextSchema = v.object({
     v.union([v.picklist(['s', 'm', 'l', 'xl']), v.pipe(finite, v.minValue(1), v.maxValue(1000))]),
   ),
   font: v.optional(v.picklist(['sans', 'serif', 'mono', 'hand'])),
+  format: v.optional(v.picklist(['plain', 'md'])),
 });
 const record = v.record(v.string(), v.unknown());
 export const EndpointSchema = v.union([
@@ -92,9 +105,17 @@ function itemSchema(label: v.GenericSchema): v.GenericSchema {
         }),
       ),
       waypoints: v.optional(v.array(v.tuple([coordinate, coordinate]))),
+      target: v.optional(id),
+      mark: v.optional(markType),
+      match: v.optional(phrase),
       closed: v.optional(v.boolean()),
       autoWidth: v.optional(v.boolean()),
+      rows: v.optional(tableRows),
+      header: v.optional(v.boolean()),
       media: v.optional(id),
+      pending: v.optional(v.boolean()),
+      progress: v.optional(progress),
+      fitMedia: v.optional(v.boolean()),
       crop: v.optional(BoxSchema),
       href: v.optional(text),
       description: v.optional(text),
@@ -123,6 +144,15 @@ export const PatchSchema = v.looseObject({
   data: v.optional(record),
   from: v.optional(EndpointSchema),
   to: v.optional(EndpointSchema),
+  rows: v.optional(tableRows),
+  header: v.optional(v.boolean()),
+  cells: v.optional(v.record(v.pipe(v.string(), v.regex(/^\d+,\d+$/)), cell)),
+  target: v.optional(id),
+  mark: v.optional(markType),
+  match: v.optional(phrase),
+  media: v.optional(id),
+  pending: v.optional(v.boolean()),
+  progress: v.optional(progress),
 });
 export const PlacementSchema = v.object({
   rightOf: v.optional(id),

@@ -7,6 +7,14 @@
   touch-action: none;
   outline: none;
   --ad-cs: drop-shadow(0 8px 18px #1036391f);
+  /* Theme tokens. The --ad-ui-accent* and --ad-focus inputs are never declared here, so values set
+     on the host element are inherited. --annie-strong and --annie-tint are valid only when the host
+     sets an accent; otherwise each use falls back to the original default color. */
+  --annie-accent: var(--ad-ui-accent, #05d9ab);
+  --annie-fg: var(--ad-ui-accent-fg, #103639);
+  --annie-strong: var(--ad-ui-accent-strong, color-mix(in srgb, var(--ad-ui-accent) 80%, #000));
+  --annie-tint: color-mix(in srgb, var(--ad-ui-accent) 40%, #fff);
+  --annie-focus: var(--ad-focus, var(--annie-strong, #00876c));
   background: var(--ad-paper, #fbfcfa);
   color: var(--ad-ink, #103639);
   font-family:
@@ -22,7 +30,7 @@
   --ad-paper: #122f32;
   --ad-ink: #e9f7f3;
   --ad-grid-color: #426160;
-  --ad-focus: #05d9ab;
+  --annie-focus: var(--ad-focus, var(--ad-ui-accent-strong, var(--annie-accent)));
 }
 .annie-grid,
 .annie-world,
@@ -52,7 +60,7 @@
   overflow: visible;
 }
 .annie-item:focus-visible {
-  outline: 2px solid var(--ad-focus, #007d65);
+  outline: 2px solid var(--annie-focus);
   outline-offset: 6px;
 }
 .annie-agent-pending {
@@ -78,6 +86,15 @@
   stroke-width: 2;
   stroke-linejoin: round;
   filter: drop-shadow(0 2px 4px #10363926);
+}
+.annie-agent-cursor .annie-pen,
+.annie-agent-writing svg {
+  display: none;
+}
+/* The pen nib sits on the same hotspot as the arrow tip. */
+.annie-agent-writing .annie-pen {
+  display: block;
+  margin: -24px 0 0 2px;
 }
 .annie-agent-cursor span {
   position: absolute;
@@ -138,6 +155,9 @@
 .annie-item[data-ad-kind='note'] .annie-shape {
   filter: var(--ad-cs);
 }
+.annie-item[data-ad-kind='mark'] {
+  pointer-events: none;
+}
 .annie-item[data-ad-kind='connector'] .annie-text {
   width: max-content;
   height: auto;
@@ -150,15 +170,44 @@
   line-height: 1.25;
   font-size: 14px;
 }
+/* Rich text: hand fonts often lack italic and bold faces, and hosts may turn synthesis off. */
+.annie-line {
+  font-synthesis: weight style;
+}
 .annie-text[contenteditable='plaintext-only'],
 .annie-text[contenteditable='true'] {
   pointer-events: auto;
   user-select: text;
   -webkit-user-select: text;
-  outline: 2px solid #05d9ab;
+  outline: 2px solid var(--annie-accent);
   background: rgb(255 255 255 / 80%);
   border-radius: 4px;
   min-width: 20px;
+  cursor: text;
+}
+.annie-table {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-size: 16px;
+  line-height: 1.35;
+}
+.annie-cell {
+  position: absolute;
+  box-sizing: border-box;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.annie-cell-head {
+  font-weight: 700;
+}
+.annie-cell[contenteditable='plaintext-only'] {
+  z-index: 1;
+  pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
+  outline: 2px solid var(--annie-accent);
+  background: var(--ad-paper, #fff);
   cursor: text;
 }
 .annie-auxiliary {
@@ -206,6 +255,54 @@
   text-align: center;
   padding: 8px;
 }
+/* Pending image: a quiet shimmer, the name, and a progress bar. */
+.annie-pending {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 12px;
+  font-size: 13px;
+  text-align: center;
+  overflow-wrap: anywhere;
+  background: #8f93f91f;
+}
+.annie-pending::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, #ffffff59 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: annie-shimmer 1.8s ease-in-out infinite;
+}
+.annie-pending span {
+  position: relative;
+}
+.annie-pending i {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  background: var(--annie-focus);
+  transition: width 0.3s ease-out;
+}
+@keyframes annie-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .annie-pending::before {
+    animation: none;
+    display: none;
+  }
+  .annie-pending i {
+    transition: none;
+  }
+}
 .annie-overlay {
   width: 100%;
   height: 100%;
@@ -214,28 +311,28 @@
 }
 .annie-selection-outline {
   fill: none;
-  stroke: var(--ad-focus, #00876c);
+  stroke: var(--annie-focus);
   stroke-width: 1.4;
   vector-effect: non-scaling-stroke;
 }
 .annie-selection-handle {
   fill: var(--ad-paper, #fff);
-  stroke: var(--ad-focus, #00876c);
+  stroke: var(--annie-focus);
   stroke-width: 1.5;
   pointer-events: all;
 }
 .annie-selection-handle:hover {
-  fill: #aaf1ac;
+  fill: var(--annie-tint, #aaf1ac);
 }
 .annie-marquee {
-  fill: #05d9ab16;
-  stroke: #00876c;
+  fill: var(--ad-ui-accent-soft, color-mix(in srgb, var(--annie-accent) 8.63%, transparent));
+  stroke: var(--annie-strong, #00876c);
   stroke-width: 1;
 }
 .annie-no-grid .annie-grid {
   display: none;
 }
 .annie-custom-handle {
-  fill: #05d9ab;
+  fill: var(--annie-accent);
   stroke: #103639;
 }

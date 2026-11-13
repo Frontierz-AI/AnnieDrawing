@@ -1,12 +1,85 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
 
-The library now has four direct runtime dependencies. IDs use native Web Crypto with the same prefixes, six-character alphabet, and unbiased random selection. The agent tools read JSON schemas generated during the build instead of shipping the converter; their schemas and runtime validation are unchanged. The declared Valibot minimum is 1.5.0, matching the schema converter's peer requirement.
+A minor release with new kinds, a layout pass for agent diagrams, and several changed defaults. The document format stays version 2, and the kind catalog is 4. A host will notice these default changes: `agent:` batches are laid out together as a graph (`agentLayout: 'none'` or `layout: 'none'` restores per-node placement); automatic elbow connectors attach and route differently, and a connector label moves off the path midpoint when something is under it; `createFellowBoard` reveals with `'created'` instead of `'fit'`; agent reveals move the camera only while `board.view.follow` is true, and the person's own camera input, including the built-in zoom and fit controls and keys, turns it off; `view` events carry `cause`; images added without `w` and `h` take their media's aspect ratio instead of 240×180; an agent `text` sent without `h` stores the height of its lines (25 for one line at the default size) instead of 48, and two `text` items placed relative to each other default to a one-line gap; `ApplyResult` always has `updated` and `removed`, and `created` no longer lists an item the same batch removed; `describe()` prints a neutral overflow line, stroke and dash, and marks only items an agent created; and the stylesheet no longer declares `--ad-ui-accent` or `--ad-focus`, so host values inherit. A host custom kind that stores a different shape under one of the new item field names (`rows`, `header`, `pending`, `progress`, `fitMedia`, `target`, `mark`, `match`, or `text.format`) now fails validation.
+
+Agent diagrams:
+
+- Nodes that an `agent:` batch sends without `x`, `y`, or `place` are laid out together after the batch's operations run, from every arrow in the batch and from connectors to nodes already on the page. Flows get ranked columns, and arrows back to an earlier step do not rank. Branches that rejoin sit above and below the trunk, trees keep each parent beside its children, a node linked to four or more otherwise unconnected nodes sits in the middle of them, a pure cycle becomes a ring, chains linked by cross arrows keep their own rows, and unconnected nodes are packed in a grid shaped like the viewport. A first unconnected `text` in the batch titles the diagram, above its top-left corner.
+- The layout picks left to right or top down, and wraps a long flow into rows, so the diagram fits the viewport at a zoom of about 0.6 or more when the node count allows it. A board passes its own size; a headless document assumes 1280×760 unless `apply` receives `viewport`. The gap between two ranks grows to fit the label of an arrow between them.
+- A new diagram that does not connect to existing work goes below or right of the page content, whichever reads larger. Nodes linked to existing ones are placed beside them. An existing node moves along the flow only when an agent placed it and no person or API call has moved or resized it since in this session; `result.moved` lists it and undo restores it. Locked items, items in locked groups, and items a person moved stay. Explicit `x`/`y` or `place` pins a node.
+- New `ApplyOptions.layout` (`'auto'` by default, `'none'`, or `{ direction, shape }` as a hint), `agentLayout` on `createBoard` and `createDoc` as the host default, and `ApplyOptions.viewport`. The `board_apply` tool accepts `layout`. A layout error is reported as the warning `LAYOUT_FAILED` and the batch commits with its nodes where they were created.
+- Automatic elbows leave and enter on the sides where their two nodes face each other, so a fan-in arrives on one side of the target and a tree enters each child from the top. Connectors that share a side are spread along it in the order of their far ends. Lanes keep 16 px from nodes they do not connect and 12 px from parallel lanes of other connectors when a clear channel exists. A connector whose facing gap holds another node, or that returns along an earlier connector between the same nodes, uses the bottom (or right) side of both, so a loop runs under its row. Routes no longer step back on themselves. Explicit sides, anchors, waypoints, and straight and curve routes are unchanged.
+- Connector labels sit on the longest segment of their route where they cover no node, no other label, and no other connector. The board and the SVG, PNG, and JPEG exports place and wrap them the same way.
+- SVG export routes connectors against the pages that hold the exported items, so content on another page no longer changes exported routes.
+- `anniedrawing/core` exports `routePage`, `connectorLabel`, `labelSize`, `labelLines`, and `placeLabel` to read routes and label boxes without a DOM. `routePage` took about 9 microseconds per connector at both 240 and 990 connectors on one development machine.
+
+Tables:
+
+- New built-in `table` kind: `{ kind: 'table', rows: string[][], header: true }`. Column widths and row heights come from the text; a column grows with its longest line up to 260 px, and longer cells wrap. Ragged rows are padded with empty cells.
+- `set { rows }` replaces the content and `set { cells: { '1,2': 'Reports' } }` changes single cells (row and column from 0, the header is row 0). Only `rows` is stored and logged. A cell key outside the table rejects the operation.
+- Double-click a cell to edit it. Ctrl/Cmd+Enter or clicking away saves, Escape cancels, and Tab and Shift+Tab save and move. `board.editText(id, [row, column])` opens a cell from code.
+- Tables are boxes for connectors, hit testing, routing, and placement, and SVG, PNG, and JPEG exports draw them with the board's column layout. `describe()` prints `t1 table 4x3 header "Current point" ...`, and `query({ text })` matches cell text.
+- `LIMITS` gains `maxTableRows` (200), `maxTableColumns` (50), and `maxCellLength` (2000).
+
+Marks:
+
+- New built-in `mark` kind: emphasis drawn on another item. `{ kind: 'mark', target: 'step3', mark: 'circle' }` marks the whole item; `match: 'Exactly 1 trial run'` marks the first occurrence of that phrase in the target's visible text. Types are `highlight` (default), `underline`, `circle`, and `box`.
+- A mark takes its geometry from its target, like a connector from its ends. It moves, resizes, rotates, and re-wraps with the target on the board, in exports, in `board.boundsOf([id])`, and in `describe()`. On the board the phrase is measured from the rendered label; exports use the exporter's own wrapping.
+- Removing a target removes its marks in the same change, and one undo restores both. When the phrase is no longer in the text, the mark covers the whole item until it comes back.
+- Marks never take space: placement, layout, overlap warnings, routing, and `view.fit()` ignore them. A highlight does not catch the pointer. An underline, circle, or box can be selected by its stroke and deleted; it cannot be moved, resized, or given text.
+- `describe()` lists marks in a `Marks:` section.
+
+Images:
+
+- An image added without `w` and `h` is sized from its media to fit 480×360 without enlarging. With only `w` or only `h`, the other side follows the aspect ratio. This applies to every origin.
+- When media is replaced under a key, images whose size came from their media keep their width and take the new aspect ratio, in the same history entry. Images with an explicit size keep it.
+- `pending: true` lets an image exist before its picture, with a shimmer, its `name`, and a progress bar for `progress` (0 to 1). It can be selected, moved, and connected. Resolve it with `media.set` plus `set { media, pending: false }` in one batch; the id and connectors stay. `describe()` prints `image (pending)`, and exports draw a labeled placeholder.
+- PNG, JPEG, and WebP export now include remote images: each one is fetched with CORS and embedded. An image that cannot be fetched is drawn as a labeled placeholder and reported through the new `onWarning` export option. `export('svg', { embedImages: true })` writes a self-contained SVG.
+- A remote image that fails to load shows "Image unavailable" on the board. The new `media` board event reports `{ id, media, status }` with `loaded` or `error`.
+
+Text:
+
+- Labels on `rect`, `ellipse`, `diamond`, `note`, and `text` accept `text.format: 'md'`: `**bold**`, `*italic*`, `- ` and `1. ` list items with a hanging indent, and `# ` / `## ` headings. Anything else is shown as written. Exports draw the same structure, editing shows the source with its markers, and agent creates size the box for it. Connector labels stay plain.
+- A `text` item placed `below`, `above`, `rightOf`, or `leftOf` another `text` item without `place.gap` sits one line of the larger text away. Eleven stacked one-line agent lines under the Fellow defaults take 525 px instead of about 1788 px.
+- The label size estimate no longer counts an extra row when a line is exactly as wide as the box.
+
+Camera and presentation:
+
+- `reveal: 'created'` (on `apply`, and as `agentReveal`) leaves the camera alone when the new items are already in view at a zoom of 1 or less, and otherwise flies to them and the items their connectors reach, at a zoom between `agentRevealMinZoom` (default 0.6) and 1. Work too large for that floor shows its top-left part. `createBoard` still defaults to `'fit'`.
+- `board.view.follow` (default `true`) is turned off by the person's camera input and emits a `follow` event. Agent reveals move the camera only while it is on. Setting it back to `true` goes to the last reveal.
+- `view` events carry `cause`: `user`, `api`, `agent`, or `resize`.
+- `presented` fires once per successful `agent:` batch that created items, with `{ ids, origin }`, when that batch's arrival ends.
+- `board.view.toScreen()` and `board.view.toPage()` convert points and boxes between page coordinates and board pixels. `board.view.viewport` is the visible page box.
+- `agentPresence.write` writes the labels of new agent items left to right with a pen cursor instead of fading them. It is off by default, including in `createFellowBoard`. `write: { charsPerSecond }` sets the speed (default 30). The document, exports, history, and DOM text are complete from the first frame.
+- `apply(ops, { presentation: { durationMs } })` sets how long an agent batch's arrival takes, up to its `presented` event. The `board_apply` tool accepts `presentation` and `reveal: 'created'`.
+- `createFellowBoard` merges a host `agentPresence` object over its own pace (`maxStops: 3`, `durationScale: 0.55`), so `agentPresence: { write: true }` keeps the Fellow pace. A host that passed a partial object before now gets the Fellow values for the fields it omitted.
+
+Theming:
+
+- The editor accent is themeable with `--ad-ui-accent`, `--ad-ui-accent-soft`, `--ad-ui-accent-strong`, and `--ad-ui-accent-fg`. Setting `--ad-ui-accent` alone on the host element recolors the Export button, brand mark, pressed tools, selected page tab, focus rings, marquee, range inputs, selection outline, and text editing outline in every theme. `--ad-focus` follows the accent unless the host sets it.
+- `--ad-header-inset-start` and `--ad-header-inset-end` reserve room at either end of the header.
+- Tokens set on the host element win over the library's theme defaults without extra specificity. With no host tokens the editor looks as in 0.7.
+- `KindView.theme` gives custom kinds the theme of the current paint.
+
+Results and descriptions:
+
+- `apply()` results include `updated` and `removed` id arrays. A removed group lists its descendants, and removed marks are listed. Dry runs report them too.
+- `describe()` lines include `stroke` and `dash` when they differ from `ink` and `solid`. `, by agent` marks items an agent created in this session, not items an agent last edited. The overflow line reads `N more items not listed: ...`; `overflowHint: true` adds the old hint, and the `board_describe` tool sets it.
+
+Compatibility:
+
+- 0.7.0 cannot load a document that holds a pending image without media, and shows `table` and `mark` items as unknown kinds. Other documents load there unchanged.
+- The library applies table sizing to any item of kind `table`, including a host custom kind of that name.
+
+The library has four direct runtime dependencies. IDs use native Web Crypto with the same prefixes, six-character alphabet, and unbiased random selection. The agent tools read JSON schemas generated during the build instead of shipping the converter; their schemas and runtime validation are unchanged. The declared Valibot minimum is 1.5.0, matching the schema converter's peer requirement. The declared `@preact/signals-core` minimum is 1.14.5.
 
 DOMPurify remains a development dependency for sanitizer integration tests and a documented host option; it is no longer an optional peer. Its update to 3.4.17 fixes the reported sanitization advisories. Security checks now include development dependencies in both lockfiles.
 
-Vite 8.3.5, Vitest 5.0.5, Playwright 1.64.1, Prettier 3.9.10, and compatible transitive dependencies are updated. The Forge script defaults to Node.js 24.22.1, and the live MCP smoke test imports the browser launcher from the declared Playwright test package. Node.js 22.12 remains supported.
+Vite 8.3.8, Vitest 5.1.0, Playwright 1.65.0, Prettier 3.9.10, and compatible transitive dependencies are updated, and the MCP example uses `ws` 8.22.2. `@types/node` stays on 22. Vite's Rolldown lists an optional WebAssembly fallback that depends on `tslib` (0BSD); it is installed only on platforms without a native binding and is never shipped, and 0BSD is now an approved license. The Forge script defaults to Node.js 24.22.1, and the live MCP smoke test imports the browser launcher from the declared Playwright test package. Node.js 22.12 remains supported.
+
+The package lockfile matches `0.8.0`. The private MCP example stays `0.1.0`.
 
 ## 0.7.0
 

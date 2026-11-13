@@ -1,6 +1,9 @@
 import type { AnnieDoc, DescribeOptions, Item } from '../core/types';
 import { allItems } from '../core/item';
 import { boundsOf, flattenItems, itemBounds } from '../geo/box';
+import { DEFAULT_STYLE } from '../core/defaults';
+import { tableSummary } from '../core/table';
+import { isOverlay } from '../core/mark';
 const number = (n: number) => Math.round(n * 10) / 10;
 const title = (i: Item) => i.name ?? i.text?.value;
 const quote = (s: string) => JSON.stringify(s.length > 160 ? `${s.slice(0, 157)}…` : s);
@@ -12,6 +15,8 @@ const token = (s: string) => (/^[\w.:#-]{1,160}$/.test(s) ? s : quote(s));
 export interface ItemStamp {
   revision: number;
   origin: string;
+  /** Origin that created the item in this session; absent for items that predate the session. */
+  creator?: string;
   kind: string;
   page: string;
 }
@@ -54,6 +59,13 @@ export function describeDoc(
     if (options.page && stamp.page !== options.page) return false;
     return since !== undefined && stamp.revision > since;
   };
+  const byAgent = (id: string) =>
+    detail !== 'brief' && session?.written.get(id)?.creator?.startsWith('agent:')
+      ? ', by agent'
+      : '';
+  /** Stroke and dash when they differ from the default, quoted like fills. */
+  const lineStyle = (item: Item) =>
+    `${item.style?.stroke && item.style.stroke !== DEFAULT_STYLE.stroke ? `, stroke ${token(item.style.stroke)}` : ''}${item.style?.dash && item.style.dash !== DEFAULT_STYLE.dash ? `, dash ${token(item.style.dash)}` : ''}`;
   let any = false;
   for (const page of pages) {
     const items = flattenItems(page.items).filter(includePresent);
@@ -77,7 +89,7 @@ export function describeDoc(
       continue;
     }
     const sorted = items
-      .filter((i) => i.kind !== 'connector')
+      .filter((i) => i.kind !== 'connector' && !isOverlay(i))
       .sort((a, b) => a.y - b.y || a.x - b.x || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     for (const item of sorted) {
       if (shown >= limit) continue;
@@ -85,9 +97,9 @@ export function describeDoc(
       emitted.add(item.id);
       const b = itemBounds(item, lookup),
         label = title(item);
-      let line = `${token(item.id)} ${token(item.kind)}${label ? ` ${quote(label)}` : ''}`;
+      let line = `${token(item.id)} ${token(item.kind)}${item.kind === 'image' && item.pending === true ? ' (pending)' : ''}${item.kind === 'table' ? tableSummary(item, quote) : ''}${label ? ` ${quote(label)}` : ''}`;
       if (detail !== 'brief')
-        line += ` at (${number(b.x)},${number(b.y)}) ${number(b.w)}×${number(b.h)}${item.style?.fill ? `, fill ${token(item.style.fill)}` : ''}${item.hidden ? ', hidden' : ''}${item.locked ? ', locked' : ''}`;
+        line += ` at (${number(b.x)},${number(b.y)}) ${number(b.w)}×${number(b.h)}${item.style?.fill ? `, fill ${token(item.style.fill)}` : ''}${lineStyle(item)}${item.hidden ? ', hidden' : ''}${item.locked ? ', locked' : ''}`;
       if (item.children?.length)
         line += ` contains ${item.children.map((i) => token(i.id)).join(', ')}`;
       if (detail === 'full' && item.data)
@@ -95,9 +107,7 @@ export function describeDoc(
           .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
           .map(([key, value]) => `data.${token(key)}=${JSON.stringify(value)}`)
           .join(', ')}]`;
-      if (detail !== 'brief' && session?.written.get(item.id)?.origin.startsWith('agent:'))
-        line += ', by agent';
-      lines.push(line);
+      lines.push(line + byAgent(item.id));
     }
     const connections = items.filter((i) => i.kind === 'connector');
     if (connections.length) {
@@ -108,10 +118,23 @@ export function describeDoc(
         emitted.add(item.id);
         const endpoint = (p: Item['from']) =>
           !p ? 'unset' : 'item' in p ? token(p.item) : `(${number(p.x)},${number(p.y)})`;
-        let line = `  ${token(item.id)}: ${endpoint(item.from)} → ${endpoint(item.to)}${title(item) ? ` ${quote(title(item)!)}` : ''} (${item.route ?? 'straight'})`;
-        if (detail !== 'brief' && session?.written.get(item.id)?.origin.startsWith('agent:'))
-          line += ', by agent';
-        lines.push(line);
+        const line = `  ${token(item.id)}: ${endpoint(item.from)} → ${endpoint(item.to)}${title(item) ? ` ${quote(title(item)!)}` : ''} (${item.route ?? 'straight'})`;
+        lines.push(line + (detail !== 'brief' ? lineStyle(item) : '') + byAgent(item.id));
+      }
+    }
+    const marks = items.filter(isOverlay);
+    if (marks.length) {
+      lines.push('Marks:');
+      for (const item of marks) {
+        if (shown >= limit) continue;
+        shown++;
+        emitted.add(item.id);
+        const b = itemBounds(item, lookup),
+          target = String(item.target);
+        let line = `  ${token(item.id)}: ${token(item.mark ?? 'highlight')} on ${token(target)}${item.match ? ` ${quote(item.match)}` : ''}${lookup.has(target) ? '' : ' (target missing)'}`;
+        if (detail !== 'brief')
+          line += ` at (${number(b.x)},${number(b.y)}) ${number(b.w)}×${number(b.h)}${item.style?.fill ? `, fill ${token(item.style.fill)}` : ''}${lineStyle(item)}`;
+        lines.push(line + byAgent(item.id));
       }
     }
     for (const [id, stamp] of gone) {
@@ -137,7 +160,9 @@ export function describeDoc(
       if (relations.length) lines.push(`Layout: ${relations.join('; ')}.`);
     }
     if (options.freeSpace) {
-      const space = since === undefined ? flattenItems(page.items).filter(includePresent) : items;
+      const space = (
+        since === undefined ? flattenItems(page.items).filter(includePresent) : items
+      ).filter((item) => !isOverlay(item));
       const source = space.length ? space : items;
       if (source.length) {
         const b = boundsOf(source, lookup);
@@ -154,12 +179,12 @@ export function describeDoc(
         clusters.set(key, (clusters.get(key) ?? 0) + 1);
       }
       lines.push(
-        `${omitted.length} more items: ${[...clusters]
+        `${omitted.length} more items not listed: ${[...clusters]
           .slice(0, 8)
           .map(([key, count]) => `${count} ${key}`)
           .join(
             '; ',
-          )}${clusters.size > 8 ? `; ${clusters.size - 8} more clusters` : ''}. Use query() or increase maxItems for detail.`,
+          )}${clusters.size > 8 ? `; ${clusters.size - 8} more clusters` : ''}.${options.overflowHint ? ' Use query() or increase maxItems for detail.' : ''}`,
       );
     }
   }

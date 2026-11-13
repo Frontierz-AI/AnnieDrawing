@@ -657,9 +657,9 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       if (!panel) return;
       const row = el('div', 'annie-zoom-controls');
       row.append(
-        button('Zoom out', 'minus', () => (board.view.zoom /= 1.2)),
-        textButton('100%', () => (board.view.zoom = 1), 'annie-zoom-value'),
-        button('Zoom in', 'plus', () => (board.view.zoom *= 1.2)),
+        button('Zoom out', 'minus', () => (board.userView.zoom /= 1.2)),
+        textButton('100%', () => (board.userView.zoom = 1), 'annie-zoom-value'),
+        button('Zoom in', 'plus', () => (board.userView.zoom *= 1.2)),
       );
       panel.append(row);
       showPopover(panel, percentage, fitButton);
@@ -669,7 +669,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
   percentage.setAttribute('aria-label', 'Zoom controls');
   percentage.setAttribute('aria-haspopup', 'true');
   percentage.setAttribute('aria-expanded', 'false');
-  const fitButton = button('Fit drawing', 'fit', () => board.view.fit());
+  const fitButton = button('Fit drawing', 'fit', () => board.userView.fit());
   zoom.append(percentage, fitButton, undo, redo);
   footerRight.append(zoom);
   if (showPages) footer.append(pagesBar, footerRight);
@@ -1180,7 +1180,7 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     const zoomLabel = textButton(
       `${Math.round(board.view.zoom * 100)}%`,
       () => {
-        board.view.zoom = 1;
+        board.userView.zoom = 1;
         zoomLabel.textContent = '100%';
       },
       'annie-zoom-value',
@@ -1191,16 +1191,16 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
     };
     zoomRow.append(
       button('Zoom out', 'minus', () => {
-        board.view.zoom /= 1.2;
+        board.userView.zoom /= 1.2;
         syncZoom();
       }),
       zoomLabel,
       button('Zoom in', 'plus', () => {
-        board.view.zoom *= 1.2;
+        board.userView.zoom *= 1.2;
         syncZoom();
       }),
       button('Fit drawing', 'fit', () => {
-        board.view.fit();
+        board.userView.fit();
         syncZoom();
       }),
     );

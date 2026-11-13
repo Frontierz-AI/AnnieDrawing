@@ -7,9 +7,11 @@ import { LIMITS, VISION_PNG } from './core/schema';
 import { createDoc } from './core/doc';
 import type { LinkPreview } from './core/links';
 import { lockedItems } from './core/locks';
+import { isOverlay } from './core/mark';
 import { clipboardText } from './core/clipboard';
 import { applyDraft, copyItems, detachMissingEndpoints, translateItem } from './core/item';
 import type {
+  AgentLayout,
   AgentPresenceOptions,
   AnnieDoc,
   ApplyIssue,
@@ -25,11 +27,14 @@ import type {
   ExportOptions,
   Item,
   LensState,
+  MediaLoadEvent,
   Op,
   Point,
   Query,
   Scope,
   Style,
+  ViewCause,
+  ViewEvent,
 } from './core/types';
 import { Stage } from './stage/stage';
 import {
@@ -48,6 +53,8 @@ import { mountUI, type UiOptions } from './ui/index';
 export type { UiOptions, UiExportFormat } from './ui/index';
 import { openAutosave, type SaveEvent } from './input/autosave';
 import { measureText } from './input/measure';
+import { fillText } from './stage/richText';
+import { cellAt, tableRows } from './core/table';
 import { cursorForTool } from './input/cursors';
 import type { PasteHost } from './input/urlPaste';
 
@@ -60,8 +67,15 @@ export interface BoardOptions {
    * `hidden`: default undo/redo skip origins that start with `agent:`.
    */
   agentHistory?: 'shared' | 'hidden';
-  /** After an agent arrival, `fit` frames the whole current page. Default `fit`. */
-  agentReveal?: 'none' | 'fit';
+  /** Default `layout` for agent batches. `auto` when omitted; `none` keeps per-node placement. */
+  agentLayout?: AgentLayout;
+  /**
+   * After an agent arrival, `fit` frames the whole current page and `created` flies to what
+   * the batch created unless it is already in view. Default `fit`.
+   */
+  agentReveal?: 'none' | 'fit' | 'created';
+  /** Lowest zoom a `created` reveal uses; larger work shows its top-left part. Default 0.6. */
+  agentRevealMinZoom?: number;
   /** Used when origin starts with `agent:` and place.gap is omitted. Default 32. */
   agentPlaceGap?: number;
   agentPresence?: boolean | AgentPresenceOptions;
@@ -81,10 +95,14 @@ export interface BoardOptions {
 type Events = {
   change: ChangeEvent;
   select: string[];
-  view: LensState;
+  view: ViewEvent;
+  follow: boolean;
+  presented: { ids: string[]; origin: string };
   tool: string;
   page: string;
   save: SaveEvent;
+  /** An image item's picture loaded or failed in this browser. Fires again after each repaint of the picture. */
+  media: MediaLoadEvent;
 };
 type Drag = {
   kind: 'pan' | 'move' | 'resize' | 'rotate' | 'marquee' | 'draw' | 'erase';
@@ -167,20 +185,25 @@ export class Board {
   private previewBase?: AnnieDoc;
   private observer: ResizeObserver;
   private unfurl?: false | ((url: string) => Promise<LinkPreview | undefined>);
-  private agentReveal: 'none' | 'fit';
-  private pendingReveal?: string[];
+  private agentReveal: 'none' | 'fit' | 'created';
+  private revealMinZoom: number;
+  private following = true;
+  private pendingReveal?: { ids: string[]; fit: boolean };
+  private revealed?: { ids: string[]; fit: boolean };
 
   constructor(host: HTMLElement, options: BoardOptions = {}) {
     this.host = host;
     this.readonly = options.readonly ?? false;
     this.agentName = options.agentName?.trim() || undefined;
     this.agentReveal = options.agentReveal ?? 'fit';
+    this.revealMinZoom = Math.min(1, options.agentRevealMinZoom ?? 0.6);
     this.model = createDoc(options.doc, {
       readonly: this.readonly,
       allowedImageOrigins: options.allowedImageOrigins,
       kinds: [...getKinds(), ...(options.kinds ?? [])],
       sanitizeHTML: options.sanitizeHTML,
       agentHistory: options.agentHistory,
+      agentLayout: options.agentLayout,
       agentPlaceGap: options.agentPlaceGap,
     });
     this.document = this.model.toJSON({ compact: false });
@@ -192,6 +215,8 @@ export class Board {
       theme: this.themeValue,
       kinds: options.kinds,
       sanitizeHTML: options.sanitizeHTML,
+      onMedia: (event) => this.emit('media', event),
+      onMarks: () => this.refreshGeometry(),
     });
     this.updateCursor();
     this.refreshGeometry();
@@ -222,7 +247,10 @@ export class Board {
     this.cleanup.push(
       this.stage.lens.onChange((state) => {
         this.schedule();
+        const unfollow = state.cause === 'user' && this.following;
+        if (unfollow) this.following = false;
         this.emit('view', state);
+        if (unfollow) this.emit('follow', false);
       }),
     );
     const bind = <K extends keyof HTMLElementEventMap>(
@@ -369,29 +397,63 @@ export class Board {
     return flattenItems(this.pageItems());
   }
   get view() {
-    const board = this;
+    return this.camera('api');
+  }
+  /** @internal The same controls, reported as direct user input. */
+  get userView() {
+    return this.camera('user');
+  }
+  private camera(cause: ViewCause) {
+    const board = this,
+      lens = this.stage.lens;
+    const map = <T extends Point | Box>(value: T, to: (point: Point) => Point, scale: number): T =>
+      ({
+        ...to({ x: value.x, y: value.y }),
+        ...('w' in value ? { w: value.w * scale, h: value.h * scale } : {}),
+      }) as T;
     return {
       fit(ids?: string[]) {
-        board.stage.lens.fit(board.boundsOf(ids));
+        lens.fit(board.boundsOf(ids), 96, cause);
       },
       flyTo(box: Box) {
-        board.stage.lens.flyTo(box);
+        lens.flyTo(box, cause);
       },
       get zoom() {
-        return board.stage.lens.state.zoom;
+        return lens.state.zoom;
       },
       set zoom(zoom: number) {
-        board.zoomAt(zoom, { x: board.rect.width / 2, y: board.rect.height / 2 });
+        board.zoomAt(zoom, { x: board.rect.width / 2, y: board.rect.height / 2 }, cause);
       },
       get center() {
-        return board.stage.lens.toPage({ x: board.rect.width / 2, y: board.rect.height / 2 });
+        return lens.toPage({ x: board.rect.width / 2, y: board.rect.height / 2 });
       },
       set center(point: Point) {
-        const zoom = board.view.zoom;
-        board.stage.lens.set({
-          x: board.rect.width / 2 - point.x * zoom,
-          y: board.rect.height / 2 - point.y * zoom,
-        });
+        const zoom = lens.zoom;
+        lens.set(
+          { x: board.rect.width / 2 - point.x * zoom, y: board.rect.height / 2 - point.y * zoom },
+          cause,
+        );
+      },
+      /** Agent reveals move the camera only while true. User camera input sets it to false. */
+      get follow() {
+        return board.following;
+      },
+      set follow(value: boolean) {
+        if (value === board.following) return;
+        board.following = value;
+        board.emit('follow', value);
+        if (value && board.revealed) board.revealCreated(board.revealed);
+      },
+      /** The visible page-space box. */
+      get viewport() {
+        return lens.viewport();
+      },
+      /** Page coordinates to pixels from the board's top-left corner. */
+      toScreen<T extends Point | Box>(value: T): T {
+        return map(value, (point) => lens.toScreen(point), lens.zoom);
+      },
+      toPage<T extends Point | Box>(value: T): T {
+        return map(value, (point) => lens.toPage(point), 1 / lens.zoom);
       },
     };
   }
@@ -438,6 +500,8 @@ export class Board {
     return {
       ok: false,
       created: [],
+      updated: [],
+      removed: [],
       errors: [{ index, code: 'LOCKED', message: 'Unlock the selection before editing it.' }],
       warnings: [],
     };
@@ -466,7 +530,9 @@ export class Board {
   boundsOf(ids?: string[]): Box {
     const idsSet = ids ? new Set(ids) : undefined;
     const visible = this.spatial.search({ x: -1e7, y: -1e7, w: 2e7, h: 2e7 });
-    const selection = idsSet ? visible.filter((item) => idsSet.has(item.id)) : visible;
+    const selection = idsSet
+      ? visible.filter((item) => idsSet.has(item.id))
+      : visible.filter((item) => !isOverlay(item));
     return geometryBounds(selection, this.geometryLookup, this.outline);
   }
   apply(ops: Op[], options: ApplyOptions = {}): ApplyResult {
@@ -497,7 +563,15 @@ export class Board {
         );
         batch = ops.filter((_, index) => !blocked.includes(index));
         if (!batch.length)
-          return { ok: false, created: [], errors: [], warnings: [], skipped: lockSkipped };
+          return {
+            ok: false,
+            created: [],
+            updated: [],
+            removed: [],
+            errors: [],
+            warnings: [],
+            skipped: lockSkipped,
+          };
       }
     }
     const prepare = (op: Op): Op => {
@@ -538,8 +612,11 @@ export class Board {
       return op;
     };
     const sent = Array.isArray(batch) ? batch.map(prepare) : batch;
+    const lens = this.stage.lens;
     const result = this.model.apply(sent, {
       origin: 'api',
+      // The agent layout sizes diagrams for what this board shows.
+      ...(origin.startsWith('agent:') ? { viewport: { w: lens.width, h: lens.height } } : {}),
       ...options,
     });
     if (lockSkipped.length && Array.isArray(ops)) {
@@ -557,30 +634,59 @@ export class Board {
       if (origin.startsWith('agent:')) {
         this.render();
         const name = (options.agentName ?? this.agentName)?.trim() || undefined;
-        this.stage.present(result.created, name);
+        const ids = [...result.created];
+        this.stage.present(
+          ids,
+          name,
+          () => queueMicrotask(() => !this.destroyed && this.emit('presented', { ids, origin })),
+          options.presentation?.durationMs,
+        );
       }
       const reveal = options.reveal ?? (origin.startsWith('agent:') ? this.agentReveal : 'none');
-      if (reveal === 'fit') this.queueReveal(result.created);
+      if (reveal !== 'none') this.queueReveal(result.created, reveal === 'fit');
     }
     return result;
   }
-  private queueReveal(ids: string[]) {
-    this.pendingReveal = [...new Set([...(this.pendingReveal ?? []), ...ids])];
+  private queueReveal(ids: string[], fit: boolean) {
+    const pending = this.pendingReveal;
+    this.pendingReveal = {
+      ids: [...new Set([...(pending?.ids ?? []), ...ids])],
+      fit: fit || !!pending?.fit,
+    };
     this.stage.whenPresentationIdle(() => this.flushReveal());
   }
   private flushReveal() {
-    const ids = this.pendingReveal;
+    const target = this.pendingReveal;
     this.pendingReveal = undefined;
-    if (!ids?.length || this.destroyed) return;
-    this.revealCreated(ids);
+    if (!target?.ids.length || this.destroyed) return;
+    this.revealed = target;
+    if (this.following) this.revealCreated(target);
   }
-  private revealCreated(ids: string[]) {
-    const onPage = ids.filter((id) =>
-      flattenItems(this.pageItems()).some((item) => item.id === id),
-    );
+  private revealCreated({ ids, fit }: { ids: string[]; fit: boolean }) {
+    const lens = this.stage.lens,
+      onPage = ids.flatMap((id) => this.geometryLookup.get(id) ?? []);
     if (!onPage.length) return;
     // The last batch alone can crop earlier work; frame everything on this page.
-    this.view.fit();
+    if (fit) return lens.fit(this.boundsOf(), 96, 'agent');
+    const view = lens.viewport();
+    if (
+      lens.zoom <= 1 &&
+      onPage.every((item) => {
+        const box = itemBounds(item, this.geometryLookup, this.outline);
+        return (
+          box.x >= view.x &&
+          box.y >= view.y &&
+          box.x + box.w <= view.x + view.w &&
+          box.y + box.h <= view.y + view.h
+        );
+      })
+    )
+      return;
+    const near = new Set(onPage.map((item) => item.id));
+    for (const item of onPage)
+      for (const end of [item.from, item.to])
+        if (end && 'item' in end && this.geometryLookup.has(end.item)) near.add(end.item);
+    lens.flyTo(this.boundsOf([...near]), 'agent', [this.revealMinZoom, 1]);
   }
   undo(options?: { origin?: string }) {
     this.cancel();
@@ -667,7 +773,18 @@ export class Board {
       return exportJSON(doc);
     }
     const items = doc.pages.flatMap((page) => page.items).map((item) => this.get(item.id) ?? item);
-    const svg = exportSVG(this.document, items, {
+    let source = this.document;
+    // A rasterised SVG loads no external resources, so remote pictures travel as data URLs.
+    if (
+      (format !== 'svg' || options.embedImages) &&
+      flattenItems(items).some((item) =>
+        /^https?:/i.test(source.media[item.media ?? '']?.src ?? ''),
+      )
+    ) {
+      const { inlineMedia } = await import('./porter/inline');
+      source = { ...source, media: await inlineMedia(source.media, items, options.onWarning) };
+    }
+    const svg = exportSVG(source, items, {
       ...options,
       theme: this.stage.resolvedTheme,
       kinds: [...this.stage.kinds.values()],
@@ -920,14 +1037,20 @@ export class Board {
       get: (id) => this.get(id),
     };
   }
-  editText(id: string) {
+  /** Edit a label, or one table cell (`[row, column]`, default the first). */
+  editText(id: string, cell: [number, number] = [0, 0]) {
     if (this.readonly || this.editor) return;
     this.render();
     const item = this.get(id);
     if (!item || this.isLocked(id)) return;
     const view = this.stage.world.querySelector<HTMLElement>(`[data-ad-id="${CSS.escape(id)}"]`);
     if (!view) return;
-    let text = view.querySelector<HTMLElement>('.annie-text');
+    const table = item.kind === 'table' ? tableRows(item) : undefined,
+      cellKey = cell.join(',');
+    let text = view.querySelector<HTMLElement>(
+      table ? `[data-ad-cell="${cellKey}"]` : '.annie-text',
+    );
+    if (table && !text) return;
     if (!text) {
       text = document.createElement('div');
       text.className = 'annie-text';
@@ -935,12 +1058,12 @@ export class Board {
     }
     text.contentEditable = 'plaintext-only';
     text.setAttribute('role', 'textbox');
-    text.setAttribute('aria-label', 'Edit text');
+    text.setAttribute('aria-label', table ? `Edit cell ${cellKey}` : 'Edit text');
     text.style.pointerEvents = 'auto';
-    text.style.display = 'flex';
+    if (!table) text.style.display = 'flex';
     text.classList.add('annie-editing');
     this.editor = text;
-    const before = item.text?.value ?? '';
+    const before = table ? table[cell[0]][cell[1]] : (item.text?.value ?? '');
     text.textContent = before;
     text.focus();
     const range = document.createRange();
@@ -959,6 +1082,18 @@ export class Board {
       text!.removeAttribute('aria-label');
       text!.removeEventListener('blur', blur);
       text!.removeEventListener('keydown', key);
+      if (table) {
+        text!.textContent = before;
+        text!.style.pointerEvents = '';
+        if (save && value !== before)
+          this.apply([{ op: 'set', id, patch: { cells: { [cellKey]: value } } }], {
+            origin: 'user',
+            label: 'Edit cell',
+          });
+        this.render();
+        if (refocus) this.focus();
+        return;
+      }
       if (save && value !== before) {
         const updatedText = { ...this.get(id)?.text, value };
         const dimensions =
@@ -971,7 +1106,11 @@ export class Board {
         });
       }
       const saved = this.get(id);
-      text!.textContent = saved?.text?.value ?? before;
+      fillText(
+        text!,
+        saved?.text?.value ?? before,
+        saved?.text?.format === 'md' && saved.kind !== 'connector',
+      );
       text!.style.display = saved?.text ? 'flex' : 'none';
       this.render();
       if (refocus) this.focus();
@@ -991,6 +1130,15 @@ export class Board {
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         finish();
+      }
+      if (table && e.key === 'Tab') {
+        e.preventDefault();
+        const columns = table[0].length,
+          next = cell[0] * columns + cell[1] + (e.shiftKey ? -1 : 1);
+        finish(true, false);
+        if (next >= 0 && next < table.length * columns)
+          this.editText(id, [Math.floor(next / columns), next % columns]);
+        else this.focus();
       }
     };
     text.addEventListener('blur', blur);
@@ -1095,12 +1243,12 @@ export class Board {
     const all = new Map<string, Item>();
     for (const id of ids) {
       const item = this.get(id);
-      if (item && !item.locked)
+      if (item && !item.locked && !isOverlay(item))
         for (const child of [item, ...flattenItems(item.children ?? [])]) all.set(child.id, child);
     }
     return [...all.values()];
   }
-  private outline = (item: Item) => this.stage.kinds.get(item.kind)?.outline?.(item);
+  private outline = (item: Item) => this.stage.resolveOutline(item);
   /** Hit-testing uses committed geometry; drafts do not update this index. */
   private refreshGeometry() {
     const items = this.pageItems();
@@ -1129,10 +1277,10 @@ export class Board {
       return undefined;
     return item;
   }
-  private zoomAt(zoom: number, screen: Point) {
+  private zoomAt(zoom: number, screen: Point, cause: ViewCause) {
     zoom = Math.max(0.05, Math.min(8, zoom));
     const p = this.stage.lens.toPage(screen);
-    this.stage.lens.set({ zoom, x: screen.x - p.x * zoom, y: screen.y - p.y * zoom });
+    this.stage.lens.set({ zoom, x: screen.x - p.x * zoom, y: screen.y - p.y * zoom }, cause);
   }
   private releasePointer = () => {
     const point = this.getPointer();
@@ -1355,11 +1503,14 @@ export class Board {
             (this.pinch.zoom * Math.hypot(a.x - b.x, a.y - b.y)) / Math.max(1, this.pinch.distance),
           ),
         );
-      this.stage.lens.set({
-        zoom,
-        x: center.x - this.pinch.anchor.x * zoom,
-        y: center.y - this.pinch.anchor.y * zoom,
-      });
+      this.stage.lens.set(
+        {
+          zoom,
+          x: center.x - this.pinch.anchor.x * zoom,
+          y: center.y - this.pinch.anchor.y * zoom,
+        },
+        'user',
+      );
       return;
     }
     const drag = this.drag;
@@ -1372,10 +1523,13 @@ export class Board {
     drag.moved = true;
     drag.last = p;
     if (drag.kind === 'pan') {
-      this.stage.lens.set({
-        x: drag.camera.x + screen.x - drag.screen.x,
-        y: drag.camera.y + screen.y - drag.screen.y,
-      });
+      this.stage.lens.set(
+        {
+          x: drag.camera.x + screen.x - drag.screen.x,
+          y: drag.camera.y + screen.y - drag.screen.y,
+        },
+        'user',
+      );
       return;
     }
     if (drag.kind === 'move') {
@@ -1746,12 +1900,12 @@ export class Board {
     if (this.isUI(e.target)) return;
     e.preventDefault();
     if (e.ctrlKey || e.metaKey)
-      this.zoomAt(this.view.zoom * Math.exp(-e.deltaY * 0.008), this.point(e));
+      this.zoomAt(this.view.zoom * Math.exp(-e.deltaY * 0.008), this.point(e), 'user');
     else
-      this.stage.lens.set({
-        x: this.stage.lens.state.x - e.deltaX,
-        y: this.stage.lens.state.y - e.deltaY,
-      });
+      this.stage.lens.set(
+        { x: this.stage.lens.state.x - e.deltaX, y: this.stage.lens.state.y - e.deltaY },
+        'user',
+      );
   };
   private doubleClick = (e: MouseEvent) => {
     if (this.isUI(e.target) || Date.now() - this.touchDoubleAt < 500) return;
@@ -1793,7 +1947,10 @@ export class Board {
       this.activateEmbedded(item);
       return;
     }
-    if (item && !['image', 'path', 'line', 'link'].includes(item.kind)) this.editText(item.id);
+    if (item?.kind === 'table')
+      this.editText(item.id, cellAt(item, this.stage.lens.toPage(screen)));
+    else if (item && !['image', 'path', 'line', 'link', 'mark'].includes(item.kind))
+      this.editText(item.id);
     else if (!item && !this.readonly) this.add('text', this.stage.lens.toPage(screen));
   }
   private activateEmbedded(item: Item) {
@@ -1861,19 +2018,19 @@ export class Board {
       return;
     }
     if (key === '1' && !mod) {
-      this.view.zoom = 1;
+      this.userView.zoom = 1;
       return;
     }
     if (key === '2' && !mod) {
-      this.view.fit();
+      this.userView.fit();
       return;
     }
     if (key === '+' || key === '=') {
-      this.view.zoom *= 1.2;
+      this.userView.zoom *= 1.2;
       return;
     }
     if (key === '-') {
-      this.view.zoom /= 1.2;
+      this.userView.zoom /= 1.2;
       return;
     }
     if (this.readonly) return;
@@ -1908,7 +2065,7 @@ export class Board {
       e.preventDefault();
       const selected = this.get(this.selection[0]);
       if (selected?.kind === 'html' || selected?.kind === 'video') this.activateEmbedded(selected);
-      else if (selected && !['image', 'path', 'line', 'link'].includes(selected.kind))
+      else if (selected && !['image', 'path', 'line', 'link', 'mark'].includes(selected.kind))
         this.editText(selected.id);
       return;
     }

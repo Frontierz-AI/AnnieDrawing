@@ -2,8 +2,18 @@ import { CARD_CORNER } from '../core/defaults';
 import { allItems } from '../core/item';
 import { hostnameOf, normalizeHref, parseVideo } from '../core/links';
 import { wrapPlainText } from '../core/textFit';
+import { richTextRows } from './richSvg';
 import type { AnnieDoc, Box, ExportOptions, Item } from '../core/types';
-import { boundsOf, flattenItems, routeConnector } from '../geo/index';
+import {
+  boundsOf,
+  connectorLabel,
+  flattenItems,
+  itemBounds,
+  labelLines,
+  markGeometry,
+  routeConnector,
+} from '../geo/index';
+import { markBlend, markMarkup } from '../stage/mark';
 import { createKindRegistry, type KindDef } from '../kinds/registry';
 import {
   color,
@@ -25,19 +35,20 @@ export interface SVGExportOptions extends ExportOptions {
 function wrapText(value: string, width: number, size: number): string[] {
   return wrapPlainText(value, width, size, 0.53);
 }
-function textMarkup(
-  item: Item,
-  theme: 'light' | 'dark',
-  connectorPoint?: { x: number; y: number },
-): string {
+function textMarkup(item: Item, theme: 'light' | 'dark', box?: Box): string {
   if (!item.text?.value) return '';
   const size = fontSize(item.text);
   const padding = item.kind === 'text' ? 0 : item.kind === 'note' ? 20 : 12;
-  const width = connectorPoint
-    ? 220
-    : item.w * (item.kind === 'diamond' ? 0.6 : item.kind === 'ellipse' ? 0.75 : 1) - padding * 2;
-  const lines = wrapText(item.text.value, width, size);
-  const lineHeight = size * 1.35;
+  const width =
+    item.w * (item.kind === 'diamond' ? 0.6 : item.kind === 'ellipse' ? 0.75 : 1) - padding * 2;
+  if (item.text.format === 'md' && !box) {
+    const align = item.text.align ?? (item.kind === 'text' ? 'start' : 'center');
+    return `<text font-family="${esc(fontFamily(item.text.font))}" font-size="${size}" text-anchor="${align === 'center' ? 'middle' : align}" fill="${esc(labelColor(item, theme))}">${richTextRows(item, size, padding, width, 0.53)}</text>`;
+  }
+  // Connector labels wrap like the shared headless label box, so the board and export agree.
+  const lines = box ? labelLines(item.text) : wrapText(item.text.value, width, size);
+  const lineHeight = size * (box ? 1.25 : 1.35);
+  const connectorPoint = box && { x: box.x + box.w / 2, y: box.y + box.h / 2 };
   const align = item.text.align ?? (item.kind === 'text' ? 'start' : 'center');
   const anchor = align === 'start' ? 'start' : align === 'end' ? 'end' : 'middle';
   const x =
@@ -51,9 +62,8 @@ function textMarkup(
       : item.text.valign === 'bottom'
         ? item.h - padding - textHeight + size
         : (item.h - textHeight) / 2 + size;
-  const longest = Math.max(...lines.map((line) => line.length)) * size * 0.53;
-  const label = connectorPoint
-    ? `<rect x="${x - longest / 2 - 7}" y="${connectorPoint.y - textHeight / 2 - 2}" width="${longest + 14}" height="${textHeight + 4}" rx="4" fill="${color('paper', theme)}"/>`
+  const label = box
+    ? `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="5" fill="${color('paper', theme)}"/>`
     : '';
   return `${label}<text x="${x}" y="${y}" font-family="${esc(fontFamily(item.text.font))}" font-size="${size}" text-anchor="${connectorPoint ? 'middle' : anchor}" fill="${esc(labelColor(item, theme))}">${lines.map((line, index) => `<tspan x="${x}" dy="${index ? lineHeight : 0}">${esc(line) || '&#160;'}</tspan>`).join('')}</text>`;
 }
@@ -159,7 +169,12 @@ function cardExport(item: Item, theme: 'light' | 'dark', doc: AnnieDoc, index: n
 /** Create a portable SVG without scripts, foreignObject, or a DOM dependency. */
 export function exportSVG(doc: AnnieDoc, items: Item[], options: SVGExportOptions = {}): string {
   const theme = options.theme ?? 'light';
-  const all = allItems(doc);
+  // Route against the pages being exported, as the stage routes against its page.
+  const ids = new Set(flattenItems(items).map((item) => item.id));
+  const pages = doc.pages.filter((page) =>
+    flattenItems(page.items).some((item) => ids.has(item.id)),
+  );
+  const all = allItems(pages.length ? { ...doc, pages } : doc);
   const lookup = new Map(all.map((item) => [item.id, item]));
   const kinds = createKindRegistry(options.kinds);
   const resolveOutline = (item: Item) => kinds.get(item.kind)?.outline?.(item);
@@ -174,6 +189,9 @@ export function exportSVG(doc: AnnieDoc, items: Item[], options: SVGExportOption
   const seen = new Set<string>();
   const visible = flattenItems(items).filter((item) => {
     if (seen.has(item.id) || hidden.has(item.id) || item.hidden) return false;
+    // A mark is drawn only with a target, and only while that target is shown.
+    if (item.kind === 'mark' && (!markGeometry(item, lookup) || hidden.has(item.target!)))
+      return false;
     seen.add(item.id);
     return true;
   });
@@ -193,6 +211,7 @@ export function exportSVG(doc: AnnieDoc, items: Item[], options: SVGExportOption
     const definition = kinds.get(item.kind);
     const connector =
       item.kind === 'connector' ? routeConnector(item, lookup, resolveOutline) : undefined;
+    const mark = item.kind === 'mark' ? markGeometry(item, lookup) : undefined;
     if (definition?.toSVG) {
       const custom = definition.toSVG(item, {
         doc,
@@ -217,6 +236,10 @@ export function exportSVG(doc: AnnieDoc, items: Item[], options: SVGExportOption
           item,
           theme,
         );
+    } else if (mark) {
+      const { x, y, w, h, rotation } = mark.frame,
+        blend = markBlend(item, theme);
+      markup = `<g transform="translate(${x} ${y}) rotate(${rotation} ${w / 2} ${h / 2})"${blend ? ` style="mix-blend-mode:${blend}"` : ''}>${markMarkup(item, mark.shapes, theme)}</g>`;
     } else if (item.kind === 'image') {
       const media = item.media ? doc.media[item.media] : undefined;
       const radius = Math.min(item.style?.corner ?? CARD_CORNER, item.w / 2, item.h / 2);
@@ -227,6 +250,12 @@ export function exportSVG(doc: AnnieDoc, items: Item[], options: SVGExportOption
             ? `<svg width="${item.w}" height="${item.h}" viewBox="${item.crop.x} ${item.crop.y} ${item.crop.w} ${item.crop.h}" preserveAspectRatio="none" overflow="hidden"><image width="${media.w}" height="${media.h}" href="${esc(media.src)}" preserveAspectRatio="none"/></svg>`
             : `<image width="${item.w}" height="${item.h}" href="${esc(media.src)}" preserveAspectRatio="none"/>`;
         markup = `<defs><clipPath id="${clip}"><rect width="${item.w}" height="${item.h}" rx="${radius}"/></clipPath></defs><g clip-path="url(#${clip})">${clipped}</g>`;
+      } else {
+        // Pending, missing, or not embeddable: a labeled box in place of the picture.
+        const label = fitLine(item.name ?? 'Image', item.w - 24, 13),
+          progress =
+            item.pending === true && typeof item.progress === 'number' ? item.progress : -1;
+        markup = `<rect width="${item.w}" height="${item.h}" rx="${radius}" fill="${color('slate', theme)}" fill-opacity=".14" stroke="#8F93F9" stroke-dasharray="5 4"/>${progress >= 0 ? `<rect x="${radius / 2}" y="${item.h - 6}" width="${round((item.w - radius) * progress)}" height="4" rx="2" fill="${color('teal', theme)}"/>` : ''}<text x="${item.w / 2}" y="${item.h / 2 + 5}" text-anchor="middle" fill="${color('ink', theme)}" font-family="${esc(fonts.sans)}" font-size="13">${esc(label)}</text>`;
       }
     } else if (item.kind === 'video' || item.kind === 'link') {
       markup = cardExport(item, theme, doc, itemIndex);
@@ -234,15 +263,17 @@ export function exportSVG(doc: AnnieDoc, items: Item[], options: SVGExportOption
       markup = `<rect width="${item.w}" height="${item.h}" rx="8" fill="${color('paper', theme)}" stroke="#8F93F9" stroke-dasharray="5 4"/><text x="12" y="24" fill="${color('ink', theme)}" font-family="${esc(fonts.sans)}" font-size="14">${esc(item.kind === 'html' ? 'HTML content' : `Unknown kind: ${item.kind}`)}</text>`;
     }
     if (item.kind !== 'video' && item.kind !== 'link')
-      markup += textMarkup(item, theme, connector?.midpoint);
+      markup += textMarkup(item, theme, connector && connectorLabel(item, lookup, resolveOutline));
     if (options.labels) {
-      const x = connector ? connector.bounds.x : 0,
-        y = connector ? connector.bounds.y - 22 : -22;
+      const at = connector?.bounds ?? (mark ? itemBounds(item, lookup) : undefined),
+        x = at ? at.x : 0,
+        y = at ? at.y - 22 : -22;
       markup += `<rect x="${x}" y="${y}" width="${item.id.length * 6.6 + 12}" height="17" rx="4" fill="#103639"/><text x="${x + 6}" y="${y + 12}" fill="#FFFFFF" font-family="monospace" font-size="10">${esc(item.id)}</text>`;
     }
-    const transform = connector
-      ? ''
-      : `translate(${item.x} ${item.y}) rotate(${item.rotation ?? 0} ${item.w / 2} ${item.h / 2})`;
+    const transform =
+      connector || mark
+        ? ''
+        : `translate(${item.x} ${item.y}) rotate(${item.rotation ?? 0} ${item.w / 2} ${item.h / 2})`;
     const group = `<g data-ad-id="${esc(item.id)}" data-ad-kind="${esc(item.kind)}"${transform ? ` transform="${transform}"` : ''}${item.style?.opacity !== undefined ? ` opacity="${item.style.opacity}"` : ''}><title>${esc(item.name ?? item.text?.value ?? item.kind)}</title>${markup}</g>`;
     output.push(group);
   }

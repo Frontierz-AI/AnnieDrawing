@@ -1,5 +1,6 @@
 import { KIND_CATALOG } from '../core/catalog';
 import type { AnnieDoc, Item, Outline, Point } from '../core/types';
+import { tableKind } from '../stage/table';
 
 export type { Outline };
 export interface KindView {
@@ -7,6 +8,8 @@ export interface KindView {
   shape: SVGSVGElement;
   text: HTMLDivElement;
   doc: AnnieDoc;
+  /** Board theme of the current paint. */
+  theme?: 'light' | 'dark';
 }
 export interface SVGContext {
   doc: AnnieDoc;
@@ -36,6 +39,7 @@ export interface KindDef {
 }
 const registry = new Map<string, KindDef>();
 for (const { kind } of KIND_CATALOG) registry.set(kind, { kind });
+registry.set('table', tableKind);
 
 /** Declare a reusable kind; registration is scoped to each board's options. */
 export function defineKind<T extends KindDef>(definition: T): T {
