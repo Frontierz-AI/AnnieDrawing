@@ -34,6 +34,10 @@ const notesNode = (extra: Partial<Item> = {}): Op => ({
   item: { id: 'notes', kind: 'rect', x: 100, y: 80, w: 220, h: 160, text: notes, ...extra },
 });
 
+/** The text of exporter markup: what sits between its tags, joined. Reads; it does not sanitize. */
+const textBetweenTags = (markup: string) =>
+  [...markup.matchAll(/(?:^|>)([^<>]*)/g)].map((piece) => piece[1]).join('');
+
 /** Exported rows of one label: `[x, baseline y, text]`, from the exporter's own tspans. */
 function exportedRows(svg: string, id: string): [number, number, string][] {
   const group = svg.slice(svg.indexOf(`data-ad-id="${id}"`));
@@ -43,7 +47,7 @@ function exportedRows(svg: string, id: string): [number, number, string][] {
     ...text.matchAll(/<tspan x="([-\d.]+)" y="([-\d.]+)"[^>]*>((?:(?!<tspan x=).)*)/g),
   ];
   if (absolute.length)
-    return absolute.map((m) => [Number(m[1]), Number(m[2]), m[3].replace(/<[^>]+>/g, '')]);
+    return absolute.map((m) => [Number(m[1]), Number(m[2]), textBetweenTags(m[3])]);
   const top = Number(/<text x="[-\d.]+" y="([-\d.]+)"/.exec(text)![1]);
   return [...text.matchAll(/<tspan x="([-\d.]+)" dy="[-\d.]+">([^<]*)<\/tspan>/g)].map((m, i) => [
     Number(m[1]),
@@ -272,6 +276,43 @@ describe('mark lifecycle', () => {
     expect(doc.apply([{ op: 'set', id: 'm', patch: { target: 'nope' } }]).ok).toBe(false);
     expect(doc.apply([{ op: 'add', item: { kind: 'arrow', from: 'm', to: 'b' } }]).ok).toBe(false);
     expect(doc.apply([{ op: 'set', id: 'm', patch: { target: 'b' } }]).ok).toBe(true);
+  });
+
+  it('checks marks nested in a group, a new page, or replaced children', () => {
+    const doc = board([
+      notesNode(),
+      { op: 'add', item: { id: 'b', kind: 'rect', x: 500, y: 0 } },
+      { op: 'add', item: { id: 'arrow', kind: 'arrow', from: 'notes', to: 'b' } },
+    ]);
+    const group = (children: Item[]): Op => ({
+      op: 'add',
+      item: { id: 'g', kind: 'group', children },
+    });
+    const mark = (target: string) => ({ id: 'gm', kind: 'mark', target }) as Item;
+    const inner = { id: 'in', kind: 'rect', x: 0, y: 300, w: 80, h: 60 } as Item;
+    for (const target of ['nope', 'arrow', 'gm']) {
+      const result = doc.apply([group([inner, mark(target)])], fellow);
+      expect(result.ok, target).toBe(false);
+      expect(result.errors[0].message).toMatch(/Mark gm/);
+      const paged = doc.apply([{ op: 'page.add', page: { name: 'Two', items: [mark(target)] } }]);
+      expect(paged.ok, `page ${target}`).toBe(false);
+    }
+    // A nested mark may target a sibling in the same tree, or an item already on the page.
+    expect(doc.apply([group([inner, mark('in')])], fellow).errors).toEqual([]);
+    expect(doc.get('gm')).toMatchObject({ target: 'in', x: 0, y: 0, w: 0, h: 0 });
+    expect(doc.apply([{ op: 'set', id: 'gm', patch: { target: 'notes' } }]).ok).toBe(true);
+    const second = [
+      { ...inner, id: 'in2' },
+      { ...mark('in2'), id: 'pm' },
+    ];
+    expect(doc.apply([{ op: 'page.add', page: { name: 'Two', items: second } }]).errors).toEqual(
+      [],
+    );
+    // Replacing children: a mark the patch introduces is checked, one it resends is kept.
+    const kept = doc.get('g')!.children!;
+    const bad = { id: 'gm2', kind: 'mark', target: 'nope' } as Item;
+    expect(doc.apply([{ op: 'set', id: 'g', patch: { children: [...kept, bad] } }]).ok).toBe(false);
+    expect(doc.apply([{ op: 'set', id: 'g', patch: { children: kept } }]).errors).toEqual([]);
   });
 
   it('loads documents whose marks lost their target and keeps them', () => {

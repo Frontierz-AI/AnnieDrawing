@@ -49,7 +49,7 @@ import { MEDIA_DATA_URL, normalizeHref, parseVideo } from './links';
 import { growAgentLabeledTree, LABEL_BOX_KINDS, textPlaceGap } from './textFit';
 import { followMedia, patchImage, sizeImage } from './image';
 import { fitNewTables, patchCells, refitTable } from './table';
-import { checkMark, dropMarks, isOverlay } from './mark';
+import { checkMark, checkNewMarks, dropMarks, isOverlay } from './mark';
 interface Location {
   item: Item;
   list: Item[];
@@ -529,10 +529,8 @@ function perform(
     if (!page) throw new Error(`Page ${op.page ?? '(first)'} does not exist.`);
     if (parent && op.page && op.page !== parent.page.id)
       throw new Error('Parent and page must refer to the same page.');
-    if (isOverlay(item)) {
-      checkMark(item, flattenItems(page.items));
-      delete op.place;
-    }
+    checkNewMarks([item], flattenItems(page.items));
+    if (isOverlay(item)) delete op.place;
     // Nodes waiting for the batch layout neither block nor anchor per-node placement.
     const solid = (list: Item[]) =>
       layout ? list.filter((entry) => !layout.pending.has(entry.id)) : list;
@@ -663,6 +661,11 @@ function perform(
         flattenItems(at.list[at.index].children ?? []).map((item) => item.id),
       );
       created = [...newDescendants].filter((id) => !oldLookup.has(id));
+      checkNewMarks(
+        at.list[at.index].children ?? [],
+        flattenItems(at.page.items),
+        (mark) => !oldLookup.has(mark.id),
+      );
       inverse.push(...detachMissingEndpoints(at.page.items, oldLookup, outline));
     }
     return { op: { ...op, patch }, moved, inverse, created };
@@ -729,6 +732,7 @@ function perform(
       page.items.forEach((item) => sanitizeAgentItems(item, options.sanitizeHTML));
     if (op.index !== undefined && op.index > doc.pages.length)
       throw new Error('Page insert index is outside the page list.');
+    checkNewMarks(page.items, []);
     doc.pages.splice(op.index ?? doc.pages.length, 0, page);
     inverse = [{ op: 'page.remove', id: page.id }];
     created = flattenItems(page.items).map((i) => i.id);
@@ -932,8 +936,13 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
   const sessionLog: ChangeSlice[] = [];
   const written = new Map<string, ItemStamp>(),
     removed = new Map<string, ItemStamp>();
-  /** Origin of the last change to each item's position or size this session; the layout moves only agent ones. */
-  const placedBy = new Map<string, string>();
+  /**
+   * Who gave each item its position and size this session, newest last, as `[geometry, origin]`.
+   * The layout moves only items an agent placed. Returning to an earlier geometry, as undo does,
+   * returns to its origin, so an undone drag leaves the item agent-placed.
+   */
+  const placedBy = new Map<string, [string, string][]>();
+  const placement = (item: Item) => [item.x, item.y, item.w, item.h, item.rotation ?? 0].join();
   const hideAgent = () => options.agentHistory === 'hidden';
   const agentOrigin = (origin: string) => origin.startsWith('agent:');
   const walkBack = (stack: { origin: string }[], keep: (origin: string) => boolean) => {
@@ -966,8 +975,14 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
           ...(creator ? { creator } : {}),
         });
         removed.delete(id);
-        if (!prev || (['x', 'y', 'w', 'h', 'rotation'] as const).some((k) => prev[k] !== item[k]))
-          placedBy.set(id, origin);
+        const key = placement(item);
+        if (!prev || placement(prev) !== key) {
+          const trail = prev ? (placedBy.get(id) ?? []) : [],
+            seen = trail.findIndex(([geometry]) => geometry === key);
+          if (seen >= 0) trail.length = seen + 1;
+          else trail.push([key, origin]);
+          placedBy.set(id, trail.slice(-8));
+        }
       }
     }
     for (const [id, item] of beforeItems) {
@@ -1177,7 +1192,7 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
           undo: Op[] = [];
         try {
           layoutPages(draft.pages, layout, {
-            placed: (id) => !!placedBy.get(id)?.startsWith('agent:'),
+            placed: (id) => !!placedBy.get(id)?.at(-1)?.[1].startsWith('agent:'),
             shift: (item, shift) => shiftItem(item, shift, shifted, undo),
             gap: options.agentPlaceGap ?? 32,
             viewport: applyOptions.viewport,

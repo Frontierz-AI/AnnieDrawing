@@ -269,6 +269,26 @@ export function checkMark(mark: Item, items: Item[], patch?: Partial<Item>): voi
 }
 
 /**
+ * Check every mark in added trees, nested ones included, against the page and the trees
+ * themselves, so a mark inside a group or a new page cannot skip the target rule. `isNew`
+ * limits the check to marks an operation introduces.
+ */
+export function checkNewMarks(
+  roots: Item[],
+  items: Item[],
+  isNew: (mark: Item) => boolean = () => true,
+): void {
+  const added: Item[] = [];
+  const walk = (item: Item) => {
+    added.push(item);
+    item.children?.forEach(walk);
+  };
+  roots.forEach(walk);
+  const all = [...items, ...added.filter((item) => !items.includes(item))];
+  for (const mark of added) if (isOverlay(mark) && isNew(mark)) checkMark(mark, all);
+}
+
+/**
  * Remove the marks on `root` or its descendants from the page, so a removed target takes its
  * marks with it. Marks inside `root` leave with it anyway. Returns the inverse adds in undo order.
  */

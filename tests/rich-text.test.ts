@@ -200,7 +200,11 @@ describe('md SVG export', () => {
     expect(svg).toContain('<tspan font-style="italic">italic</tspan>');
     // Start-aligned list items: the marker at the padding, the content one hanging indent further.
     expect(svg).toMatch(/<tspan x="12" y="[\d.]+">•<\/tspan><tspan x="36" y="[\d.]+">First /);
-    const visible = svg.replace(/<title>[^<]*<\/title>/g, '').replace(/<[^>]+>/g, '');
+    // What a reader sees: the text between tags, without the `<title>` elements.
+    const visible = [...svg.matchAll(/<(\/?)([\w:-]+)[^<>]*>([^<>]*)/g)]
+      .filter(([, closing, tag]) => closing || tag !== 'title')
+      .map((piece) => piece[3])
+      .join('');
     expect(visible).not.toContain('**');
     expect(visible).not.toContain('# ');
     expect(visible).not.toContain('- ');
