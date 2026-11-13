@@ -241,13 +241,20 @@ describe('mark geometry', () => {
         { shapes } = markGeometry(doc.get(`h_${id}`)!, lookup)!;
       expect(shapes, id).toHaveLength(1);
       expect(shapes[0]).toMatchObject({ fill: false, halo: true });
-      // The band is closed and every point of its center line is outside the item.
-      expect(shapes[0].points.at(-1)).toEqual(shapes[0].points[0]);
+      // Every point of the band's center line is outside the item, and no point repeats.
+      expect(new Set(shapes[0].points.map((p) => `${p.x},${p.y}`)).size).toBe(
+        shapes[0].points.length,
+      );
       for (const point of shapes[0].points) expect(inside(target, point), id).toBe(false);
       const box = boundsOfId(doc, `h_${id}`);
       expect(box.x).toBeLessThan(target.x - 9.9);
       expect(box.w).toBeGreaterThan(target.w + 19.9);
     }
+    // The band is drawn as one closed path, so its corners all join the same way.
+    const svg = exportSVG(doc.toJSON(), doc.toJSON().pages[0].items);
+    const bands = [...svg.matchAll(/<path d="([^"]+)" fill="none"[^>]*stroke-width="8"/g)];
+    expect(bands).toHaveLength(3);
+    for (const [, d] of bands) expect(d.endsWith(' Z'), d).toBe(true);
     // Standalone text has no fill to protect: the marker band stays.
     expect(markGeometry(doc.get('h_line')!, lookup)!.shapes).toEqual([
       expect.objectContaining({ fill: true }),

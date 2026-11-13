@@ -16,7 +16,7 @@ export function markMarkup(mark: Item, shapes: MarkShape[], theme: 'light' | 'da
   return shapes
     .map((shape) =>
       shape.halo
-        ? `<path d="${pathFromPoints(shape.points)}" fill="none" stroke="${esc(fill)}" stroke-opacity="${theme === 'light' ? 0.7 : 0.6}" stroke-width="${MARK_HALO.width}" stroke-linejoin="round"/>`
+        ? `<path d="${pathFromPoints(shape.points, true)}" fill="none" stroke="${esc(fill)}" stroke-opacity="${theme === 'light' ? 0.7 : 0.6}" stroke-width="${MARK_HALO.width}" stroke-linejoin="round"/>`
         : shape.fill
           ? `<path d="${pathFromPoints(shape.points, true)}" fill="${esc(fill)}" fill-opacity="${theme === 'light' ? 0.7 : 0.38}"/>`
           : `<path d="${pathFromPoints(shape.points)}" fill="none" stroke="${esc(stroke)}" stroke-width="${markStroke(mark)}" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`,

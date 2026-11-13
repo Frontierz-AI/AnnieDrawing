@@ -31,7 +31,7 @@ export function markFrame(target: Item, bounds: Box): MarkFrame {
     : { x: target.x, y: target.y, w: target.w, h: target.h, rotation: target.rotation ?? 0 };
 }
 
-/** One stroke or fill of a mark, in frame coordinates. `halo` is the wide band around a whole item. */
+/** One stroke or fill of a mark, in frame coordinates. `halo` is the wide band around a whole item, a closed outline. */
 export interface MarkShape {
   fill: boolean;
   points: Point[];
@@ -201,7 +201,7 @@ function loop(box: Box, seed: string): Point[] {
   return points;
 }
 
-/** The outline of a rectangle, ellipse, or diamond of size `w` by `h`, `gap` outside it, closed. */
+/** The outline of a rectangle, ellipse, or diamond of size `w` by `h`, `gap` outside it. Drawn closed. */
 function haloPoints(kind: string, w: number, h: number, gap: number): Point[] {
   const a = w / 2,
     b = h / 2;
@@ -223,7 +223,7 @@ function haloPoints(kind: string, w: number, h: number, gap: number): Point[] {
       { x: -dx, y: b },
     ];
   } else points = corners(around(corners({ x: 0, y: 0, w, h }), gap));
-  return [...points, points[0]];
+  return points;
 }
 
 /**
