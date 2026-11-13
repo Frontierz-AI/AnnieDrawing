@@ -201,7 +201,118 @@ describe('mark geometry', () => {
     const result = doc.apply([{ op: 'set', id: 'notes', patch: { text: 'No phrase here' } }]);
     expect(result.ok).toBe(true);
     expect(doc.get('m')).toMatchObject({ match: 'trial run' });
-    expect(boundsOfId(doc, 'm')).toEqual(node);
+    // A fallback highlight is a halo around the node: 6 px out, 8 px wide.
+    expect(boundsOfId(doc, 'm')).toEqual({
+      x: node.x - 10,
+      y: node.y - 10,
+      w: node.w + 20,
+      h: node.h + 20,
+    });
+  });
+
+  it('highlights a whole item with a halo around it, and whole text with a band', () => {
+    const doc = board([
+      notesNode({ style: { fill: 'teal', fillMode: 'tint' } }),
+      { op: 'add', item: { id: 'oval', kind: 'ellipse', x: 400, y: 80, w: 200, h: 120 } },
+      { op: 'add', item: { id: 'gem', kind: 'diamond', x: 700, y: 80, w: 160, h: 140 } },
+      {
+        op: 'add',
+        item: { id: 'line', kind: 'text', x: 100, y: 320, w: 300, h: 25, text: 'A line' },
+      },
+    ]);
+    doc.apply(
+      ['notes', 'oval', 'gem', 'line'].map((target) => ({
+        op: 'add' as const,
+        item: { id: `h_${target}`, kind: 'mark', target },
+      })),
+    );
+    const lookup = lookupOf(doc);
+    const inside = (target: Item, p: { x: number; y: number }) => {
+      const x = (p.x - target.w / 2) / (target.w / 2),
+        y = (p.y - target.h / 2) / (target.h / 2);
+      return target.kind === 'ellipse'
+        ? x * x + y * y < 1
+        : target.kind === 'diamond'
+          ? Math.abs(x) + Math.abs(y) < 1
+          : Math.abs(x) < 1 && Math.abs(y) < 1;
+    };
+    for (const id of ['notes', 'oval', 'gem']) {
+      const target = doc.get(id)!,
+        { shapes } = markGeometry(doc.get(`h_${id}`)!, lookup)!;
+      expect(shapes, id).toHaveLength(1);
+      expect(shapes[0]).toMatchObject({ fill: false, halo: true });
+      // The band is closed and every point of its center line is outside the item.
+      expect(shapes[0].points.at(-1)).toEqual(shapes[0].points[0]);
+      for (const point of shapes[0].points) expect(inside(target, point), id).toBe(false);
+      const box = boundsOfId(doc, `h_${id}`);
+      expect(box.x).toBeLessThan(target.x - 9.9);
+      expect(box.w).toBeGreaterThan(target.w + 19.9);
+    }
+    // Standalone text has no fill to protect: the marker band stays.
+    expect(markGeometry(doc.get('h_line')!, lookup)!.shapes).toEqual([
+      expect.objectContaining({ fill: true }),
+    ]);
+    expect(boundsOfId(doc, 'h_line')).toEqual(boundsOfId(doc, 'line'));
+    // A phrase highlight inside a filled node stays a band over that text only.
+    doc.apply([
+      { op: 'add', item: { id: 'p', kind: 'mark', target: 'notes', match: 'trial run' } },
+    ]);
+    expect(markGeometry(doc.get('p')!, lookupOf(doc))!.shapes.every((shape) => shape.fill)).toBe(
+      true,
+    );
+  });
+
+  it('keeps ink readable on a highlighted node of every agent tint and mark color', () => {
+    const tints = ['teal', 'sky', 'violet', 'amber', 'rose', 'coral', 'moss'];
+    const marks = [...tints, 'ink', 'slate', '#d35400'];
+    const channel = (value: number) =>
+      value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    const rgb = (hex: string) =>
+      [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16) / 255) as [number, number, number];
+    const luminance = ([r, g, b]: number[]) =>
+      0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+    const contrast = (a: number[], b: number[]) => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    for (const theme of ['light', 'dark'] as const)
+      for (const tint of tints) {
+        const doc = board([
+          {
+            op: 'add',
+            item: {
+              id: 'n',
+              kind: 'rect',
+              x: 0,
+              y: 0,
+              w: 200,
+              h: 110,
+              text: 'Step',
+              style: { fill: tint, fillMode: 'tint' },
+            },
+          },
+        ]);
+        doc.apply(
+          marks.map((stroke, index) => ({
+            op: 'add' as const,
+            item: { id: `m${index}`, kind: 'mark', target: 'n', style: { stroke } },
+          })),
+        );
+        const svg = exportSVG(doc.toJSON(), doc.toJSON().pages[0].items, { theme });
+        // Nothing a highlight draws is filled, so the node's own fill is what the label sits on.
+        const drawn = [...svg.matchAll(/data-ad-kind="mark"[^>]*>(.*?)<\/g>/g)].map((m) => m[1]);
+        expect(drawn).toHaveLength(marks.length);
+        for (const markup of drawn) {
+          expect(markup).toContain('fill="none"');
+          expect(markup).not.toContain('fill-opacity');
+        }
+        // The tint is the fill at 22% over the paper; ink on it must keep 4.5:1.
+        const node = /data-ad-id="n"[^>]*>.*?<path[^>]* fill="(#[0-9a-fA-F]{6})"/.exec(svg)![1];
+        const ink = /data-ad-id="n".*?<text[^>]* fill="(#[0-9a-fA-F]{6})"/.exec(svg)![1];
+        const paper = /<rect[^>]* fill="(#[0-9a-fA-F]{6})"/.exec(svg)![1];
+        const fill = rgb(node).map((value, i) => value * 0.22 + rgb(paper)[i] * 0.78);
+        expect(contrast(rgb(ink), fill), `${theme} ${tint}`).toBeGreaterThanOrEqual(4.5);
+      }
   });
 });
 

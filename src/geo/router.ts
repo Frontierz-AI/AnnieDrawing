@@ -339,7 +339,10 @@ function elbow(start: Port, end: Port, vertical: boolean, channel?: number): Poi
   const s = start.exit,
     e = end.exit,
     key = vertical ? 'y' : 'x';
-  let c = channel ?? (s[key] + e[key]) / 2;
+  // Ends that leave on different axes meet in one corner.
+  let c =
+    channel ??
+    (start.point[key] !== s[key] && end.point[key] === e[key] ? e[key] : (s[key] + e[key]) / 2);
   // The default channel never lies behind an exit, so the route does not step back to reach it.
   if (channel === undefined)
     for (const port of [start, end]) {
@@ -362,6 +365,8 @@ const opposite = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' } 
 interface Slot {
   side: Side;
   f?: number;
+  /** Sides its fallbacks avoid. */
+  skip?: Side[];
 }
 /** Automatic attachment of one elbow: the axis it leaves along and the slot of each end. */
 interface Ends {
@@ -408,7 +413,11 @@ function ports(
   )
     ? [horizontal, vertical, opposite[vertical], opposite[horizontal]]
     : [vertical, horizontal, opposite[horizontal], opposite[vertical]];
-  if (slot) sides = [slot.side, ...sides.filter((side) => side !== slot.side)];
+  if (slot)
+    sides = [
+      slot.side,
+      ...sides.filter((side) => side !== slot.side && !slot.skip?.includes(side)),
+    ];
   const endpoints =
     endpoint.anchor || (endpoint.side && endpoint.side !== 'auto')
       ? [endpoint]
@@ -450,7 +459,10 @@ function attach(
     votes = new Map<string, number>(),
     pairs = new Set<string>(),
     gaps = new Map<number, [number, number, Box, Box]>(),
-    sides = new Map<string, [Slot, number, number][]>();
+    sides = new Map<string, [Slot, number, number][]>(),
+    claims = new Map<string, number>(),
+    diagonal: [Slot, string, number, Point, Point, 'x' | 'y'][] = [],
+    slotted: [Slot, string, Point, number][] = [];
   const node = (end?: Endpoint) =>
     end && 'item' in end ? endpointItem(end.item, lookup, outline) : undefined;
   const bounds = (end?: Endpoint): Box | undefined => {
@@ -523,9 +535,9 @@ function attach(
     const result: Ends = { axis };
     ends.set(index, result);
     if (!axis) continue;
-    for (const [end, own, far] of [
-      ['from', a, b],
-      ['to', b, a],
+    for (const [end, own, far, role] of [
+      ['from', a, b, 1],
+      ['to', b, a, 2],
     ] as const) {
       const endpoint = item[end],
         target = node(endpoint);
@@ -552,10 +564,29 @@ function attach(
       };
       result[end] = slot;
       if (outline?.(target)) continue;
-      const list = sides.get(`${target.id}|${slot.side}`) ?? [];
-      list.push([slot, axis === 'x' ? o.y : o.x, index]);
-      sides.set(`${target.id}|${slot.side}`, list);
+      const id = `${target.id}|`;
+      // Straight connectors claim their sides: 1 leaving the node, 2 arriving.
+      if (gx > 0 !== gy > 0) claims.set(id + slot.side, (claims.get(id + slot.side) ?? 0) | role);
+      else if (gx > 0 && !flip) diagonal.push([slot, id, role, c, o, axis]);
+      slotted.push([slot, id, o, index]);
     }
+  }
+  // A diagonal end does not share a side with straight connectors that flow the other way. It
+  // takes the unclaimed side that faces its other end, else the unclaimed side opposite that one,
+  // and its fallbacks skip claimed sides, since a fallback attaches on the neighbor's centered port.
+  for (const [slot, id, role, c, o, axis] of diagonal) {
+    if (!((claims.get(id + slot.side) ?? 0) & (3 - role))) continue;
+    const turn: Side =
+      axis === 'x' ? (o.y >= c.y ? 'bottom' : 'top') : o.x >= c.x ? 'right' : 'left';
+    const free = (side: Side) => !claims.has(id + side);
+    const side = [turn, opposite[turn]].find(free);
+    if (side)
+      [slot.side, slot.skip] = [side, (Object.keys(opposite) as Side[]).filter((s) => !free(s))];
+  }
+  for (const [slot, id, o, index] of slotted) {
+    const list = sides.get(id + slot.side) ?? [];
+    list.push([slot, slot.side === 'left' || slot.side === 'right' ? o.y : o.x, index]);
+    sides.set(id + slot.side, list);
   }
   for (const list of sides.values()) {
     list.sort((p, q) => p[1] - q[1] || p[2] - q[2]);

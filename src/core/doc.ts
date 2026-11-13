@@ -539,6 +539,21 @@ function perform(
       // normalizeItem stores omitted coordinates as 0; only a node sent without both is placed for the agent.
       const unpositioned =
         !parent && op.item.x === undefined && op.item.y === undefined && isFlowNode(item);
+      // A `place` beside another new layout node, or beside an add later in the batch, is a hint.
+      const keys = PLACE_RELATIONS.filter((key) => op.place?.[key]),
+        ref = keys.length === 1 && keys[0] !== 'inside' ? op.place![keys[0]] : undefined;
+      if (
+        layout &&
+        unpositioned &&
+        ref &&
+        ref !== item.id &&
+        isLayoutNode(item) &&
+        (layout.pending.has(ref) ||
+          (layout.batch.has(ref) && !flattenItems(page.items).some((entry) => entry.id === ref)))
+      ) {
+        layout.hints.set(item.id, op.place!);
+        delete op.place;
+      }
       if (layout && unpositioned && !op.place && isLayoutNode(item)) layout.pending.add(item.id);
       else {
         if (!op.place && unpositioned) op.place = flowPlacement(item.id, edges, pageItems);
@@ -1131,7 +1146,14 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
       const graph = origin.startsWith('agent:') ? batchLinks(batch) : undefined;
       const mode = applyOptions.layout ?? options.agentLayout ?? 'auto';
       const layout: PendingLayout | undefined =
-        graph && mode !== 'none' ? { pending: new Set(), attached: new Map() } : undefined;
+        graph && mode !== 'none'
+          ? {
+              pending: new Set(),
+              attached: new Map(),
+              hints: new Map(),
+              batch: new Set(batch.map((op) => (op?.op === 'add' && op.item?.id) || '')),
+            }
+          : undefined;
       const adds = new Map<string, Extract<Op, { op: 'add' }>>();
       let layoutIndex = -1;
       /** Items moved to make room, with the op that moved them. */
@@ -1197,6 +1219,7 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
             gap: options.agentPlaceGap ?? 32,
             viewport: applyOptions.viewport,
             hint: mode,
+            links: graph!.links,
           });
         } catch (error) {
           result.warnings.push({
@@ -1208,7 +1231,10 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
         // Stored add operations carry the final coordinates, so history and redo agree.
         const final = new Map(allItems(draft).map((item) => [item.id, item]));
         for (const [id, op] of adds)
-          if ((layout.pending.has(id) || layout.attached.has(id)) && final.has(id))
+          if (
+            (layout.pending.has(id) || layout.attached.has(id) || layout.hints.has(id)) &&
+            final.has(id)
+          )
             op.item = clone(final.get(id)!);
         concrete.push(...shifted);
         inverse.unshift(...undo.reverse());

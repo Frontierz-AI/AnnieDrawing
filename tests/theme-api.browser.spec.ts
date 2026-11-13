@@ -175,6 +175,40 @@ test('a host stylesheet rule and the other tokens win over the theme defaults', 
   expectColor(c.selection, [255, 0, 0, 255], 'selection');
 });
 
+for (const theme of ['light', 'dark'] as const) {
+  test(`--ad-ui-accent-strong-fg colors text on the hovered primary button (${theme})`, async ({
+    page,
+  }) => {
+    await mount(page, { theme });
+    const button = page.locator('.annie-header-export');
+    /** Text color of the button and the color its icon draws with. */
+    const hovered = async () => {
+      await page.mouse.move(2, 2);
+      await button.hover();
+      return button.evaluate((element) => {
+        const icon = element.querySelector('svg');
+        return [getComputedStyle(element).color, icon ? getComputedStyle(icon).color : ''];
+      });
+    };
+    // Without the token the hover keeps the 0.8.0 text color, the one the button rests with.
+    const resting = await button.evaluate((element) => getComputedStyle(element).color);
+    expect(resting).toBe('rgb(16, 54, 57)');
+    await expect.poll(hovered).toEqual([resting, resting]);
+    await page.evaluate(() => {
+      const host = document.querySelector<HTMLElement>('#theme-host')!;
+      host.style.setProperty('--ad-ui-accent', '#f5d0a9');
+      host.style.setProperty('--ad-ui-accent-strong', '#7a3b00');
+      host.style.setProperty('--ad-ui-accent-strong-fg', '#fff');
+    });
+    await expect.poll(hovered).toEqual(['rgb(255, 255, 255)', 'rgb(255, 255, 255)']);
+    // Off the button the text is the accent foreground again.
+    await page.mouse.move(2, 2);
+    await expect
+      .poll(() => button.evaluate((element) => getComputedStyle(element).color))
+      .toBe(resting);
+  });
+}
+
 test('--ad-header-inset-end moves the header actions and nothing else', async ({ page }) => {
   await mount(page);
   const boxes = () =>

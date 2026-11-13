@@ -1,5 +1,5 @@
 import type { Box, Item } from '../core/types';
-import { markStroke, type MarkShape } from '../core/mark';
+import { MARK_HALO, markStroke, type MarkShape } from '../core/mark';
 import { visibleText } from '../core/richText';
 import type { MarkGeometry } from '../geo/box';
 import { color, esc, pathFromPoints } from './paint';
@@ -15,9 +15,11 @@ export function markMarkup(mark: Item, shapes: MarkShape[], theme: 'light' | 'da
     dash = mark.style?.dash === 'dashed' ? '8 6' : mark.style?.dash === 'dotted' ? '1 6' : '';
   return shapes
     .map((shape) =>
-      shape.fill
-        ? `<path d="${pathFromPoints(shape.points, true)}" fill="${esc(fill)}" fill-opacity="${theme === 'light' ? 0.7 : 0.38}"/>`
-        : `<path d="${pathFromPoints(shape.points)}" fill="none" stroke="${esc(stroke)}" stroke-width="${markStroke(mark)}" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`,
+      shape.halo
+        ? `<path d="${pathFromPoints(shape.points)}" fill="none" stroke="${esc(fill)}" stroke-opacity="${theme === 'light' ? 0.7 : 0.6}" stroke-width="${MARK_HALO.width}" stroke-linejoin="round"/>`
+        : shape.fill
+          ? `<path d="${pathFromPoints(shape.points, true)}" fill="${esc(fill)}" fill-opacity="${theme === 'light' ? 0.7 : 0.38}"/>`
+          : `<path d="${pathFromPoints(shape.points)}" fill="none" stroke="${esc(stroke)}" stroke-width="${markStroke(mark)}" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`,
     )
     .join('');
 }
