@@ -28,8 +28,10 @@ async function mount(page: Page, options: Record<string, unknown> = {}, hostCSS 
 
 /** Computed colors of the accent-bearing chrome, normalized to 0-255 RGBA. */
 async function colors(page: Page): Promise<Colors> {
-  const read = (selector: string, property: string) =>
-    page.evaluate(
+  // Selection, popovers, and the marquee paint on the next frame, so wait for the element first.
+  const read = async (selector: string, property: string) => {
+    await page.locator(selector).first().waitFor({ state: 'attached' });
+    return page.evaluate(
       ([selector, property]) => {
         const element = document.querySelector(selector);
         if (!element) throw new Error(`Missing ${selector}`);
@@ -37,6 +39,7 @@ async function colors(page: Page): Promise<Colors> {
       },
       [selector, property],
     );
+  };
   const parse = (value: string): RGBA => {
     const numbers = (value.match(/-?[\d.]+(e-?\d+)?/g) ?? []).map(Number);
     if (value.startsWith('color(srgb'))
