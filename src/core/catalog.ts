@@ -1,5 +1,5 @@
 /** Bump when a built-in kind is added or its create/read contract changes. */
-export const CATALOG_VERSION = 3;
+export const CATALOG_VERSION = 4;
 
 export interface KindCatalogEntry {
   kind: string;
@@ -20,24 +20,24 @@ export interface KindCatalogSnapshot {
 export const KIND_CATALOG: readonly KindCatalogEntry[] = [
   {
     kind: 'rect',
-    since: 3,
+    since: 4,
     w: 180,
     h: 110,
-    note: 'Rounded rectangle. Nodes, cards, boxes. Agent creates grow so text fits; omitted fill gets a varied tint.',
+    note: 'Rounded rectangle. Nodes, cards, boxes. Agent creates grow so text fits; omitted fill gets a varied tint. text.format "md" renders **bold**, *italic*, - and 1. lists, # and ## headings.',
   },
   {
     kind: 'ellipse',
-    since: 3,
+    since: 4,
     w: 180,
     h: 110,
-    note: 'Ellipse or circle. Agent creates grow so text fits; omitted fill gets a varied tint.',
+    note: 'Ellipse or circle. Agent creates grow so text fits; omitted fill gets a varied tint. text.format "md" renders **bold**, *italic*, - and 1. lists, # and ## headings.',
   },
   {
     kind: 'diamond',
-    since: 3,
+    since: 4,
     w: 160,
     h: 140,
-    note: 'Diamond. Decisions or highlights. Agent creates grow so text fits; omitted fill gets a varied tint.',
+    note: 'Diamond. Decisions or highlights. Agent creates grow so text fits; omitted fill gets a varied tint. text.format "md" renders **bold**, *italic*, - and 1. lists, # and ## headings.',
   },
   {
     kind: 'line',
@@ -54,6 +54,13 @@ export const KIND_CATALOG: readonly KindCatalogEntry[] = [
     note: 'Bound or free link. Requires from and to. Agent creates that omit route store elbow. Compact JSON omits x/y/w/h.',
   },
   {
+    kind: 'mark',
+    since: 4,
+    w: 0,
+    h: 0,
+    note: 'Emphasis on another item: target (item id, same page) and mark highlight, underline, circle, or box. Optional match: a phrase of the target text (first occurrence); else the whole item. Follows the target; removed with it. x/y/w/h ignored; never affects placement. style.fill or style.stroke.',
+  },
+  {
     kind: 'path',
     since: 1,
     w: 0,
@@ -62,24 +69,24 @@ export const KIND_CATALOG: readonly KindCatalogEntry[] = [
   },
   {
     kind: 'text',
-    since: 2,
+    since: 4,
     w: 600,
     h: 48,
-    note: 'Plain text. Default width 600. Agent creates grow so a title fits. Browser autoWidth measures.',
+    note: 'Text. Default width 600. Agent creates grow so a title fits; without h they store the height of their lines. Browser autoWidth measures. text.format "md" renders **bold**, *italic*, - and 1. lists, # and ## headings.',
   },
   {
     kind: 'note',
-    since: 3,
+    since: 4,
     w: 200,
     h: 180,
-    note: 'Sticky note. User default is moss fill and a 12px corner. Agent creates grow so text fits; omitted fill gets a varied tint.',
+    note: 'Sticky note. User default is moss fill and a 12px corner. Agent creates grow so text fits; omitted fill gets a varied tint. text.format "md" renders **bold**, *italic*, - and 1. lists, # and ## headings.',
   },
   {
     kind: 'image',
-    since: 1,
+    since: 4,
     w: 240,
     h: 180,
-    note: 'References a media table key. Raster or SVG; remote URLs need allowed origins.',
+    note: 'References a media table key. Raster or SVG; remote URLs need allowed origins. Omitted w/h come from the media (fit in 480x360); one sent derives the other. pending: true allows no media yet, with optional progress 0 to 1; resolve with media.set plus set { media, pending: false }.',
   },
   {
     kind: 'video',
@@ -94,6 +101,13 @@ export const KIND_CATALOG: readonly KindCatalogEntry[] = [
     w: 220,
     h: 200,
     note: 'Website card. href plus optional title, description, and preview media.',
+  },
+  {
+    kind: 'table',
+    since: 4,
+    w: 0,
+    h: 0,
+    note: 'Grid of plain-text cells. Create with rows: string[][] and header: true for a bold first row; omit w/h, the size comes from the text. Replace with set { rows }; edit cells with set { cells: { "row,column": "text" } }, zero-based, header is row 0. Connectors and placement treat it as a box.',
   },
   {
     kind: 'group',

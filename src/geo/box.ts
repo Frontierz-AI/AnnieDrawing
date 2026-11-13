@@ -1,6 +1,15 @@
 import type { Box, Item, Point } from '../core/types';
 import { rotatePoint } from './vec';
 import { routeConnector, type OutlineResolver } from './router';
+import {
+  isOverlay,
+  markBounds,
+  markFrame,
+  markRects,
+  markShapes,
+  type MarkFrame,
+  type MarkShape,
+} from '../core/mark';
 export type ItemLookup =
   ((id: string) => Item | undefined) | Map<string, Item> | Record<string, Item> | Item[];
 export function lookupItem(lookup: ItemLookup | undefined, id: string): Item | undefined {
@@ -47,11 +56,43 @@ export function boxFromPoints(points: Point[]): Box {
   }
   return { x, y, w: maxX - x, h: maxY - y };
 }
+export interface MarkGeometry {
+  target: Item;
+  frame: MarkFrame;
+  /** Phrase boxes in frame coordinates, one per row; the whole frame without a phrase. */
+  rects: Box[];
+  shapes: MarkShape[];
+}
+/**
+ * Geometry of a mark from its target. A live stage passes measured phrase boxes through
+ * `outline` (one closed outline per row, frame coordinates); otherwise the exporter's wrapping
+ * places the phrase. Undefined when the target is missing or is itself a mark.
+ */
+export function markGeometry(
+  item: Item,
+  lookup?: ItemLookup,
+  outline?: OutlineResolver,
+): MarkGeometry | undefined {
+  const target = typeof item.target === 'string' ? lookupItem(lookup, item.target) : undefined;
+  if (!target || isOverlay(target)) return;
+  const frame = markFrame(target, itemBounds(target, lookup, outline)),
+    measured = outline?.(item),
+    rects = measured
+      ? [measured].flat().map((shape) => boxFromPoints(shape.points))
+      : markRects(item, target, frame);
+  return { target, frame, rects, shapes: markShapes(item, rects) };
+}
 export function itemBounds(item: Item, lookup?: ItemLookup, outline?: OutlineResolver): Box {
   if (item.kind === 'connector') return routeConnector(item, lookup, outline).bounds;
-  if (item.kind === 'group' && item.children?.length)
+  if (isOverlay(item)) {
+    const mark = markGeometry(item, lookup, outline);
+    return mark ? markBounds(item, mark.frame, mark.shapes) : { x: item.x, y: item.y, w: 0, h: 0 };
+  }
+  // A group's marks draw over its content and take no space in it.
+  const content = item.kind === 'group' ? item.children?.filter((c) => !isOverlay(c)) : undefined;
+  if (content?.length)
     return boundsOf(
-      item.children.map((child) => lookupItem(lookup, child.id) ?? child),
+      content.map((child) => lookupItem(lookup, child.id) ?? child),
       lookup,
       outline,
     );

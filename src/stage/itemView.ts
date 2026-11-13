@@ -1,6 +1,6 @@
-import type { AnnieDoc, Box, Item, Point } from '../core/types';
+import type { AnnieDoc, Box, Item, MediaLoadEvent, Point } from '../core/types';
 import type { KindDef, KindView } from '../kinds/registry';
-import { routeConnector, type OutlineResolver } from '../geo/index';
+import { connectorLabel, markGeometry, routeConnector, type OutlineResolver } from '../geo/index';
 import {
   color,
   esc,
@@ -11,6 +11,9 @@ import {
   labelColor,
   SVG_NS,
 } from './paint';
+import { visibleText } from '../core/richText';
+import { fillText } from './richText';
+import { paintMark } from './mark';
 
 /** Transform and opacity each view last painted, so an arrival animation can end on a later move. */
 export const painted = new WeakMap<HTMLElement, { transform: string; opacity: string }>();
@@ -24,9 +27,13 @@ export class ItemView implements KindView {
   private currentDefinition?: KindDef;
   private unmount?: () => void;
   doc!: AnnieDoc;
+  theme: 'light' | 'dark' = 'light';
   item!: Item;
   bounds!: Box;
-  constructor(readonly id: string) {
+  constructor(
+    readonly id: string,
+    private onMedia?: (event: MediaLoadEvent) => void,
+  ) {
     this.element.className = 'annie-item';
     this.element.style.display = 'none';
     this.element.dataset.adId = id;
@@ -58,6 +65,7 @@ export class ItemView implements KindView {
     outline?: OutlineResolver,
   ): void {
     this.doc = doc;
+    this.theme = theme;
     this.item = item;
     const changed = new Set<string>();
     const custom = !!(definition?.mount || definition?.paint);
@@ -86,6 +94,11 @@ export class ItemView implements KindView {
       if (['image', 'video', 'link'].includes(item.kind))
         this.auxiliary.classList.add('annie-card');
       mount = true;
+    }
+    if (item.kind === 'mark') {
+      const state = paintMark(this, item, markGeometry(item, lookup, outline), theme, mount);
+      if (state) this.remember(state);
+      return;
     }
     const connector = item.kind === 'connector' ? routeConnector(item, lookup, outline) : undefined;
     const transform = connector
@@ -142,11 +155,13 @@ export class ItemView implements KindView {
         }
       }
     }
-    const textKey = JSON.stringify([item.text, item.kind, connector?.midpoint, theme]);
+    const labelBox = connector && connectorLabel(item, lookup, outline);
+    const textKey = JSON.stringify([item.text, item.kind, labelBox, theme]);
     if (this.changed('text', textKey)) {
       changed.add('text');
       if (!custom) {
-        if (!this.text.isContentEditable) this.text.textContent = item.text?.value ?? '';
+        if (!this.text.isContentEditable)
+          fillText(this.text, item.text?.value ?? '', item.text?.format === 'md' && !connector);
         this.text.style.fontSize = `${fontSize(item.text)}px`;
         this.text.style.fontFamily = fontFamily(item.text?.font);
         this.text.style.textAlign = item.text?.align ?? (item.kind === 'text' ? 'start' : 'center');
@@ -164,12 +179,17 @@ export class ItemView implements KindView {
               : 'center';
         this.text.style.display = item.text || this.text.isContentEditable ? 'flex' : 'none';
         if (connector) {
-          this.text.style.left = `${connector.midpoint.x}px`;
-          this.text.style.top = `${connector.midpoint.y}px`;
+          // The headless label box decides where the label sits and how wide it may wrap.
+          const { x, y } = connector.midpoint,
+            at = labelBox || { x: x - 120, y, w: 240, h: 0 };
+          this.text.style.left = `${at.x + at.w / 2}px`;
+          this.text.style.top = `${at.y + at.h / 2}px`;
+          this.text.style.maxWidth = `${at.w}px`;
           this.text.style.backgroundColor = color('paper', theme);
         } else {
           this.text.style.left = '';
           this.text.style.top = '';
+          this.text.style.maxWidth = '';
           this.text.style.backgroundColor = '';
         }
       }
@@ -183,6 +203,7 @@ export class ItemView implements KindView {
       item.text?.value,
       item.media,
       item.media ? doc.media[item.media]?.src : undefined,
+      item.pending === true,
       theme,
       !!definition,
       item.crop,
@@ -193,8 +214,21 @@ export class ItemView implements KindView {
         this.auxiliary.replaceChildren();
         if (item.kind === 'image') {
           const media = item.media ? doc.media[item.media] : undefined;
-          if (media) {
-            const img = document.createElement('img');
+          if (item.pending === true) this.skeleton(item.name ?? 'Image');
+          else if (media) {
+            const img = document.createElement('img'),
+              key = item.media!;
+            // A swapped or repainted picture is detached first, so its late events are ignored.
+            const report = (status: MediaLoadEvent['status']) => {
+              if (img.parentNode !== this.auxiliary) return;
+              if (status === 'error') {
+                img.remove();
+                this.placeholder('Image unavailable');
+              }
+              this.onMedia?.({ id: this.id, media: key, status });
+            };
+            img.onload = () => report('loaded');
+            img.onerror = () => report('error');
             img.draggable = false;
             img.alt = item.name ?? item.text?.value ?? 'Image';
             // Only images accepted by the model are ever assigned here.
@@ -219,13 +253,20 @@ export class ItemView implements KindView {
         } else if (!definition) this.placeholder(`Unknown kind: ${item.kind}`);
       }
     }
+    const pending = item.kind === 'image' && item.pending === true;
+    if (this.changed('progress', `${pending && item.progress}`) || changed.has('content')) {
+      if (pending) this.element.setAttribute('aria-busy', 'true');
+      else this.element.removeAttribute('aria-busy');
+      const bar = this.auxiliary.querySelector<HTMLElement>('.annie-pending i');
+      if (bar) bar.style.width = typeof item.progress === 'number' ? `${item.progress * 100}%` : '';
+    }
     if (this.changed('access', `${item.locked}|${item.hidden}`)) {
       this.element.classList.toggle('annie-locked', !!item.locked);
       this.element.tabIndex = item.hidden ? -1 : 0;
     }
     const label =
       definition?.summarize?.(item) ??
-      `${item.kind === 'rect' ? 'Rectangle' : item.kind[0].toUpperCase() + item.kind.slice(1)}${item.text?.value || item.name || item.href ? `: ${item.text?.value ?? item.name ?? item.href}` : ''}`;
+      `${item.kind === 'rect' ? 'Rectangle' : item.kind[0].toUpperCase() + item.kind.slice(1)}${item.text?.value || item.name || item.href ? `: ${item.text ? visibleText(item.text) : (item.name ?? item.href)}` : ''}`;
     if (this.changed('aria', label)) this.element.setAttribute('aria-label', label);
     if (
       custom &&
@@ -259,6 +300,15 @@ export class ItemView implements KindView {
     }
     definition?.paint?.(this, item, changed);
   }
+  /** A pending picture: shimmer, name, and a progress bar that stays empty until progress is set. */
+  private skeleton(name: string): void {
+    const box = document.createElement('div'),
+      label = document.createElement('span');
+    box.className = 'annie-pending';
+    label.textContent = name;
+    box.append(label, document.createElement('i'));
+    this.auxiliary.append(box);
+  }
   private placeholder(label: string): void {
     const placeholder = document.createElement('div');
     placeholder.className = 'annie-placeholder';
@@ -268,6 +318,7 @@ export class ItemView implements KindView {
   destroy(): void {
     this.unmount?.();
     this.unmount = undefined;
+    this.auxiliary.replaceChildren();
     this.element.remove();
   }
 }

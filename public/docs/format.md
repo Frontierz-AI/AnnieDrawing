@@ -40,11 +40,13 @@ Common fields: `id`, `kind`, `x`, `y`, `w`, `h`, `rotation`, `style`, `text`, `n
 
 The model expands defaults internally and omits default style flags on serialization. Compact JSON also omits `x`, `y`, `w`, and `h` on connectors. `data` is JSON metadata. The editor does not execute it.
 
-Built-in kinds: `rect`, `ellipse`, `diamond`, `line`, `connector`, `path`, `text`, `note`, `image`, `video`, `link`, `group`, and `html`. Unknown kinds are kept and shown as a placeholder. Load and save do not drop custom content.
+Built-in kinds: `rect`, `ellipse`, `diamond`, `line`, `connector`, `mark`, `path`, `text`, `note`, `image`, `video`, `link`, `table`, `group`, and `html`. Unknown kinds are kept and shown as a placeholder. Load and save do not drop custom content.
 
-Default sizes when `w` and `h` are omitted: rect and ellipse 180×110, diamond 160×140, line 180×0, connector 0×0, path 0×0, text 600×48, note 200×180, image 240×180, video 480×270, link 220×200, group 0×0, html 240×160. An `agent:` create or text patch on `rect`, `ellipse`, `diamond`, `note`, or `text` may store a larger size so the label fits.
+Default sizes when `w` and `h` are omitted: rect and ellipse 180×110, diamond 160×140, line 180×0, connector 0×0, mark 0×0, path 0×0, text 600×48, note 200×180, image 240×180, video 480×270, link 220×200, group 0×0, html 240×160. An `agent:` create or text patch on `rect`, `ellipse`, `diamond`, `note`, or `text` may store a larger size so the label fits, and an agent `text` sent without `h` stores the height of its lines. An image added without `w` and `h` takes its size from its media, fitted to 480×360 without enlarging, and a table takes its size from its text; 240×180 applies to an image whose media has no usable size or that is pending.
 
-`text` has a plain `value`, horizontal `align` (`start`, `center`, `end`), vertical `valign` (`top`, `middle`, `bottom`), `size` (`s`, `m`, `l`, `xl`, or a number from 1 to 1000), and `font` (`sans`, `serif`, `mono`, `hand`). Omitted `font` is `hand`, the handwritten Comic Sans-like stack. `autoWidth: true` on a browser `text` item stores measured width and height.
+`text` has a `value`, horizontal `align` (`start`, `center`, `end`), vertical `valign` (`top`, `middle`, `bottom`), `size` (`s`, `m`, `l`, `xl`, or a number from 1 to 1000), `font` (`sans`, `serif`, `mono`, `hand`), and `format` (`plain` or `md`, default `plain`). Omitted `font` is `hand`, the handwritten Comic Sans-like stack. With `format: 'md'`, `value` keeps its Markdown source: `**bold**`, `*italic*`, `- ` and `1. ` list items, and `# ` / `## ` headings render as such on `rect`, `ellipse`, `diamond`, `note`, and `text`, and anything else is shown as written. Connector labels are always plain. `autoWidth: true` on a browser `text` item stores measured width and height.
+
+Field names reserved by built-in kinds are validated on every item, whatever its kind: `rows`, `header`, `pending`, `progress`, `fitMedia`, `target`, `mark`, `match`, and `text.format`, as well as `from`, `to`, `points`, `media`, `href`, `html`, and the other fields listed here. A custom kind that stores a different shape under one of these names fails validation. Use other names, or keep custom fields in `data`.
 
 Style fields: `stroke`, `strokeWidth` (0 to 1000), `dash` (`solid`, `dashed`, `dotted`), `fill`, `fillMode` (`solid`, `tint`, `hatch`), `corner`, and `opacity` (0 to 1). Rectangles, notes, images, videos, and link cards default to a 12px corner. `hatch` is a document and export fill. The inspector does not offer it.
 
@@ -54,19 +56,47 @@ Named colors: `ink`, `slate`, `coral`, `amber`, `moss`, `teal`, `sky`, `violet`,
 
 ## Connectors and paths
 
-A connector has `from` and `to`. Each stored end is either `{ "item": "i_note", "side": "right" }` or a free `{ "x": 100, "y": 200 }` point. `apply` also accepts a string item id, stored as `{ item, side: "auto" }`. `side` is `auto`, `top`, `right`, `bottom`, or `left`. An attached endpoint can use a normalized `anchor: [0, 0.5]`. Routes are `straight`, `elbow`, or `curve`. An `agent:` create that omits `route` stores `elbow`. Omitted `route` in a saved file stays `straight`. Elbows pick a channel that misses intervening boxes. Heads accept `none`, `arrow`, or `dot`. Optional `waypoints` are page-space `[x, y]` points between the ends. When a target disappears, that endpoint becomes a free point at its last position in the same atomic edit.
+A connector has `from` and `to`. Each stored end is either `{ "item": "i_note", "side": "right" }` or a free `{ "x": 100, "y": 200 }` point. `apply` also accepts a string item id, stored as `{ item, side: "auto" }`. `side` is `auto`, `top`, `right`, `bottom`, or `left`. An attached endpoint can use a normalized `anchor: [0, 0.5]`. Routes are `straight`, `elbow`, or `curve`. An `agent:` create that omits `route` stores `elbow`. Omitted `route` in a saved file stays `straight`. Elbows pick a channel that misses intervening boxes. Routes and label positions are derived when drawing; they are not stored. A connector cannot attach to a `mark`. Heads accept `none`, `arrow`, or `dot`. Optional `waypoints` are page-space `[x, y]` points between the ends. When a target disappears, that endpoint becomes a free point at its last position in the same atomic edit.
 
 Line and freehand `points` are relative to the item's `x` and `y`. Freehand points may include pressure: `[x, y, pressure]`. `closed: true` closes a path. Item IDs and connector bindings survive moves and export or import.
 
+## Tables and marks
+
+A `table` stores `rows`, an array of 1 to 200 rows of cell strings (at most 50 columns and 2,000 characters per cell), and optional `header: true`, which makes the first row a header. Ragged rows are padded with empty cells when stored. Cells are plain text. `w` and `h` hold the table's stored size, which is at least what the text needs. A table without `rows` is rejected. The `cells` patch accepted by `apply` is operation input only; the document stores `rows`.
+
+```json
+{
+  "id": "i_plan",
+  "kind": "table",
+  "x": 80,
+  "y": 80,
+  "w": 291,
+  "h": 68,
+  "header": true,
+  "rows": [
+    ["Current point", "Next focus"],
+    ["Draft", "Reports"]
+  ]
+}
+```
+
+A `mark` stores `target` (the id of an item on the same page), `mark` (`highlight`, `underline`, `circle`, or `box`; default `highlight`), and optional `match`, a non-empty phrase. It draws on its target: the whole item, or the first occurrence of `match` in the target's visible text, or the whole item when the phrase is not found. Its stored `x`, `y`, `w`, and `h` are 0, `rotation` is not stored, and compact JSON omits `x`, `y`, `w`, and `h` as for connectors. A mark may sit inside a group. A new mark must target an existing item that is not a mark or a connector. A document whose mark has lost its target still loads and round-trips; that mark draws nothing until it has a target again.
+
+```json
+{ "id": "i_ring", "kind": "mark", "target": "i_note", "mark": "circle", "match": "Next step" }
+```
+
 ## Media and HTML
 
-Image items reference a key in the top-level `media` map. A record contains `{ mime, w, h, src }`. Allowed `mime` values are `image/png`, `image/jpeg`, `image/gif`, `image/webp`, `image/avif`, and `image/svg+xml`. The toolbar `addImage` helper accepts the raster types under 10 MB; it does not accept SVG files. Embedded data URLs make files portable. Remote images require an explicit allowed origin. PNG export can still fail if that server does not permit cross-origin loading. Link cards may reuse `media` for a preview image. Optional `crop` is a box in media pixel space.
+Image items reference a key in the top-level `media` map. A record contains `{ mime, w, h, src }`. Allowed `mime` values are `image/png`, `image/jpeg`, `image/gif`, `image/webp`, `image/avif`, and `image/svg+xml`. The toolbar `addImage` helper accepts the raster types under 10 MB; it does not accept SVG files. Embedded data URLs make files portable. Remote images require an explicit allowed origin. Raster export fetches remote images with CORS; a server that does not permit it leaves a labeled placeholder in the export. Link cards may reuse `media` for a preview image. Optional `crop` is a box in media pixel space.
+
+`fitMedia: true` on an image records that its size came from its media, so a later media change with a different aspect ratio keeps `w` and sets `h`. An explicit resize removes it. An image with `pending: true` has no picture yet and may omit `media`; every other image must reference an existing media key. `progress` is a number from 0 to 1 shown while the image is pending, and it may stay stored after the image resolves. Version 0.7.0 cannot load a document that holds a pending image without media.
 
 HTML is an optional application integration. Plain text is safe by construction. Rendered HTML requires an explicit sanitizer. `video` and `link` items are structured fields rendered with trusted DOM. They are not HTML items. Custom kind mount callbacks live in trusted application code. They are never executable code stored in the file. See [security](security.md).
 
 ## Versions
 
-The integer `version` belongs to the document format. It is independent of the package version, the built-in kind catalog (`CATALOG_VERSION` / `kindsSince`), and the session `revision` used by `changesSince`. Version 2 is the current format and uses `pages`. New examples, saves, and exports use this form. Session revision is not a file field.
+The integer `version` belongs to the document format. It is independent of the package version, the built-in kind catalog (`CATALOG_VERSION` / `kindsSince`), and the session `revision` used by `changesSince`. Version 2 is the current format and uses `pages`. New examples, saves, and exports use this form. Session revision is not a file field. The kinds and fields added with catalog 4 (`table`, `mark`, `rows`, `header`, `pending`, `progress`, `fitMedia`, `target`, `mark`, `match`, and `text.format`) are optional additions to version 2; older readers keep `table` and `mark` as unknown kinds.
 
 The loader accepts version 1 drawings with `sheets` and migrates them to version 2 `pages` before validation. It keeps page and item IDs, item trees, coordinates, connector references, media, and custom page names. Default names such as `Sheet 1` become `Page 1`. Existing `.annie` files and browser autosaves remain readable. The next save writes version 2. Migration reads the original object without mutating it.
 

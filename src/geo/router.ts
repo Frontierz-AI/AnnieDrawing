@@ -1,3 +1,4 @@
+import RBush from 'rbush';
 import type { Box, Endpoint, Item, Outline, Point } from '../core/types';
 import {
   boxFromPoints,
@@ -8,9 +9,13 @@ import {
   lookupItem,
   type ItemLookup,
 } from './box';
+import { labelSize, placeLabel } from './label';
 import { distance, rotatePoint } from './vec';
+import { isOverlay } from '../core/mark';
 
 const CLEAR = 16;
+/** Parallel lanes of different connectors stay at least this far apart. */
+const LANE = 12;
 const SKIP_OBSTACLE = new Set(['connector', 'line', 'path', 'group']);
 export type OutlineResolver = (item: Item) => Outline | Outline[] | undefined;
 
@@ -23,7 +28,7 @@ function endpointItem(
   if (item?.kind !== 'group') return item;
   // Connectors cannot define their own target's bounds without a routing cycle.
   const content = flattenItems(item.children ?? [])
-    .filter((child) => child.kind !== 'connector' && child.kind !== 'group')
+    .filter((child) => child.kind !== 'connector' && child.kind !== 'group' && !isOverlay(child))
     .map((child) => lookupItem(lookup, child.id) ?? child);
   return content.length ? { ...item, ...boundsOf(content, lookup, outline), rotation: 0 } : item;
 }
@@ -137,7 +142,8 @@ function listedItems(lookup?: ItemLookup): Item[] {
 }
 
 function obstacleBox(item: Item): Box | undefined {
-  if (item.hidden || SKIP_OBSTACLE.has(item.kind) || item.w <= 0 || item.h <= 0) return;
+  if (item.hidden || SKIP_OBSTACLE.has(item.kind) || isOverlay(item) || item.w <= 0 || item.h <= 0)
+    return;
   return boxFromPoints(boxCorners(item, item.rotation));
 }
 
@@ -156,94 +162,233 @@ function segmentHits(a: Point, b: Point, box: Box, pad: number): boolean {
   return true;
 }
 
-function pathHits(points: Point[], boxes: Box[], pad = 0): number {
-  let hits = 0;
-  for (let i = 0; i < points.length - 1; i++)
-    for (const box of boxes) if (segmentHits(points[i], points[i + 1], box, pad)) hits++;
-  return hits;
-}
-
 function pathLength(points: Point[]): number {
   return points.slice(1).reduce((sum, point, i) => sum + distance(points[i], point), 0);
 }
 
-/** One orthogonal channel: vertical first (shared Y) or horizontal first (shared X). */
-function elbow(start: Point, end: Point, vertical: boolean, channel?: number): Point[] {
-  if (vertical) {
-    const y = channel ?? (start.y + end.y) / 2;
-    return [start, { x: start.x, y }, { x: end.x, y }, end];
-  }
-  const x = channel ?? (start.x + end.x) / 2;
-  return [start, { x, y: start.y }, { x, y: end.y }, end];
+interface Entry {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+interface NodeEntry extends Entry {
+  id: string;
+  box: Box;
+}
+/** One segment of a routed connector; `owner` is the connector's index in the pass. */
+interface LaneEntry extends Entry {
+  a: Point;
+  b: Point;
+  owner: number;
+  first: boolean;
+  last: boolean;
+}
+/** What a route avoids: node boxes, and the lanes of connectors before `limit` in document order. */
+interface Field {
+  nodes: RBush<NodeEntry>;
+  lanes: RBush<LaneEntry>;
+  labels: RBush<Entry & { owner: number }>;
+  limit: number;
+}
+const around = (a: Point, b: Point, pad = 0): Entry => ({
+  minX: Math.min(a.x, b.x) - pad,
+  minY: Math.min(a.y, b.y) - pad,
+  maxX: Math.max(a.x, b.x) + pad,
+  maxY: Math.max(a.y, b.y) + pad,
+});
+const boxEntry = (box: Box): Entry =>
+  around({ x: box.x, y: box.y }, { x: box.x + box.w, y: box.y + box.h });
+const overlaps = (p: Entry, q: Entry) =>
+  p.minX < q.maxX && q.minX < p.maxX && p.minY < q.maxY && q.minY < p.maxY;
+
+function field(items: Item[]): Field {
+  const nodes = new RBush<NodeEntry>();
+  nodes.load(
+    items.flatMap((item) => {
+      const box = obstacleBox(item);
+      return box ? [{ ...boxEntry(box), id: item.id, box }] : [];
+    }),
+  );
+  return { nodes, lanes: new RBush(), labels: new RBush(), limit: Infinity };
 }
 
-function simplifyRoute(points: Point[]): Point[] {
-  const result: Point[] = [];
-  for (const point of points) {
-    const last = result.at(-1);
-    if (last?.x === point.x && last.y === point.y) continue;
-    const before = result.at(-2);
-    if (
-      before &&
-      last &&
-      ((before.x === last.x &&
-        last.x === point.x &&
-        (last.y - before.y) * (point.y - last.y) >= 0) ||
-        (before.y === last.y &&
-          last.y === point.y &&
-          (last.x - before.x) * (point.x - last.x) >= 0))
-    )
-      result.pop();
-    result.push(point);
-  }
-  return result;
+function reserve(area: Field, points: Point[], owner: number): void {
+  area.lanes.load(
+    points.slice(1).map((b, i) => {
+      const a = points[i];
+      return { ...around(a, b), a, b, owner, first: !i, last: i === points.length - 2 };
+    }),
+  );
 }
 
 /** Shared endpoints are allowed; crossings and shared lengths consume a lane. */
-function pathCrossings(points: Point[], occupied: Point[][]): number {
+function crosses(a: Point, b: Point, first: boolean, last: boolean, lane: LaneEntry): boolean {
+  const c = lane.a,
+    d = lane.b;
+  const dx = b.x - a.x,
+    dy = b.y - a.y;
+  const ex = d.x - c.x,
+    ey = d.y - c.y;
+  const determinant = dx * ey - dy * ex;
+  if (Math.abs(determinant) < 1e-8) {
+    if (Math.abs((c.x - a.x) * dy - (c.y - a.y) * dx) > 1e-8) return false;
+    const axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    return (
+      Math.min(Math.max(a[axis], b[axis]), Math.max(c[axis], d[axis])) >
+      Math.max(Math.min(a[axis], b[axis]), Math.min(c[axis], d[axis])) + 0.01
+    );
+  }
+  const t = ((c.x - a.x) * ey - (c.y - a.y) * ex) / determinant;
+  const u = ((c.x - a.x) * dy - (c.y - a.y) * dx) / determinant;
+  if (t < -1e-8 || t > 1 + 1e-8 || u < -1e-8 || u > 1 + 1e-8) return false;
+  const atEnd = (first && t < 1e-8) || (last && t > 1 - 1e-8);
+  return !(atEnd && ((lane.first && u < 1e-8) || (lane.last && u > 1 - 1e-8)));
+}
+
+/** Parallel lanes side by side closer than LANE read as one line. */
+function crowds(a: Point, b: Point, lane: LaneEntry): boolean {
+  const c = lane.a,
+    d = lane.b;
+  const along = a.y === b.y && c.y === d.y ? 'x' : a.x === b.x && c.x === d.x ? 'y' : undefined;
+  if (!along) return false;
+  const across = along === 'x' ? 'y' : 'x';
+  return (
+    Math.abs(a[across] - c[across]) < LANE &&
+    Math.min(Math.max(a[along], b[along]), Math.max(c[along], d[along])) -
+      Math.max(Math.min(a[along], b[along]), Math.min(c[along], d[along])) >
+      0.01
+  );
+}
+
+/** Crossings and crowding against earlier lanes. */
+function tangle(points: Point[], area: Field): number {
   let count = 0;
   for (let i = 1; i < points.length; i++) {
     const a = points[i - 1],
       b = points[i];
-    const dx = b.x - a.x,
-      dy = b.y - a.y;
-    for (const path of occupied)
-      for (let j = 1; j < path.length; j++) {
-        const c = path[j - 1],
-          d = path[j];
-        const ex = d.x - c.x,
-          ey = d.y - c.y;
-        const determinant = dx * ey - dy * ex;
-        if (Math.abs(determinant) < 1e-8) {
-          if (Math.abs((c.x - a.x) * dy - (c.y - a.y) * dx) > 1e-8) continue;
-          const axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
-          if (
-            Math.min(Math.max(a[axis], b[axis]), Math.max(c[axis], d[axis])) >
-            Math.max(Math.min(a[axis], b[axis]), Math.min(c[axis], d[axis])) + 0.01
-          )
-            count++;
-          continue;
-        }
-        const t = ((c.x - a.x) * ey - (c.y - a.y) * ex) / determinant;
-        const u = ((c.x - a.x) * dy - (c.y - a.y) * dx) / determinant;
-        if (t < -1e-8 || t > 1 + 1e-8 || u < -1e-8 || u > 1 + 1e-8) continue;
-        const atEnd = (i === 1 && t < 1e-8) || (i === points.length - 1 && t > 1 - 1e-8);
-        const otherEnd = (j === 1 && u < 1e-8) || (j === path.length - 1 && u > 1 - 1e-8);
-        if (!(atEnd && otherEnd)) count++;
-      }
+    for (const lane of area.lanes.search(around(a, b, LANE)))
+      if (lane.owner < area.limit)
+        count += +crosses(a, b, i === 1, i === points.length - 1, lane) + +crowds(a, b, lane);
   }
   return count;
+}
+
+/** Segments through nodes, and segments closer than CLEAR to a node that is not an endpoint. */
+function nodeCost(points: Point[], area: Field, from?: string, to?: string): [number, number] {
+  let hits = 0,
+    crowd = 0;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1],
+      b = points[i];
+    for (const node of area.nodes.search(around(a, b, CLEAR))) {
+      // Port stubs leave their own node, which may be rotated or rounded.
+      if (segmentHits(a, b, node.box, -0.01))
+        hits += +!((i === 1 && node.id === from) || (i === points.length - 1 && node.id === to));
+      else if (node.id !== from && node.id !== to && segmentHits(a, b, node.box, CLEAR - 0.01))
+        crowd++;
+    }
+  }
+  return [hits, crowd];
+}
+
+const dedupe = (points: Point[]) =>
+  points.filter((p, i) => !i || p.x !== points[i - 1].x || p.y !== points[i - 1].y);
+
+/** Collinear triples that turn back on themselves. */
+function reversals(points: Point[]): number {
+  let count = 0;
+  for (let i = 2; i < points.length; i++) {
+    const a = points[i - 2],
+      b = points[i - 1],
+      c = points[i];
+    if (
+      (a.x === b.x && b.x === c.x && (b.y - a.y) * (c.y - b.y) < 0) ||
+      (a.y === b.y && b.y === c.y && (b.x - a.x) * (c.x - b.x) < 0)
+    )
+      count++;
+  }
+  return count;
+}
+
+/** Merge every collinear run, so no simplified route steps back over itself. */
+function simplifyRoute(points: Point[]): Point[] {
+  const result: Point[] = [];
+  for (const point of dedupe(points)) {
+    const last = result.at(-1),
+      before = result.at(-2);
+    if (
+      before &&
+      last &&
+      ((before.x === last.x && last.x === point.x) || (before.y === last.y && last.y === point.y))
+    )
+      result.pop();
+    const end = result.at(-1);
+    if (end?.x !== point.x || end.y !== point.y) result.push(point);
+  }
+  return result;
 }
 
 interface Port {
   point: Point;
   exit: Point;
 }
+
+/** One orthogonal channel between two port exits: vertical first (shared Y) or horizontal first. */
+function elbow(start: Port, end: Port, vertical: boolean, channel?: number): Point[] {
+  const s = start.exit,
+    e = end.exit,
+    key = vertical ? 'y' : 'x';
+  let c = channel ?? (s[key] + e[key]) / 2;
+  // The default channel never lies behind an exit, so the route does not step back to reach it.
+  if (channel === undefined)
+    for (const port of [start, end]) {
+      const out = port.exit[key] - port.point[key];
+      if ((c - port.exit[key]) * out < 0) c = port.exit[key];
+    }
+  return [
+    start.point,
+    s,
+    vertical ? { x: s.x, y: c } : { x: c, y: s.y },
+    vertical ? { x: e.x, y: c } : { x: c, y: e.y },
+    e,
+    end.point,
+  ];
+}
+
+type Side = 'top' | 'right' | 'bottom' | 'left';
+const opposite = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' } as const;
+/** First side of an automatic end, and its place along that side from 0 to 1 when spread. */
+interface Slot {
+  side: Side;
+  f?: number;
+}
+/** Automatic attachment of one elbow: the axis it leaves along and the slot of each end. */
+interface Ends {
+  axis?: 'x' | 'y';
+  from?: Slot;
+  to?: Slot;
+}
+
+/** A point `f` (0 to 1) along a side, on the outline of rectangles, ellipses, and diamonds. */
+function sidePoint(item: Item, side: Side, f: number): Point {
+  const t = (f - 0.5) * (item.kind === 'ellipse' || item.kind === 'diamond' ? 1.2 : 2);
+  const reach =
+    item.kind === 'ellipse' ? Math.sqrt(1 - t * t) : item.kind === 'diamond' ? 1 - Math.abs(t) : 1;
+  const c = centerOf(item);
+  const sign = side === 'left' || side === 'top' ? -1 : 1;
+  return side === 'left' || side === 'right'
+    ? { x: c.x + (sign * reach * item.w) / 2, y: c.y + (t * item.h) / 2 }
+    : { x: c.x + (t * item.w) / 2, y: c.y + (sign * reach * item.h) / 2 };
+}
+
 function ports(
   endpoint: Endpoint | undefined,
   other: Endpoint | undefined,
   lookup: ItemLookup | undefined,
   outline: OutlineResolver | undefined,
+  axis?: 'x' | 'y',
+  slot?: Slot,
 ): Port[] {
   const item =
     endpoint && 'item' in endpoint ? endpointItem(endpoint.item, lookup, outline) : undefined;
@@ -255,105 +400,237 @@ function ports(
   const target = rotatePoint(endpointCenter(other, lookup, outline), center, -(item.rotation ?? 0));
   const horizontal = target.x >= center.x ? 'right' : 'left';
   const vertical = target.y >= center.y ? 'bottom' : 'top';
-  const sides =
-    Math.abs(target.x - center.x) / Math.max(1, item.w) >=
-    Math.abs(target.y - center.y) / Math.max(1, item.h)
-      ? ([
-          horizontal,
-          vertical,
-          vertical === 'top' ? 'bottom' : 'top',
-          horizontal === 'left' ? 'right' : 'left',
-        ] as const)
-      : ([
-          vertical,
-          horizontal,
-          horizontal === 'left' ? 'right' : 'left',
-          vertical === 'top' ? 'bottom' : 'top',
-        ] as const);
+  let sides: Side[] = (
+    axis && !item.rotation
+      ? axis === 'x'
+      : Math.abs(target.x - center.x) / Math.max(1, item.w) >=
+        Math.abs(target.y - center.y) / Math.max(1, item.h)
+  )
+    ? [horizontal, vertical, opposite[vertical], opposite[horizontal]]
+    : [vertical, horizontal, opposite[horizontal], opposite[vertical]];
+  if (slot) sides = [slot.side, ...sides.filter((side) => side !== slot.side)];
   const endpoints =
     endpoint.anchor || (endpoint.side && endpoint.side !== 'auto')
       ? [endpoint]
       : sides.map((side) => ({ ...endpoint, side }));
-  return endpoints.map((end) => {
-    const point = resolveEndpoint(end, other, lookup, outline);
+  // Orthogonal exits remain outside the target even for rotated shapes.
+  const box = boxFromPoints(boxCorners(item, item.rotation));
+  return endpoints.map((end, index) => {
+    const spread = !index && slot?.f !== undefined;
+    const point = spread
+      ? sidePoint(item, sides[0], slot.f!)
+      : resolveEndpoint(end, other, lookup, outline);
     const dx = point.x - center.x,
       dy = point.y - center.y;
-    // Orthogonal exits remain outside the target even for rotated shapes.
-    const box = boxFromPoints(boxCorners(item, item.rotation));
-    const exit =
-      Math.abs(dx) / Math.max(1, box.w) >= Math.abs(dy) / Math.max(1, box.h)
-        ? { x: dx >= 0 ? box.x + box.w + CLEAR : box.x - CLEAR, y: point.y }
-        : { x: point.x, y: dy >= 0 ? box.y + box.h + CLEAR : box.y - CLEAR };
+    const across = spread
+      ? sides[0] === 'left' || sides[0] === 'right'
+      : Math.abs(dx) / Math.max(1, box.w) >= Math.abs(dy) / Math.max(1, box.h);
+    const exit = across
+      ? { x: dx >= 0 ? box.x + box.w + CLEAR : box.x - CLEAR, y: point.y }
+      : { x: point.x, y: dy >= 0 ? box.y + box.h + CLEAR : box.y - CLEAR };
     return { point, exit };
   });
 }
 
-/** Prefer clear lanes. Only automatic ports may move to another side of a node. */
+/**
+ * Choose the axis and first side of every automatic elbow, and spread connectors that share a side.
+ * Boxes apart on one axis face along it. Otherwise each node's clear connectors vote, then the
+ * wider gap decides. A connector whose facing gap holds another node, or that runs back along an
+ * earlier connector, takes the other axis and leaves the right or bottom side of both ends, so a
+ * loop returns under or beside the row. Connectors on one side are ordered by the position of
+ * their far end, so they leave without crossing.
+ */
+function attach(
+  items: Item[],
+  lookup: ItemLookup,
+  outline?: OutlineResolver,
+  nodes?: RBush<NodeEntry>,
+): Map<number, Ends> {
+  const ends = new Map<number, Ends>(),
+    votes = new Map<string, number>(),
+    pairs = new Set<string>(),
+    gaps = new Map<number, [number, number, Box, Box]>(),
+    sides = new Map<string, [Slot, number, number][]>();
+  const node = (end?: Endpoint) =>
+    end && 'item' in end ? endpointItem(end.item, lookup, outline) : undefined;
+  const bounds = (end?: Endpoint): Box | undefined => {
+    const target = node(end);
+    if (target) return boxFromPoints(boxCorners(target, target.rotation));
+    return end && !('item' in end) ? { x: end.x, y: end.y, w: 0, h: 0 } : undefined;
+  };
+  const key = (end?: Endpoint) => (end && 'item' in end ? end.item : '');
+  items.forEach((item, index) => {
+    if (
+      item.kind !== 'connector' ||
+      item.hidden ||
+      item.route !== 'elbow' ||
+      item.waypoints?.length
+    )
+      return;
+    const a = bounds(item.from),
+      b = bounds(item.to);
+    if (!a || !b) return;
+    const gx = Math.max(b.x - a.x - a.w, a.x - b.x - b.w),
+      gy = Math.max(b.y - a.y - a.h, a.y - b.y - b.h);
+    gaps.set(index, [gx, gy, a, b]);
+    if (gx > 0 !== gy > 0)
+      for (const end of [key(item.from), key(item.to)])
+        if (end) votes.set(end, (votes.get(end) ?? 0) + (gx > 0 ? 1 : -1));
+  });
+  for (const [index, [gx, gy, a, b]] of gaps) {
+    const item = items[index],
+      from = key(item.from),
+      to = key(item.to);
+    const vote = (votes.get(from) ?? 0) + (votes.get(to) ?? 0);
+    let axis: Ends['axis'] =
+      gx > 0 !== gy > 0
+        ? gx > 0
+          ? 'x'
+          : 'y'
+        : vote
+          ? vote > 0
+            ? 'x'
+            : 'y'
+          : gx > 0
+            ? gx >= gy
+              ? 'x'
+              : 'y'
+            : undefined;
+    // The gap between two boxes that face each other across one axis.
+    const gap: Entry | undefined =
+      axis === 'x' && gy < 0
+        ? {
+            minX: Math.min(a.x + a.w, b.x + b.w),
+            maxX: Math.max(a.x, b.x),
+            minY: Math.max(a.y, b.y),
+            maxY: Math.min(a.y + a.h, b.y + b.h),
+          }
+        : axis === 'y' && gx < 0
+          ? {
+              minY: Math.min(a.y + a.h, b.y + b.h),
+              maxY: Math.max(a.y, b.y),
+              minX: Math.max(a.x, b.x),
+              maxX: Math.min(a.x + a.w, b.x + b.w),
+            }
+          : undefined;
+    const flip =
+      !!axis &&
+      ((!!from && !!to && pairs.has(`${to}>${from}`)) ||
+        (!!gap &&
+          !!nodes?.search(gap).some((n) => n.id !== from && n.id !== to && overlaps(gap, n))));
+    if (from && to) pairs.add(`${from}>${to}`);
+    if (flip) axis = axis === 'x' ? 'y' : 'x';
+    const result: Ends = { axis };
+    ends.set(index, result);
+    if (!axis) continue;
+    for (const [end, own, far] of [
+      ['from', a, b],
+      ['to', b, a],
+    ] as const) {
+      const endpoint = item[end],
+        target = node(endpoint);
+      if (
+        !target ||
+        target.rotation ||
+        !endpoint ||
+        !('item' in endpoint) ||
+        endpoint.anchor ||
+        (endpoint.side && endpoint.side !== 'auto')
+      )
+        continue;
+      const c = centerOf(own),
+        o = centerOf(far);
+      const slot: Slot = {
+        side:
+          axis === 'x'
+            ? flip || o.x >= c.x
+              ? 'right'
+              : 'left'
+            : flip || o.y >= c.y
+              ? 'bottom'
+              : 'top',
+      };
+      result[end] = slot;
+      if (outline?.(target)) continue;
+      const list = sides.get(`${target.id}|${slot.side}`) ?? [];
+      list.push([slot, axis === 'x' ? o.y : o.x, index]);
+      sides.set(`${target.id}|${slot.side}`, list);
+    }
+  }
+  for (const list of sides.values()) {
+    list.sort((p, q) => p[1] - q[1] || p[2] - q[2]);
+    list.forEach(([slot], k) => (slot.f = (k + 1) / (list.length + 1)));
+  }
+  return ends;
+}
+
+type Cost = [number, number, number];
+/**
+ * Prefer clear lanes. Only automatic ports may move to another side of a node. A route is ranked
+ * by node hits and reversals, then crossings plus lanes or nodes that come too close, then length.
+ */
 function clearElbow(
   item: Item,
   lookup: ItemLookup | undefined,
   outline: OutlineResolver | undefined,
-  items: Item[],
-  occupied: Point[][],
+  area: Field,
+  ends: Ends,
 ): Point[] {
-  const boxes = items.map(obstacleBox).filter((box): box is Box => !!box);
   const fromId = item.from && 'item' in item.from ? item.from.item : undefined;
   const toId = item.to && 'item' in item.to ? item.to.item : undefined;
-  const portBoxes = (id: string | undefined) =>
-    items
-      .filter((node) => node.id !== id)
-      .map(obstacleBox)
-      .filter((box): box is Box => !!box);
-  const fromBoxes = portBoxes(fromId),
-    toBoxes = portBoxes(toId);
-  const starts = ports(item.from, item.to, lookup, outline);
-  const ends = ports(item.to, item.from, lookup, outline);
+  const starts = ports(item.from, item.to, lookup, outline, ends.axis, ends.from);
+  const finishes = ports(item.to, item.from, lookup, outline, ends.axis, ends.to);
   let best: Point[] = [],
-    bestHits = Infinity,
-    bestCrossings = Infinity,
-    bestLength = Infinity;
-  const consider = (start: Port, end: Port, middle: Point[]) => {
-    const points = simplifyRoute([start.point, ...middle, end.point]);
-    // Port exits are checked against other nodes; their own target may be rotated.
-    const hits =
-      pathHits(middle, boxes, -0.01) +
-      pathHits([start.point, start.exit], fromBoxes, -0.01) +
-      pathHits([end.exit, end.point], toBoxes, -0.01);
-    if (hits > bestHits) return;
-    const crossings = pathCrossings(points, occupied);
-    const length = pathLength(points) + points.length * CLEAR;
-    if (
-      hits < bestHits ||
-      crossings < bestCrossings ||
-      (crossings === bestCrossings && length < bestLength)
-    ) {
-      best = points;
-      bestHits = hits;
-      bestCrossings = crossings;
-      bestLength = length;
-    }
+    bestCost: Cost = [Infinity, Infinity, Infinity];
+  const better = (cost: Cost, than: Cost) => {
+    const i = cost.findIndex((value, k) => value !== than[k]);
+    return i >= 0 && cost[i] < than[i];
+  };
+  const consider = (start: Port, end: Port, vertical: boolean, channel?: number) => {
+    const raw = dedupe(elbow(start, end, vertical, channel)),
+      points = simplifyRoute(raw);
+    const [hits, crowd] = nodeCost(raw, area, fromId, toId);
+    const key = vertical ? 'y' : 'x';
+    const shift =
+      channel === undefined ? 0 : Math.abs(channel - (start.exit[key] + end.exit[key]) / 2) / 4;
+    const cost: Cost = [
+      hits + reversals(raw),
+      crowd + tangle(points, area),
+      pathLength(points) + points.length * CLEAR + shift,
+    ];
+    if (better(cost, bestCost)) [best, bestCost] = [points, cost];
+    return { raw, cost };
   };
   for (const start of starts)
-    for (const end of ends) {
+    for (const end of finishes) {
       const vertical = start.exit.y !== start.point.y;
-      const preferred = elbow(start.exit, end.exit, vertical);
-      const alternate = elbow(start.exit, end.exit, !vertical);
-      consider(start, end, preferred);
-      consider(start, end, alternate);
-      // The common case needs no search beyond the facing ports.
-      if (start === starts[0] && end === ends[0] && bestHits === 0 && bestCrossings === 0)
+      let seeds = [consider(start, end, vertical), consider(start, end, !vertical)];
+      // The common case needs no search beyond the facing ports and their default channel.
+      if (start === starts[0] && end === finishes[0] && !seeds[0].cost[0] && !seeds[0].cost[1])
         return best;
-      const obstacles = [
-        ...boxes.filter((box) => pathHits(preferred, [box]) || pathHits(alternate, [box])),
-        ...occupied
-          .filter((path) => pathCrossings(preferred, [path]) || pathCrossings(alternate, [path]))
-          .map(boxFromPoints),
-      ];
-      for (const box of obstacles.slice(0, 12)) {
-        consider(start, end, elbow(start.exit, end.exit, true, box.y - CLEAR));
-        consider(start, end, elbow(start.exit, end.exit, true, box.y + box.h + CLEAR));
-        consider(start, end, elbow(start.exit, end.exit, false, box.x - CLEAR));
-        consider(start, end, elbow(start.exit, end.exit, false, box.x + box.w + CLEAR));
+      // Try channels just outside nodes and beside lanes near the routes so far, twice at most.
+      for (let round = 0; round < 2 && seeds.length; round++) {
+        const near = new Map<Entry, number>();
+        for (const { raw } of seeds)
+          for (let i = 1; i < raw.length; i++) {
+            for (const node of area.nodes.search(around(raw[i - 1], raw[i], CLEAR)))
+              near.set(node, CLEAR);
+            for (const lane of area.lanes.search(around(raw[i - 1], raw[i], LANE)))
+              if (lane.owner < area.limit) near.set(lane, LANE);
+          }
+        const tried = [...near]
+          .slice(0, 16)
+          .flatMap(([box, gap]) => [
+            consider(start, end, true, box.minY - gap),
+            consider(start, end, true, box.maxY + gap),
+            consider(start, end, false, box.minX - gap),
+            consider(start, end, false, box.maxX + gap),
+          ]);
+        const next = tried.reduce<(typeof tried)[number] | undefined>(
+          (found, candidate) => (!found || better(candidate.cost, found.cost) ? candidate : found),
+          undefined,
+        );
+        seeds = next && (bestCost[0] || bestCost[1]) ? [next] : [];
       }
     }
   return best;
@@ -369,15 +646,21 @@ function connectorGeometry(
   item: Item,
   lookup: ItemLookup | undefined,
   outline: OutlineResolver | undefined,
-  items: Item[] = [],
-  occupied: Point[][] = [],
+  area?: Field,
+  ends?: Ends,
 ): ConnectorGeometry {
   const start = resolveEndpoint(item.from, item.to, lookup, outline),
     end = resolveEndpoint(item.to, item.from, lookup, outline);
   let points = [start, ...(item.waypoints ?? []).map(([x, y]) => ({ x, y })), end],
     d = '';
   if (item.route === 'elbow' && !item.waypoints?.length) {
-    points = clearElbow(item, lookup, outline, items, occupied);
+    points = clearElbow(
+      item,
+      lookup,
+      outline,
+      area ?? field([]),
+      ends ?? (lookup ? attach([item], lookup, outline).get(0) : undefined) ?? {},
+    );
   }
   if (item.route === 'curve' && !item.waypoints?.length) {
     const dx = end.x - start.x,
@@ -413,45 +696,66 @@ function connectorGeometry(
 /**
  * One ordered lane pass over a lookup. Routing a page asks for every connector, and each one
  * reserves the lanes of those before it, so the pass is resumed instead of replayed per connector.
+ * Nodes and lanes sit in R-trees, so each route only reads what lies near it.
  */
 interface LanePass {
   outline?: OutlineResolver;
   items: Item[];
   signature: unknown[];
   map: ItemLookup;
-  occupied: Point[][];
-  /** Lanes reserved before `items[index]`, for every index reached so far. */
-  before: number[];
+  /** First position of each id. */
+  index: Map<string, number>;
+  area: Field;
+  ends: Map<number, Ends>;
+  /** Items routed and labelled so far, in order. */
+  routed: number;
+  labelled: number;
   routes: Map<number, ConnectorGeometry>;
+  labels: Map<number, Box>;
 }
 const lanePasses = new WeakMap<object, LanePass>();
 
 /** Everything routing reads, so a lookup refilled or mutated in place starts a new pass. */
-function laneFields(item: Item): unknown[] {
-  return [
-    item,
-    item.id,
-    item.kind,
-    item.x,
-    item.y,
-    item.w,
-    item.h,
-    item.rotation,
-    item.hidden,
-    item.route,
-    item.from,
-    item.to,
-    item.waypoints,
-  ];
-}
-const LANE_FIELDS = laneFields({ id: '', kind: '', x: 0, y: 0, w: 0, h: 0 }).length;
+const laneFields = (item: Item): unknown[] => [
+  item,
+  item.id,
+  item.kind,
+  item.x,
+  item.y,
+  item.w,
+  item.h,
+  item.rotation,
+  item.hidden,
+  item.route,
+  item.from,
+  item.to,
+  item.waypoints,
+  item.text,
+];
 
+/** Every route and label call checks the whole lookup, so the check reads fields directly. */
 function samePass(pass: LanePass, items: Item[], outline?: OutlineResolver): boolean {
   if (pass.outline !== outline || pass.items.length !== items.length) return false;
-  for (let index = 0; index < items.length; index++) {
-    const fields = laneFields(items[index]);
-    for (let field = 0; field < LANE_FIELDS; field++)
-      if (pass.signature[index * LANE_FIELDS + field] !== fields[field]) return false;
+  const s = pass.signature;
+  for (let i = 0, f = 0; i < items.length; i++, f += 14) {
+    const item = items[i];
+    if (
+      s[f] !== item ||
+      s[f + 1] !== item.id ||
+      s[f + 2] !== item.kind ||
+      s[f + 3] !== item.x ||
+      s[f + 4] !== item.y ||
+      s[f + 5] !== item.w ||
+      s[f + 6] !== item.h ||
+      s[f + 7] !== item.rotation ||
+      s[f + 8] !== item.hidden ||
+      s[f + 9] !== item.route ||
+      s[f + 10] !== item.from ||
+      s[f + 11] !== item.to ||
+      s[f + 12] !== item.waypoints ||
+      s[f + 13] !== item.text
+    )
+      return false;
   }
   return true;
 }
@@ -459,29 +763,51 @@ function samePass(pass: LanePass, items: Item[], outline?: OutlineResolver): boo
 function lanePass(lookup: object, items: Item[], outline?: OutlineResolver): LanePass {
   const cached = lanePasses.get(lookup);
   if (cached && samePass(cached, items, outline)) return cached;
+  const map = new Map(items.map((node) => [node.id, node])),
+    area = field(items);
   const pass: LanePass = {
     outline,
     items,
     signature: items.flatMap(laneFields),
-    map: new Map(items.map((node) => [node.id, node])),
-    occupied: [],
-    before: [],
+    map,
+    index: new Map([...items.entries()].reverse().map(([i, node]) => [node.id, i])),
+    area,
+    ends: attach(items, map, outline, area.nodes),
+    routed: 0,
+    labelled: 0,
     routes: new Map(),
+    labels: new Map(),
   };
   lanePasses.set(lookup, pass);
   return pass;
 }
 
-/** Route `items[before.length]` up to `stop` (exclusive), reserving visible connector lanes in order. */
+/** Route `items[routed]` up to `stop` (exclusive), reserving visible connector lanes in order. */
 function advance(pass: LanePass, stop: number): void {
-  for (let index = pass.before.length; index < stop; index++) {
-    const previous = pass.items[index];
-    pass.before.push(pass.occupied.length);
+  for (; pass.routed < stop; pass.routed++) {
+    const index = pass.routed,
+      previous = pass.items[index];
     if (previous.kind !== 'connector' || previous.hidden) continue;
-    const geometry = connectorGeometry(previous, pass.map, pass.outline, pass.items, pass.occupied);
+    pass.area.limit = index;
+    const geometry = connectorGeometry(
+      previous,
+      pass.map,
+      pass.outline,
+      pass.area,
+      pass.ends.get(index),
+    );
     pass.routes.set(index, geometry);
-    pass.occupied.push(geometry.points);
+    reserve(pass.area, geometry.points, index);
   }
+}
+
+/** Index of `item` in the pass, or -1, after routing every connector before it. */
+function locate(item: Item, lookup: ItemLookup, outline?: OutlineResolver) {
+  const pass = lanePass(lookup, listedItems(lookup), outline);
+  const index = pass.index.get(item.id) ?? -1;
+  advance(pass, index < 0 ? pass.items.length : index + 1);
+  pass.area.limit = index < 0 ? Infinity : index;
+  return { pass, index };
 }
 
 export function routeConnector(
@@ -492,16 +818,74 @@ export function routeConnector(
   if (item.route !== 'elbow' || item.waypoints?.length)
     return connectorGeometry(item, lookup, outline);
   if (!lookup || typeof lookup === 'function')
-    return connectorGeometry(item, lookup ?? new Map(), outline, [], []);
+    return connectorGeometry(item, lookup ?? new Map(), outline);
   // Reserve lanes in document order: every connector before this one routes first.
-  const pass = lanePass(lookup, listedItems(lookup), outline);
-  const index = pass.items.findIndex((node) => node.id === item.id);
-  if (index < 0) {
-    advance(pass, pass.items.length);
-    return connectorGeometry(item, pass.map, outline, pass.items, pass.occupied);
-  }
-  advance(pass, index + 1);
+  const { pass, index } = locate(item, lookup, outline);
   if (pass.items[index] === item && pass.routes.has(index)) return pass.routes.get(index)!;
-  const lanes = pass.occupied.slice(0, pass.before[index]);
-  return connectorGeometry(item, pass.map, outline, pass.items, lanes);
+  return connectorGeometry(item, pass.map, outline, pass.area, pass.ends.get(index));
+}
+
+/**
+ * Page-space box of a connector's label, or undefined without text. It sits on the longest
+ * segment of the route where it covers no node, no earlier label, and no other connector.
+ * Labels are placed in document order; the stage and SVG export both read this box.
+ */
+export function connectorLabel(
+  item: Item,
+  lookup?: ItemLookup,
+  outline?: OutlineResolver,
+): Box | undefined {
+  if (!item.text?.value) return undefined;
+  const size = labelSize(item.text);
+  if (!lookup || typeof lookup === 'function')
+    return placeLabel(routeConnector(item, lookup, outline).points, size, () => 0);
+  const { pass, index } = locate(item, lookup, outline);
+  label(pass, index < 0 ? pass.items.length : index + 1);
+  if (pass.items[index] === item && pass.labels.has(index)) return pass.labels.get(index);
+  return placeLabel(routeConnector(item, lookup, outline).points, size, blocked(pass, index));
+}
+
+/** Labels cover no node, no other connector, and no label placed before them. */
+const blocked = (pass: LanePass, own: number) => (box: Box) => {
+  const { nodes, lanes, labels } = pass.area,
+    entry = boxEntry(box);
+  let count = 0;
+  for (const node of nodes.search(entry)) count += +overlaps(entry, node);
+  for (const lane of lanes.search(entry))
+    count += +(lane.owner !== own && segmentHits(lane.a, lane.b, box, -0.01));
+  for (const placed of labels.search(entry))
+    count += +(placed.owner < (own < 0 ? Infinity : own) && overlaps(entry, placed));
+  return count;
+};
+
+/** Route the whole pass, then place labels in document order up to `stop` (exclusive). */
+function label(pass: LanePass, stop: number): void {
+  advance(pass, pass.items.length);
+  for (; pass.labelled < stop; pass.labelled++) {
+    const at = pass.labelled,
+      route = pass.routes.get(at),
+      text = pass.items[at].text;
+    if (!route || !text?.value) continue;
+    const box = placeLabel(route.points, labelSize(text), blocked(pass, at));
+    pass.labels.set(at, box);
+    pass.area.labels.insert({ ...boxEntry(box), owner: at });
+  }
+}
+
+/**
+ * Every visible connector of a page with its routed points and label box, in document order.
+ * One pass serves the whole page, so the cost grows linearly with the number of connectors.
+ */
+export function routePage(
+  items: Item[],
+  outline?: OutlineResolver,
+): { id: string; points: Point[]; label?: Box }[] {
+  const lookup = new Map(flattenItems(items).map((item) => [item.id, item]));
+  const pass = lanePass(lookup, [...lookup.values()], outline);
+  label(pass, pass.items.length);
+  return [...pass.routes].map(([index, route]) => ({
+    id: pass.items[index].id,
+    points: route.points,
+    label: pass.labels.get(index),
+  }));
 }

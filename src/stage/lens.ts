@@ -1,9 +1,9 @@
-import type { Box, LensState, Point } from '../core/types';
+import type { Box, LensState, Point, ViewCause, ViewEvent } from '../core/types';
 
 /** Camera values are screen-pixel translation followed by page-space scaling. */
 export class Lens {
   private value: LensState = { x: 0, y: 0, zoom: 1 };
-  private listeners = new Set<(state: LensState) => void>();
+  private listeners = new Set<(state: ViewEvent) => void>();
   private observer?: ResizeObserver;
   private animation = 0;
   width: number;
@@ -17,7 +17,7 @@ export class Lens {
         if (!rect || (rect.width === this.width && rect.height === this.height)) return;
         this.width = rect.width;
         this.height = rect.height;
-        this.emit();
+        this.emit('resize');
       });
       this.observer.observe(host);
     }
@@ -31,17 +31,17 @@ export class Lens {
   get center(): Point {
     return this.toPage({ x: this.width / 2, y: this.height / 2 });
   }
-  set(patch: Partial<LensState>): void {
+  set(patch: Partial<LensState>, cause: ViewCause = 'api'): void {
     this.stop();
     const next = { ...this.value, ...patch };
     if (![next.x, next.y, next.zoom].every(Number.isFinite)) return;
     next.zoom = Math.max(0.05, Math.min(8, next.zoom));
     if (next.x === this.value.x && next.y === this.value.y && next.zoom === this.value.zoom) return;
     this.value = next;
-    this.emit();
+    this.emit(cause);
   }
-  private emit(): void {
-    for (const callback of this.listeners) callback(this.state);
+  private emit(cause: ViewCause): void {
+    for (const callback of this.listeners) callback({ ...this.value, cause });
   }
   toPage(point: Point): Point {
     return {
@@ -63,31 +63,38 @@ export class Lens {
       h: (this.height + margin * 2) / this.zoom,
     };
   }
-  private fitState(box: Box, padding = 96): LensState {
+  /** Frame `box` between `min` and `max` zoom; an axis that does not fit shows its start. */
+  private fitState(box: Box, padding = 96, min = 0.05, max = 1.5): LensState {
     const usableW = Math.max(120, this.width - Math.min(padding * 2, this.width * 0.3));
     const usableH = Math.max(120, this.height - Math.min(padding * 2, this.height * 0.35));
     const zoom = Math.max(
-      0.05,
-      Math.min(1.5, usableW / Math.max(1, box.w), usableH / Math.max(1, box.h)),
+      min,
+      Math.min(max, usableW / Math.max(1, box.w), usableH / Math.max(1, box.h)),
     );
+    const axis = (size: number, usable: number, start: number, length: number) =>
+      length * zoom > usable + 0.5
+        ? (size - usable) / 2 - start * zoom
+        : size / 2 - (start + length / 2) * zoom;
     return {
-      x: this.width / 2 - (box.x + box.w / 2) * zoom,
-      y: this.height / 2 - (box.y + box.h / 2) * zoom,
+      x: axis(this.width, usableW, box.x, box.w),
+      y: axis(this.height, usableH, box.y, box.h),
       zoom,
     };
   }
-  fit(box: Box, padding = 96): void {
+  fit(box: Box, padding = 96, cause: ViewCause = 'api'): void {
     this.stop();
-    this.set(this.fitState(box, padding));
+    this.set(this.fitState(box, padding), cause);
   }
-  flyTo(box: Box): void {
+  /** Animated unless reduced motion or a hidden tab; `zoom` bounds the framing zoom. */
+  flyTo(box: Box, cause: ViewCause = 'api', zoom: [number, number] = [0.05, 1.5]): void {
     this.stop();
-    const target = this.fitState(box);
+    const target = this.fitState(box, 96, ...zoom);
     if (
       typeof matchMedia === 'undefined' ||
-      matchMedia('(prefers-reduced-motion: reduce)').matches
+      matchMedia('(prefers-reduced-motion: reduce)').matches ||
+      this.host.ownerDocument.hidden
     ) {
-      this.set(target);
+      this.set(target, cause);
       return;
     }
     const initial = this.state;
@@ -95,11 +102,14 @@ export class Lens {
     const step = (now: number) => {
       const progress = Math.min(1, (now - started) / 280);
       const ease = 1 - (1 - progress) ** 3;
-      this.set({
-        x: initial.x + (target.x - initial.x) * ease,
-        y: initial.y + (target.y - initial.y) * ease,
-        zoom: initial.zoom + (target.zoom - initial.zoom) * ease,
-      });
+      this.set(
+        {
+          x: initial.x + (target.x - initial.x) * ease,
+          y: initial.y + (target.y - initial.y) * ease,
+          zoom: initial.zoom + (target.zoom - initial.zoom) * ease,
+        },
+        cause,
+      );
       if (progress < 1) this.animation = requestAnimationFrame(step);
       else this.animation = 0;
     };
@@ -109,7 +119,7 @@ export class Lens {
     if (this.animation) cancelAnimationFrame(this.animation);
     this.animation = 0;
   }
-  onChange(callback: (state: LensState) => void): () => void {
+  onChange(callback: (state: ViewEvent) => void): () => void {
     this.listeners.add(callback);
     return () => this.listeners.delete(callback);
   }

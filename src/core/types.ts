@@ -37,6 +37,7 @@ export type ItemKind =
   | 'link'
   | 'group'
   | 'html'
+  | 'mark'
   | (string & {});
 export interface Style {
   stroke?: Color;
@@ -53,6 +54,8 @@ export interface ItemText {
   valign?: 'top' | 'middle' | 'bottom';
   size?: 's' | 'm' | 'l' | 'xl' | number;
   font?: 'sans' | 'serif' | 'mono' | 'hand';
+  /** `md` renders **bold**, *italic*, `- ` and `1. ` list items, and `# ` / `## ` headings. Default `plain`. */
+  format?: 'plain' | 'md';
 }
 export type Endpoint =
   | {
@@ -88,9 +91,25 @@ export interface Item {
     end?: 'none' | 'arrow' | 'dot';
   };
   waypoints?: [number, number][];
+  /** Mark only: the item it emphasizes. The mark takes its geometry from this item. */
+  target?: string;
+  /** Mark only: `highlight`, `underline`, `circle`, or `box`. Default `highlight`. */
+  mark?: 'highlight' | 'underline' | 'circle' | 'box';
+  /** Mark only: first occurrence of this phrase in the target's visible text. Omitted, or not found, covers the whole item. */
+  match?: string;
   closed?: boolean;
   autoWidth?: boolean;
+  /** Table only: cell text by row, then column. Ragged rows are padded with empty cells. */
+  rows?: string[][];
+  /** Table only: the first row is a header. */
+  header?: boolean;
   media?: string;
+  /** Image only: the picture does not exist yet. `media` may be omitted while this is true. */
+  pending?: boolean;
+  /** Image only: generation progress from 0 to 1, drawn while `pending`. */
+  progress?: number;
+  /** Image only: the size came from the media, so a `media.set` that changes its aspect ratio keeps `w` and sets `h`. */
+  fitMedia?: boolean;
   crop?: Box;
   href?: string;
   description?: string;
@@ -158,6 +177,8 @@ export type Op =
         to?: EndpointInput;
         /** A plain string sets `text.value` and keeps the other label fields. */
         text?: Partial<ItemText> | string;
+        /** Table only: `{ 'row,column': 'text' }`, zero-based with the header as row 0. Stored as `rows`. */
+        cells?: Record<string, string>;
       };
     }
   | {
@@ -204,6 +225,12 @@ export type Op =
       op: 'media.remove';
       id: string;
     };
+/**
+ * Agent layout for nodes sent without `x`, `y`, or `place`. `auto` arranges each batch as a graph,
+ * `none` places node by node from the arrows. An object keeps `auto` and fixes the direction or shape.
+ */
+export type AgentLayout =
+  'auto' | 'none' | { direction?: 'right' | 'down'; shape?: 'flow' | 'tree' | 'radial' | 'ring' };
 export interface ApplyOptions {
   /** Reject the whole batch if the document changed since this session revision. */
   expectedRevision?: number;
@@ -211,10 +238,23 @@ export interface ApplyOptions {
   origin?: string;
   label?: string;
   dryRun?: boolean;
+  /** `agent:` batches only. How nodes sent without `x`, `y`, or `place` are arranged. Default `auto`. */
+  layout?: AgentLayout;
+  /** Visible size in page units at zoom 1, read by the agent layout. Headless default 1280x760; a board passes its own. */
+  viewport?: { w: number; h: number };
   merge?: boolean;
   agentName?: string;
-  /** After created items finish arriving, `fit` frames the whole current page. */
-  reveal?: 'none' | 'fit';
+  /**
+   * After created items finish arriving, `fit` frames the whole current page and `created`
+   * flies to what the batch created unless it is already in view. Both move only while
+   * `board.view.follow` is true.
+   */
+  reveal?: 'none' | 'fit' | 'created';
+  /**
+   * Browser boards only, presentation only: `durationMs` (0 to 60000) is the time from the start
+   * of this agent batch's arrival to its `presented` event, shared by text length.
+   */
+  presentation?: { durationMs?: number };
   /**
    * When true, invalid operations are skipped and the rest commit as one
    * transaction. Default false (all-or-nothing).
@@ -228,7 +268,12 @@ export interface ApplyIssue {
 }
 export interface ApplyResult {
   ok: boolean;
+  /** Items the batch added (including nested children) that exist after it. */
   created: string[];
+  /** Items that existed before, still exist, and were changed by a `set`, `order`, or `reparent` in the batch (or detached from a removed target). Excludes `moved`-only items and `created`. */
+  updated: string[];
+  /** Items that existed before and do not exist after, including descendants of removed groups and children dropped by a `set` of `children`. */
+  removed: string[];
   errors: ApplyIssue[];
   warnings: ApplyIssue[];
   /** Present when an agent `place` inserted a node and moved existing items to make room. */
@@ -282,6 +327,8 @@ export interface DescribeOptions {
   since?: number;
   /** Still-present ids for viewport scope. */
   ids?: string[];
+  /** Append "Use query() or increase maxItems for detail." to the overflow line. Default false. */
+  overflowHint?: boolean;
 }
 export type ExportFormat = 'json' | 'svg' | 'png' | 'jpeg' | 'webp';
 export interface ExportOptions {
@@ -300,12 +347,37 @@ export interface ExportOptions {
   quality?: number;
   /** PNG only. Quantize to at most this many colors (2–256) and write an indexed PNG. */
   colors?: number;
+  /** SVG only. Inline remote images as data URLs so the file is self-contained. Raster formats always do. */
+  embedImages?: boolean;
+  /** Called once per item whose image could not be embedded; the export draws a labeled placeholder. */
+  onWarning?: (warning: ExportWarning) => void;
+}
+export interface ExportWarning {
+  code: 'IMAGE_UNAVAILABLE';
+  /** Item id. */
+  id: string;
+  /** Media key. */
+  media: string;
+  message: string;
+}
+/** Board `media` event: an image item's picture finished loading or failed in the browser. */
+export interface MediaLoadEvent {
+  /** Item id. */
+  id: string;
+  /** Media key. */
+  media: string;
+  status: 'loaded' | 'error';
 }
 export interface AgentPresenceOptions {
   /** On-screen non-connector stops before the rest appear together. Default 8. */
   maxStops?: number;
   /** Multiplier on move and reveal durations. Default 1. Minimum 0.25, maximum 2. */
   durationScale?: number;
+  /**
+   * Write the labels of created items left to right, line by line, with a pen cursor, instead
+   * of fading them. Presentation only. Default false. `charsPerSecond` defaults to 30 (5 to 400).
+   */
+  write?: boolean | { charsPerSecond?: number };
 }
 export interface DocOptions {
   readonly?: boolean;
@@ -320,6 +392,8 @@ export interface DocOptions {
     outline?: (item: Item) => Outline | Outline[];
   }[];
   agentHistory?: 'shared' | 'hidden';
+  /** Default for `ApplyOptions.layout`. */
+  agentLayout?: AgentLayout;
   agentPlaceGap?: number;
 }
 export interface DocModel {
@@ -349,4 +423,9 @@ export interface LensState {
   x: number;
   y: number;
   zoom: number;
+}
+/** `user` is direct input, `api` a host call, `agent` a reveal, `resize` a host size change. */
+export type ViewCause = 'user' | 'api' | 'agent' | 'resize';
+export interface ViewEvent extends LensState {
+  cause: ViewCause;
 }

@@ -56,7 +56,9 @@ board.apply([
 ]);
 ```
 
-Kind names must start with a letter and contain only letters, digits, `_`, or `-`. Kind callbacks are trusted application code. Escape user text with `context.escape` when composing SVG strings. Use DOM `textContent` in the browser. Shape callbacks have `element`, `shape`, `text`, and the current document. Implement `toSVG` for anything that must survive portable SVG export. Unknown kinds remain saved and render as placeholders when the application has not registered them.
+Kind names must start with a letter and contain only letters, digits, `_`, or `-`. Kind callbacks are trusted application code. Escape user text with `context.escape` when composing SVG strings. Use DOM `textContent` in the browser. Shape callbacks have `element`, `shape`, `text`, the current document, and `theme` (`'light'` or `'dark'`), the board theme of the current paint, so a kind can pick colors that read in both themes.
+
+The document model applies built-in behavior by kind name: an item of kind `table` is sized from its `rows` even when the host registered its own `table`, although the host's `paint` and `toSVG` still draw it. Item fields used by built-in kinds are validated on every item, whatever its kind, so a custom kind must not store a different shape under `rows`, `header`, `pending`, `progress`, `fitMedia`, `target`, `mark`, `match`, `media`, `points`, `html`, or the other fields in [the format](format.md#item-fields), or under `text.format`. Keep custom fields under other names or in `data`. Implement `toSVG` for anything that must survive portable SVG export. Unknown kinds remain saved and render as placeholders when the application has not registered them.
 
 `defineKind` returns the definition. Pass it in `createBoard({ kinds })` or `createDoc({ kinds })` for that instance. `registerKind` installs a default for boards created afterward and returns an uninstall function:
 
@@ -67,7 +69,7 @@ const uninstall = registerKind(badge);
 
 Custom kind `defaults` supply item properties before validation. A kind may also provide a Valibot `schema` for its extra fields. That schema runs during imports and operation validation. Pass the same kind definitions to `createDoc(..., { kinds })` for headless validation.
 
-A local-coordinate `outline(item)` supplies one or more `{ points: [{ x, y }], closed }` shapes for hit testing and attached connector routing in the live board, exports, and headless deletion. Explicit normalized connector anchors stay exact. Automatic and named-side endpoints meet the custom outline. `summarize(item)` supplies the accessible item label.
+A local-coordinate `outline(item)` supplies one or more `{ points: [{ x, y }], closed }` shapes for hit testing and attached connector routing in the live board, exports, and headless deletion. Explicit normalized connector anchors stay exact. Automatic and named-side endpoints meet the custom outline. Automatic connectors that share a side of a custom-outline kind attach at one centered port instead of being spread along the side. `summarize(item)` supplies the accessible item label.
 
 ```ts
 import * as v from 'valibot';
@@ -96,7 +98,7 @@ Keep custom schemas and callbacks in trusted application code. The document stor
 
 ## Mount, paint, and handles
 
-`mount(view)` creates custom content once and may return a cleanup function. Cleanup runs when the kind changes or the view is destroyed. Custom `mount` and `paint` callbacks own the shape, text, and auxiliary content. The stage owns the wrapper's position, size, opacity, and accessible label. `paint(view, item, changed)` receives a set containing the changed groups: `transform`, `geometry`, `style`, `text`, or `content`.
+`mount(view)` creates custom content once and may return a cleanup function. Cleanup runs when the kind changes or the view is destroyed. Custom `mount` and `paint` callbacks own the shape, text, and auxiliary content. The stage owns the wrapper's position, size, opacity, and accessible label. `paint(view, item, changed)` receives a set containing the changed groups: `transform`, `geometry`, `style`, `text`, or `content`. A theme change repaints the item, and `view.theme` holds the new theme during that paint.
 
 A custom handle uses unrotated coordinates inside the item. Return a patch from `dragHandle`. The editor previews it as a draft and commits one undoable operation on release.
 

@@ -211,10 +211,17 @@ describe('agent flowchart placement', () => {
 
   it('moves a label at the 40% area boundary and leaves a smaller one', () => {
     const doc = createDoc(undefined, { agentPlaceGap: 120 });
+    // Repeated coordinates: nodes sent without any are arranged by the batch layout instead.
     doc.apply(
       [
-        { op: 'add', item: { id: 'wide', kind: 'rect', w: 100, h: 100, text: { value: 'A' } } },
-        { op: 'add', item: { id: 'edge', kind: 'rect', w: 40, h: 100, text: { value: 'A' } } },
+        {
+          op: 'add',
+          item: { id: 'wide', kind: 'rect', x: 0, y: 0, w: 100, h: 100, text: { value: 'A' } },
+        },
+        {
+          op: 'add',
+          item: { id: 'edge', kind: 'rect', x: 0, y: 0, w: 40, h: 100, text: { value: 'A' } },
+        },
         {
           op: 'add',
           item: { id: 'under', kind: 'rect', x: 400, y: 0, w: 100, h: 100, text: { value: 'B' } },
@@ -321,10 +328,12 @@ describe('agent flowchart placement', () => {
     expect(result.ok).toBe(true);
     expect(doc.get('far')).toMatchObject({ x: 800, y: 40 });
     const a = doc.get('a')!;
-    expect(doc.get('below')!.y).toBe(a.y + a.h + 10);
-    // An unpositioned blank box would cover A, so it goes right of the page content.
+    // `below` follows A wherever the layout puts it.
+    expect(doc.get('below')).toMatchObject({ x: a.x, y: a.y + a.h + 10 });
+    // The two unconnected boxes are packed side by side next to the page content, here below it.
     const far = doc.get('far')!;
-    expect(doc.get('blank')).toMatchObject({ x: far.x + far.w + 120, y: 0 });
+    expect(a).toMatchObject({ x: far.x, y: far.y + far.h + 180 });
+    expect(doc.get('blank')).toMatchObject({ x: a.x + a.w + 120, y: a.y });
     expect(doc.get('line')).toMatchObject({ x: 0, y: 0 });
     expect(doc.get('path')).toMatchObject({ x: 0, y: 0 });
     const user = createDoc(undefined, { agentPlaceGap: 120 });
@@ -612,7 +621,7 @@ describe('agent nodes sent without coordinates', () => {
     );
   };
 
-  it('places each connected node after its source from the batch arrows', () => {
+  it('ranks each connected node after its source and keeps the longest path on one line', () => {
     const doc = createDoc(undefined, { agentPlaceGap: 120 });
     const result = doc.apply(
       [
@@ -630,12 +639,14 @@ describe('agent nodes sent without coordinates', () => {
     const { idea, research, build, test } = Object.fromEntries(
       doc.query().map((item) => [item.id, item]),
     );
-    expect(idea).toMatchObject({ x: 0, y: 0 });
+    expect(idea.x).toBe(0);
     expect(research.x).toBe(idea.x + idea.w + 120);
-    // The second branch stacks beside the first instead of covering it.
+    // The short side branch shares the rank of the trunk step and moves aside for it.
     expect(build.x).toBe(research.x);
-    expect(build.y).toBeGreaterThanOrEqual(research.y + research.h + 120);
+    expect([build.y, test.y]).toEqual([idea.y, idea.y]);
+    expect(research.y + research.h).toBeLessThan(build.y);
     expect(test.x).toBe(build.x + build.w + 120);
+    expect(Math.min(idea.y, research.y)).toBe(0);
     expect(overlaps(doc)).toBe(false);
     expect(result.warnings.some((warning) => warning.code === 'OVERLAPS_EXISTING')).toBe(false);
   });
@@ -684,7 +695,7 @@ describe('agent nodes sent without coordinates', () => {
     expect(step.x + step.w + 120).toBe(600);
   });
 
-  it('starts a new diagram right of existing work instead of on top of it', () => {
+  it('starts a new diagram below or right of existing work, whichever reads larger', () => {
     const doc = createDoc(undefined, { agentPlaceGap: 120 });
     doc.apply(
       [
@@ -701,12 +712,21 @@ describe('agent nodes sent without coordinates', () => {
     const start = doc.get('start')!,
       end = doc.get('end')!,
       title = doc.get('title')!;
-    expect(start).toMatchObject({ x: title.x + title.w + 120, y: -40 });
-    expect(end.x).toBe(start.x + start.w + 120);
+    // Below, left-aligned, with a clear gap of one and a half agentPlaceGap.
+    expect(start).toMatchObject({ x: -50, y: title.y + title.h + 180 });
+    expect(end).toMatchObject({ x: start.x + start.w + 120, y: start.y });
     expect(overlaps(doc)).toBe(false);
+
+    // Tall existing work leaves more room to the right: top-aligned there.
+    const tall = createDoc(undefined, { agentPlaceGap: 120 });
+    tall.apply([{ op: 'add', item: { id: 'column', kind: 'rect', x: 0, y: 0, w: 200, h: 900 } }], {
+      origin: 'user',
+    });
+    tall.apply([node('start', 'Start'), node('end', 'End'), arrow('start', 'end')], fellow);
+    expect(tall.get('start')).toMatchObject({ x: 200 + 180, y: 0 });
   });
 
-  it('places a node to the right of the first arrow that points at it', () => {
+  it('places a node one rank after its sources, centered between them', () => {
     const doc = createDoc(undefined, { agentPlaceGap: 120 });
     doc.apply(
       [
@@ -721,8 +741,13 @@ describe('agent nodes sent without coordinates', () => {
       ],
       fellow,
     );
-    const a = doc.get('a')!;
-    expect(doc.get('b')).toMatchObject({ x: a.x + a.w + 120, y: a.y });
+    const a = doc.get('a')!,
+      c = doc.get('c')!,
+      b = doc.get('b')!;
+    // Fan-in: both sources share the rank before b, which sits halfway between them.
+    expect(b.x).toBe(a.x + a.w + 120);
+    expect(b.y + b.h / 2).toBe((a.y + a.h / 2 + c.y + c.h / 2) / 2);
+    expect(doc.get('x')).toMatchObject({ x: 800, y: 400 });
   });
 
   it('keeps sent coordinates and explicit place over the arrows', () => {

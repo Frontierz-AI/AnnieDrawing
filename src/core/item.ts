@@ -111,6 +111,7 @@ export function remapAgentCreateIds(
     if ('to' in item && item.to !== undefined)
       (item as NewItem).to = rewriteEndpoint(item.to as EndpointInput);
     if ('place' in item) rewritePlace(item.place);
+    if (typeof item.target === 'string') item.target = rewriteId(item.target) ?? item.target;
     item.children?.forEach(rewriteTree);
   };
   // In batch order, so an op before a create still refers to the item already on the board.
@@ -133,6 +134,7 @@ export function remapAgentCreateIds(
       op.id = rewriteId(op.id)!;
       if (op.patch?.from !== undefined) op.patch.from = rewriteEndpoint(op.patch.from);
       if (op.patch?.to !== undefined) op.patch.to = rewriteEndpoint(op.patch.to);
+      if (typeof op.patch?.target === 'string') op.patch.target = rewriteId(op.patch.target);
       if (Array.isArray(op.patch?.children)) {
         release(existing.get(op.id)?.children);
         op.patch.children.forEach((child) => assignTree(child, index));
@@ -160,6 +162,7 @@ export function copyItems(items: Item[], offset: number, nextId = itemId): Item[
       y: (item.y ?? 0) + offset,
     };
     if (item.children) next.children = item.children.map(copy);
+    if (typeof item.target === 'string') next.target = ids.get(item.target) ?? item.target;
     if (item.waypoints) next.waypoints = item.waypoints.map(([x, y]) => [x + offset, y + offset]);
     for (const key of ['from', 'to'] as const) {
       const endpoint = item[key];

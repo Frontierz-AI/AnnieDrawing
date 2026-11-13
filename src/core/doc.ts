@@ -42,10 +42,14 @@ import {
   type BatchLinks,
   type PlaceShift,
 } from '../agent/place';
+import { isLayoutNode, layoutPages, type PendingLayout } from '../agent/layout';
 import { queryDoc } from '../agent/query';
 import { describeDoc } from '../agent/describe';
 import { MEDIA_DATA_URL, normalizeHref, parseVideo } from './links';
-import { growAgentLabeledTree, LABEL_BOX_KINDS } from './textFit';
+import { growAgentLabeledTree, LABEL_BOX_KINDS, textPlaceGap } from './textFit';
+import { followMedia, patchImage, sizeImage } from './image';
+import { fitNewTables, patchCells, refitTable } from './table';
+import { checkMark, checkNewMarks, dropMarks, isOverlay } from './mark';
 interface Location {
   item: Item;
   list: Item[];
@@ -267,7 +271,13 @@ function validateDoc(
           throw new Error(`Only groups may contain children (${item.id}).`);
         if (item.kind === 'connector' && (!item.from || !item.to))
           throw new Error(`Connector ${item.id} needs both from and to endpoints.`);
-        if (item.kind === 'image' && (!item.media || !doc.media[item.media]))
+        if (item.kind === 'table' && !item.rows)
+          throw new Error(`Table ${item.id} needs rows: an array of rows of cell strings.`);
+        if (
+          item.kind === 'image' &&
+          item.pending !== true &&
+          (!item.media || !doc.media[item.media])
+        )
           throw new Error(`Image ${item.id} references missing media ${item.media ?? '(unset)'}.`);
         if (item.kind === 'video' || item.kind === 'link' || item.href !== undefined) {
           if (!normalizeHref(item.href)) throw new Error(`Bad href (${item.id}).`);
@@ -295,7 +305,7 @@ function validateDoc(
           const target = localIds.get(endpoint.item);
           if (!target)
             throw new Error(`Endpoint ${endpoint.item} does not exist on page ${page.id}.`);
-          if (target.kind === 'connector' || target.id === item.id)
+          if (target.kind === 'connector' || isOverlay(target) || target.id === item.id)
             throw new Error(
               `Connector endpoints must attach to a non-connector item (${endpoint.item}).`,
             );
@@ -440,6 +450,7 @@ function batchLinks(ops: Op[]): { links: BatchLinks; edges: BatchEdge[] } {
 /** Move an existing item (and its children) to make room; connectors move stored points only. */
 function shiftItem(item: Item, shift: PlaceShift, moved: Op[], inverse: Op[]): void {
   const { dx, dy } = shift;
+  if (isOverlay(item)) return;
   if (item.kind === 'connector') {
     const before: Partial<Item> = {},
       patch: Partial<Item> = {};
@@ -476,12 +487,15 @@ function perform(
   options: DocOptions = {},
   links?: BatchLinks,
   edges?: readonly BatchEdge[],
+  layout?: PendingLayout,
 ): {
   op: Op;
   /** Follow-up `set` operations for items moved to make room. */
   moved: Op[];
   inverse: Op[];
   created: string[];
+  /** Follow-up `set` operations an op caused, such as image heights that follow new media. */
+  effects?: Op[];
 } {
   const op = clone(raw),
     kindDefaults = kindDefaultsFrom(options.kinds);
@@ -495,11 +509,13 @@ function perform(
   const moved: Op[] = [];
   if (op.op === 'add') {
     let item = normalizeItem(op.item, kindDefaults);
+    sizeImage(item, op.item, doc.media);
+    fitNewTables(item, op.item, origin.startsWith('agent:'));
     if (origin !== 'user') sanitizeAgentItems(item, options.sanitizeHTML);
     cleanHref(item);
     if (origin.startsWith('agent:')) {
       // Grow before the parent is chosen so nested `inside` selects the group and later steps see the real size.
-      growAgentLabeledTree(item);
+      growAgentLabeledTree(item, op.item.h === undefined);
       if (!op.place) {
         const lifted = takeItemPlace(item);
         if (lifted) op.place = lifted;
@@ -513,19 +529,27 @@ function perform(
     if (!page) throw new Error(`Page ${op.page ?? '(first)'} does not exist.`);
     if (parent && op.page && op.page !== parent.page.id)
       throw new Error('Parent and page must refer to the same page.');
+    checkNewMarks([item], flattenItems(page.items));
+    if (isOverlay(item)) delete op.place;
+    // Nodes waiting for the batch layout neither block nor anchor per-node placement.
+    const solid = (list: Item[]) =>
+      layout ? list.filter((entry) => !layout.pending.has(entry.id)) : list;
     if (origin.startsWith('agent:')) {
-      const pageItems = flattenItems(page.items);
+      const pageItems = solid(flattenItems(page.items));
       // normalizeItem stores omitted coordinates as 0; only a node sent without both is placed for the agent.
       const unpositioned =
         !parent && op.item.x === undefined && op.item.y === undefined && isFlowNode(item);
-      if (!op.place && unpositioned) op.place = flowPlacement(item.id, edges, pageItems);
-      if (!op.place) {
-        const anchor = labelStackAnchor(item, pageItems);
-        if (anchor) op.place = { rightOf: anchor };
-      }
-      if (!op.place && unpositioned) {
-        const free = freeSpaceOrigin(item, pageItems, options.agentPlaceGap ?? 32);
-        if (free) item = { ...item, ...free };
+      if (layout && unpositioned && !op.place && isLayoutNode(item)) layout.pending.add(item.id);
+      else {
+        if (!op.place && unpositioned) op.place = flowPlacement(item.id, edges, pageItems);
+        if (!op.place) {
+          const anchor = labelStackAnchor(item, pageItems);
+          if (anchor) op.place = { rightOf: anchor };
+        }
+        if (!op.place && unpositioned) {
+          const free = freeSpaceOrigin(item, pageItems, options.agentPlaceGap ?? 32);
+          if (free) item = { ...item, ...free };
+        }
       }
       let colorIndex = flattenItems(page.items).filter((entry) =>
         AGENT_NODE_KINDS.has(entry.kind),
@@ -534,10 +558,18 @@ function perform(
     }
     if (op.place) {
       const gap =
-        op.place.gap ?? (origin.startsWith('agent:') ? (options.agentPlaceGap ?? 32) : 32);
+        op.place.gap ??
+        textPlaceGap(item, op.place, flattenItems(page.items), raw) ??
+        (origin.startsWith('agent:') ? (options.agentPlaceGap ?? 32) : 32);
       const pageItems = flattenItems(page.items);
       if (origin.startsWith('agent:')) {
-        const placed = placeAgentItem(item, { ...op.place, gap }, pageItems, pageItems, links);
+        const { rightOf, leftOf, above, below, near } = op.place,
+          ref = rightOf ?? leftOf ?? above ?? below ?? near;
+        // Beside a node the layout moves later: take the plain slot and follow that node.
+        const follows = !!ref && !!layout && (layout.pending.has(ref) || layout.attached.has(ref));
+        if (follows) layout!.attached.set(item.id, ref!);
+        const occupied = follows ? [] : solid(pageItems);
+        const placed = placeAgentItem(item, { ...op.place, gap }, occupied, pageItems, links);
         item = placed.item;
         const byId = new Map(pageItems.map((entry) => [entry.id, entry]));
         for (const shift of placed.shifts) shiftItem(byId.get(shift.id)!, shift, moved, inverse);
@@ -569,6 +601,7 @@ function perform(
       : undefined;
     if (Object.hasOwn(op.patch, 'id') && op.patch.id !== op.id)
       throw new Error('Item ids cannot be changed.');
+    if (Object.hasOwn(op.patch, 'cells')) patchCells(at.item, op.patch);
     inverse = [
       { op: 'set', id: op.id, patch: inversePatch(at.item, op.patch, ['style', 'text', 'data']) },
     ];
@@ -596,11 +629,19 @@ function perform(
       if (patch.children)
         patch.children.forEach((child) => sanitizeAgentItems(child, options.sanitizeHTML));
     }
+    if (isOverlay(at.item)) checkMark(at.item, flattenItems(at.page.items), patch);
     const previous = at.item;
+    if (inverse[0].op === 'set') patchImage(previous, patch, inverse[0].patch, doc.media);
     at.list[at.index] = mergePatch(previous, patch, ['style', 'text', 'data']);
+    const table =
+      at.list[at.index].kind === 'table' &&
+      ['kind', 'rows', 'header', 'w', 'h'].some((key) => Object.hasOwn(incoming, key));
+    if (table) refitTable(previous, at.list[at.index], incoming, origin.startsWith('agent:'));
+    if (Object.hasOwn(incoming, 'rows')) patch.rows = clone(at.list[at.index].rows);
     if (
-      origin.startsWith('agent:') &&
-      (Object.hasOwn(incoming, 'text') || Object.hasOwn(incoming, 'children'))
+      table ||
+      (origin.startsWith('agent:') &&
+        (Object.hasOwn(incoming, 'text') || Object.hasOwn(incoming, 'children')))
     ) {
       growAgentLabeledTree(at.list[at.index]);
       const next = at.list[at.index];
@@ -620,13 +661,20 @@ function perform(
         flattenItems(at.list[at.index].children ?? []).map((item) => item.id),
       );
       created = [...newDescendants].filter((id) => !oldLookup.has(id));
+      checkNewMarks(
+        at.list[at.index].children ?? [],
+        flattenItems(at.page.items),
+        (mark) => !oldLookup.has(mark.id),
+      );
       inverse.push(...detachMissingEndpoints(at.page.items, oldLookup, outline));
     }
     return { op: { ...op, patch }, moved, inverse, created };
   }
   if (op.op === 'remove') {
-    const at = requireItem(doc, op.id),
-      lookup = new Map(flattenItems(at.page.items).map((i) => [i.id, i]));
+    const found = requireItem(doc, op.id),
+      lookup = new Map(flattenItems(found.page.items).map((i) => [i.id, i])),
+      marks = dropMarks(found.page, found.item),
+      at = marks.length ? requireItem(doc, op.id) : found;
     inverse = [
       {
         op: 'add',
@@ -637,7 +685,7 @@ function perform(
       },
     ];
     at.list.splice(at.index, 1);
-    inverse.push(...detachMissingEndpoints(at.page.items, lookup, outline));
+    inverse.push(...marks, ...detachMissingEndpoints(at.page.items, lookup, outline));
   }
   if (op.op === 'order') {
     const at = requireItem(doc, op.id),
@@ -677,10 +725,14 @@ function perform(
       id: op.page.id ?? pageId(),
       items: (op.page.items ?? []).map((item) => normalizeItem(item, kindDefaults)),
     };
+    page.items.forEach((item, i) =>
+      fitNewTables(item, op.page.items![i], origin.startsWith('agent:')),
+    );
     if (origin !== 'user')
       page.items.forEach((item) => sanitizeAgentItems(item, options.sanitizeHTML));
     if (op.index !== undefined && op.index > doc.pages.length)
       throw new Error('Page insert index is outside the page list.');
+    checkNewMarks(page.items, []);
     doc.pages.splice(op.index ?? doc.pages.length, 0, page);
     inverse = [{ op: 'page.remove', id: page.id }];
     created = flattenItems(page.items).map((i) => i.id);
@@ -720,6 +772,8 @@ function perform(
       ? [{ op: 'media.set', id: op.id, media: doc.media[op.id] }]
       : [{ op: 'media.remove', id: op.id }];
     doc.media[op.id] = clone(op.media);
+    const follow = followMedia(doc, op.id);
+    return { op, moved, inverse: [...inverse, ...follow.inverse], created, effects: follow.ops };
   }
   if (op.op === 'media.remove') {
     if (!doc.media[op.id]) throw new Error(`Media ${op.id} does not exist.`);
@@ -882,6 +936,13 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
   const sessionLog: ChangeSlice[] = [];
   const written = new Map<string, ItemStamp>(),
     removed = new Map<string, ItemStamp>();
+  /**
+   * Who gave each item its position and size this session, newest last, as `[geometry, origin]`.
+   * The layout moves only items an agent placed. Returning to an earlier geometry, as undo does,
+   * returns to its origin, so an undone drag leaves the item agent-placed.
+   */
+  const placedBy = new Map<string, [string, string][]>();
+  const placement = (item: Item) => [item.x, item.y, item.w, item.h, item.rotation ?? 0].join();
   const hideAgent = () => options.agentHistory === 'hidden';
   const agentOrigin = (origin: string) => origin.startsWith('agent:');
   const walkBack = (stack: { origin: string }[], keep: (origin: string) => boolean) => {
@@ -903,14 +964,39 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
     for (const [id, item] of afterItems) {
       const prev = beforeItems.get(id);
       if (!prev || !equal(prev, item)) {
-        written.set(id, { revision: rev, origin, kind: item.kind, page: afterPages.get(id)! });
+        // The creator survives edits; a restored item keeps the creator it had, or none if it predates the session.
+        const gone = removed.get(id),
+          creator = prev ? written.get(id)?.creator : gone ? gone.creator : origin;
+        written.set(id, {
+          revision: rev,
+          origin,
+          kind: item.kind,
+          page: afterPages.get(id)!,
+          ...(creator ? { creator } : {}),
+        });
         removed.delete(id);
+        const key = placement(item);
+        if (!prev || placement(prev) !== key) {
+          const trail = prev ? (placedBy.get(id) ?? []) : [],
+            seen = trail.findIndex(([geometry]) => geometry === key);
+          if (seen >= 0) trail.length = seen + 1;
+          else trail.push([key, origin]);
+          placedBy.set(id, trail.slice(-8));
+        }
       }
     }
     for (const [id, item] of beforeItems) {
       if (!afterItems.has(id)) {
+        const creator = written.get(id)?.creator;
         written.delete(id);
-        removed.set(id, { revision: rev, origin, kind: item.kind, page: beforePages.get(id)! });
+        placedBy.delete(id);
+        removed.set(id, {
+          revision: rev,
+          origin,
+          kind: item.kind,
+          page: beforePages.get(id)!,
+          ...(creator ? { creator } : {}),
+        });
       }
     }
   };
@@ -919,6 +1005,7 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
     sessionLog.length = 0;
     written.clear();
     removed.clear();
+    placedBy.clear();
   };
   const commitSession = (
     slice: Omit<ChangeSlice, 'revision'>,
@@ -981,7 +1068,14 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
       return observed;
     },
     apply(ops, applyOptions = {}) {
-      const result: ApplyResult = { ok: false, created: [], errors: [], warnings: [] },
+      const result: ApplyResult = {
+          ok: false,
+          created: [],
+          updated: [],
+          removed: [],
+          errors: [],
+          warnings: [],
+        },
         origin = applyOptions.origin ?? 'api',
         lenient = !!applyOptions.lenient;
       if (options.readonly) {
@@ -1029,10 +1123,17 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
         inverse: Op[] = [],
         failures: ApplyIssue[] = [];
       const creationOps = new Map<string, number>();
+      /** Items named by the batch's own set, order, and reparent changes; `true` when order or parent changed. */
+      const touched = new Map<string, boolean>();
       const mediaIds = () =>
         new Set(concrete.filter((op) => op.op === 'media.set').map((op) => op.id));
       const batch = remapped.ops;
       const graph = origin.startsWith('agent:') ? batchLinks(batch) : undefined;
+      const mode = applyOptions.layout ?? options.agentLayout ?? 'auto';
+      const layout: PendingLayout | undefined =
+        graph && mode !== 'none' ? { pending: new Set(), attached: new Map() } : undefined;
+      const adds = new Map<string, Extract<Op, { op: 'add' }>>();
+      let layoutIndex = -1;
       /** Items moved to make room, with the op that moved them. */
       const moved = new Map<string, number>();
       for (let index = 0; index < batch.length; index++) {
@@ -1040,7 +1141,19 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
         try {
           const error = schemaError(OpSchema, batch[index]);
           if (error) throw new Error(error);
-          const change = perform(draft, batch[index], origin, options, graph?.links, graph?.edges);
+          const change = perform(
+            draft,
+            batch[index],
+            origin,
+            options,
+            graph?.links,
+            graph?.edges,
+            layout,
+          );
+          if (change.op.op === 'add' && layout) {
+            adds.set(String(change.op.item.id), change.op);
+            if (layoutIndex < 0 && layout.pending.size) layoutIndex = index;
+          }
           if (origin !== 'user' && result.created.length + change.created.length > LIMITS.maxBatch)
             throw new Error(
               `An agent batch may create at most ${LIMITS.maxBatch} items, including nested children.`,
@@ -1052,12 +1165,19 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
               origin,
               new Set([...mediaIds(), ...(change.op.op === 'media.set' ? [change.op.id] : [])]),
             );
-          concrete.push(change.op, ...change.moved);
+          concrete.push(change.op, ...change.moved, ...(change.effects ?? []));
           inverse.unshift(...change.inverse);
           result.created.push(...change.created);
           change.created.forEach((id) => creationOps.set(id, index));
           for (const op of change.moved)
             if (op.op === 'set' && !moved.has(op.id)) moved.set(op.id, index);
+          const shifted = new Set(change.moved.map((op) => (op as { id: string }).id));
+          for (const op of change.inverse)
+            if (
+              (op.op === 'set' || op.op === 'order' || op.op === 'reparent') &&
+              !shifted.has(op.id)
+            )
+              touched.set(op.id, touched.get(op.id) || op.op !== 'set');
         } catch (error) {
           if (snapshot) draft = snapshot;
           failures.push({
@@ -1066,6 +1186,34 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
             message: `${batch[index]?.op ?? 'operation'} #${index + 1}: ${error instanceof Error ? error.message : String(error)}`,
           });
         }
+      }
+      if (layout?.pending.size && (lenient || !failures.length)) {
+        const shifted: Op[] = [],
+          undo: Op[] = [];
+        try {
+          layoutPages(draft.pages, layout, {
+            placed: (id) => !!placedBy.get(id)?.at(-1)?.[1].startsWith('agent:'),
+            shift: (item, shift) => shiftItem(item, shift, shifted, undo),
+            gap: options.agentPlaceGap ?? 32,
+            viewport: applyOptions.viewport,
+            hint: mode,
+          });
+        } catch (error) {
+          result.warnings.push({
+            index: layoutIndex,
+            code: 'LAYOUT_FAILED',
+            message: `Layout stopped: ${error instanceof Error ? error.message : String(error)}`,
+          });
+        }
+        // Stored add operations carry the final coordinates, so history and redo agree.
+        const final = new Map(allItems(draft).map((item) => [item.id, item]));
+        for (const [id, op] of adds)
+          if ((layout.pending.has(id) || layout.attached.has(id)) && final.has(id))
+            op.item = clone(final.get(id)!);
+        concrete.push(...shifted);
+        inverse.unshift(...undo.reverse());
+        for (const op of shifted)
+          if (op.op === 'set' && !moved.has(op.id)) moved.set(op.id, layoutIndex);
       }
       if (!lenient && !failures.length) {
         try {
@@ -1110,7 +1258,8 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
       ];
       for (const [id, index, shifted] of placed) {
         const item = lookup.get(id);
-        if (!item || item.kind === 'connector' || item.children?.length) continue;
+        if (!item || item.kind === 'connector' || isOverlay(item) || item.children?.length)
+          continue;
         const box = itemBounds(item, lookup);
         const other = pageOfItem
           .get(id)!
@@ -1119,6 +1268,7 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
               other.id !== id &&
               !other.children?.length &&
               other.kind !== 'connector' &&
+              !isOverlay(other) &&
               overlaps(box, itemBounds(other, lookup)),
           );
         if (other)
@@ -1131,6 +1281,13 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
           });
       }
       result.ok = true;
+      result.created = result.created.filter((id) => lookup.has(id));
+      for (const [id, structural] of touched) {
+        const before = index.get(id),
+          after = lookup.get(id);
+        if (before && after && (structural || !equal(before, after))) result.updated.push(id);
+      }
+      for (const id of index.keys()) if (!lookup.has(id)) result.removed.push(id);
       if (moved.size) result.moved = [...moved.keys()];
       if (applyOptions.dryRun || !concrete.length) return result;
       const entry: Entry = {
@@ -1220,7 +1377,7 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
           const op = selective ? fitToDoc(raw, draft) : raw;
           if (!op) continue;
           const result = perform(draft, op, 'user', options);
-          actual.push(result.op);
+          actual.push(result.op, ...(result.effects ?? []));
           redo.unshift(...result.inverse);
         }
         validateDoc(draft, options);
@@ -1266,7 +1423,7 @@ export function createDoc(initial?: AnnieDoc, options: DocOptions = {}): DocMode
           const op = selective ? fitToDoc(raw, draft) : raw;
           if (!op) continue;
           const change = perform(draft, op, 'user', options);
-          ops.push(change.op);
+          ops.push(change.op, ...(change.effects ?? []));
           inverse.unshift(...change.inverse);
         }
         validateDoc(draft, options);

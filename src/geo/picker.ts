@@ -1,6 +1,14 @@
 import RBush from 'rbush';
 import type { Box, Item, Outline, Point } from '../core/types';
-import { contains, containsPoint, flattenItems, itemBounds, type ItemLookup } from './box';
+import {
+  contains,
+  containsPoint,
+  flattenItems,
+  itemBounds,
+  markGeometry,
+  type ItemLookup,
+} from './box';
+import { isOverlay, markHit } from '../core/mark';
 import { pointInPolygon, rotatePoint, segmentDistance } from './vec';
 import { routeConnector, type OutlineResolver } from './router';
 interface Entry {
@@ -28,6 +36,12 @@ export function hitTest(
 ): boolean {
   const resolveOutline = typeof outline === 'function' ? outline : undefined;
   if (item.kind === 'group') return containsPoint(itemBounds(item, lookup, resolveOutline), point);
+  if (isOverlay(item)) {
+    const mark = markGeometry(item, lookup, resolveOutline);
+    return (
+      !!mark && !mark.target.hidden && markHit(item, mark.frame, mark.shapes, point, tolerance)
+    );
+  }
   if (item.kind === 'connector') {
     const points = routeConnector(item, lookup, resolveOutline).points;
     return points
@@ -63,7 +77,7 @@ export function hitTest(
   const filled =
     !!item.text?.value ||
     (item.style?.fill !== undefined && item.style.fill !== 'none') ||
-    ['note', 'text', 'image', 'video', 'link', 'html', 'group'].includes(item.kind);
+    ['note', 'text', 'image', 'video', 'link', 'html', 'group', 'table'].includes(item.kind);
   const resolvedOutline = typeof outline === 'function' ? outline(item) : outline;
   if (resolvedOutline) {
     const outlines = Array.isArray(resolvedOutline) ? resolvedOutline : [resolvedOutline],

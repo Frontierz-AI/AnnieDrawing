@@ -95,6 +95,8 @@ function reject(message: string): ApplyResult {
   return {
     ok: false,
     created: [],
+    updated: [],
+    removed: [],
     errors: [{ index: 0, code: 'INVALID_OP', message }],
     warnings: [],
   };
@@ -110,7 +112,8 @@ export function updateHref(host: PasteHost, id: string, value: string): ApplyRes
   if (!href || href.startsWith('data:'))
     return reject(item.kind === 'video' ? `Bad video (${id}).` : `Bad href (${id}).`);
   if (item.kind === 'video' && pasted.kind !== 'video') return reject(`Bad video (${id}).`);
-  if (href === item.href) return { ok: true, created: [], errors: [], warnings: [] };
+  if (href === item.href)
+    return { ok: true, created: [], updated: [], removed: [], errors: [], warnings: [] };
   const preview = item.kind === 'link' ? linkFallback(href) : undefined;
   const label = item.kind === 'video' ? 'Edit video URL' : 'Edit URL';
   const result = host.apply(

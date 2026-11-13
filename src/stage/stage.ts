@@ -1,5 +1,14 @@
 import RBush from 'rbush';
-import type { AgentPresenceOptions, AnnieDoc, Box, Item, Point } from '../core/types';
+import type {
+  AgentPresenceOptions,
+  AnnieDoc,
+  Box,
+  Item,
+  MediaLoadEvent,
+  Outline,
+  Point,
+} from '../core/types';
+import { isOverlay } from '../core/mark';
 import { applyDraft } from '../core/item';
 import { lockedItems } from '../core/locks';
 import { boundsOf, boxCorners, flattenItems, itemBounds, type OutlineResolver } from '../geo/index';
@@ -7,6 +16,7 @@ import { createKindRegistry, type KindDef } from '../kinds/registry';
 import { ItemView } from './itemView';
 import { Lens } from './lens';
 import { AgentPresence } from './presence';
+import { measurePhrase } from './mark';
 import { color, esc, pathFromPoints, SVG_NS } from './paint';
 
 export interface StageOptions {
@@ -14,6 +24,9 @@ export interface StageOptions {
   theme?: 'light' | 'dark' | 'auto';
   kinds?: KindDef[];
   sanitizeHTML?: (html: string) => string;
+  onMedia?: (event: MediaLoadEvent) => void;
+  /** Measured mark geometry changed; hit-testing indexes should refresh. */
+  onMarks?: () => void;
 }
 interface Entry {
   minX: number;
@@ -33,7 +46,17 @@ export class Stage {
   readonly overlay = document.createElementNS(SVG_NS, 'svg');
   readonly lens: Lens;
   readonly kinds: Map<string, KindDef>;
-  readonly resolveOutline: OutlineResolver = (item) => this.kinds.get(item.kind)?.outline?.(item);
+  readonly resolveOutline: OutlineResolver = (item) =>
+    this.kinds.get(item.kind)?.outline?.(item) ?? this.measuredMark(item);
+  /** Phrase boxes measured from the DOM per mark, valid while `key` matches the target's layout. */
+  private marks = new Map<string, { key: string; rects?: Box[] }>();
+  private markIds = new Set<string>();
+  private markFrame = 0;
+  private fontEpoch = 0;
+  private fontsLoaded = () => {
+    this.fontEpoch++;
+    this.queueMarks();
+  };
   private grid = document.createElement('div');
   private records = new Map<string, RecordView>();
   private lookup = new Map<string, Item>();
@@ -90,6 +113,7 @@ export class Stage {
     }
     this.setTheme(options.theme ?? 'light');
     this.updateCamera();
+    host.ownerDocument.fonts?.addEventListener('loadingdone', this.fontsLoaded);
   }
   setTheme(theme: 'light' | 'dark' | 'auto'): void {
     this.options.theme = theme;
@@ -104,8 +128,9 @@ export class Stage {
     if (!this.presence) callback();
     else this.presence.whenIdle(callback);
   }
-  present(ids: string[], name?: string) {
-    if (this.options.agentPresence === false) return;
+  /** `done` runs once when this batch's arrival ends, at once when nothing animates. */
+  present(ids: string[], name?: string, done = () => {}, durationMs?: number) {
+    if (this.options.agentPresence === false) return done();
     const added = new Set(ids);
     const placements = ids
       .filter((id) => !this.ancestors.get(id)?.some((id) => added.has(id)))
@@ -129,8 +154,8 @@ export class Stage {
         this.lens,
         typeof this.options.agentPresence === 'object' ? this.options.agentPresence : undefined,
       );
-      this.presence.enqueue(placements, name);
-    }
+      this.presence.enqueue(placements, name, done, durationMs);
+    } else done();
   }
   finishPresentation() {
     this.presence?.clear();
@@ -164,6 +189,7 @@ export class Stage {
     this.originals.clear();
     this.ancestors.clear();
     this.dependencies.clear();
+    this.markIds.clear();
     const walk = (items: Item[], parents: Item[], parentHidden: boolean) => {
       for (const original of items) {
         const item = applyDraft(original, drafts?.get(original.id));
@@ -181,11 +207,23 @@ export class Stage {
             dependents.add(item.id);
             this.dependencies.set(endpoint.item, dependents);
           }
+        if (isOverlay(item) && typeof item.target === 'string') {
+          this.markIds.add(item.id);
+          this.dependencies.set(
+            item.target,
+            (this.dependencies.get(item.target) ?? new Set()).add(item.id),
+          );
+        }
         entries.push({ item, hidden });
         if (item.children) walk(item.children, [...parents, item], hidden);
       }
     };
     walk(page?.items ?? [], [], false);
+    // A mark shows only while its target does.
+    const shown = new Set(entries.flatMap((entry) => (entry.hidden ? [] : [entry.item.id])));
+    for (const entry of entries)
+      if (isOverlay(entry.item) && !shown.has(entry.item.target as string)) entry.hidden = true;
+    for (const id of this.marks.keys()) if (!this.markIds.has(id)) this.marks.delete(id);
     this.locked = lockedItems(page?.items ?? []);
     const retained = new Set<string>();
     for (let order = 0; order < entries.length; order++) {
@@ -201,7 +239,7 @@ export class Stage {
         id: item.id,
       };
       if (!record) {
-        const view = new ItemView(item.id);
+        const view = new ItemView(item.id, this.options.onMedia);
         record = { view, entry, hidden };
         this.records.set(item.id, record);
         this.index.insert(entry);
@@ -247,6 +285,7 @@ export class Stage {
     }
     this.previousDrafts = new Set(drafts?.keys());
     this.updateCulling();
+    this.measureMarks();
     this.paintOverlay();
     this.presence?.prune();
   }
@@ -263,10 +302,13 @@ export class Stage {
     }
     for (const id of [...dirty])
       for (const dependent of this.dependencies.get(id) ?? []) dirty.add(dependent);
-    // Automatic elbows also depend on other nodes and earlier connector lanes.
+    // Automatic elbows also depend on other nodes and earlier connector lanes; labels on everything.
     if (dirty.size)
       for (const item of this.lookup.values())
-        if (item.kind === 'connector' && item.route === 'elbow' && !item.waypoints?.length)
+        if (
+          item.kind === 'connector' &&
+          ((item.route === 'elbow' && !item.waypoints?.length) || item.text?.value)
+        )
           dirty.add(item.id);
     for (const id of dirty) {
       const item = this.lookup.get(id),
@@ -295,6 +337,7 @@ export class Stage {
       );
     }
     this.previousDrafts = new Set(drafts?.keys());
+    if ([...dirty].some((id) => this.markIds.has(id))) this.queueMarks();
     if (dirty.size) {
       this.updateCulling();
       this.paintOverlay();
@@ -359,6 +402,76 @@ export class Stage {
       }
     }
     this.visible = visible;
+    if (this.markIds.size) this.queueMarks();
+  }
+  private markKey(mark: Item, target: Item): string {
+    return JSON.stringify([
+      mark.match,
+      target.kind,
+      target.w,
+      target.h,
+      target.text,
+      this.fontEpoch,
+    ]);
+  }
+  private measuredMark(item: Item): Outline[] | undefined {
+    const entry = isOverlay(item) ? this.marks.get(item.id) : undefined,
+      target = entry?.rects && this.lookup.get(item.target as string);
+    if (!target || entry!.key !== this.markKey(item, target)) return;
+    return entry!.rects!.map((r) => ({
+      closed: true,
+      points: [
+        { x: r.x, y: r.y },
+        { x: r.x + r.w, y: r.y + r.h },
+      ],
+    }));
+  }
+  private queueMarks(): void {
+    if (!this.markFrame && !this.disposed)
+      this.markFrame = requestAnimationFrame(() => {
+        this.markFrame = 0;
+        this.measureMarks();
+      });
+  }
+  /**
+   * Measure the phrase of each mark whose target layout changed, all reads before any write.
+   * Moves and camera changes keep the key, so they read no layout.
+   */
+  private measureMarks(): void {
+    const updates: [string, { key: string; rects?: Box[] }][] = [];
+    for (const id of this.markIds) {
+      const mark = this.lookup.get(id)!,
+        target = this.lookup.get(mark.target as string),
+        view = target && this.visible.has(target.id) && this.records.get(target.id)?.view;
+      if (!target || !view) continue;
+      const key = this.markKey(mark, target);
+      if (this.marks.get(id)?.key === key) continue;
+      const rects = mark.match ? measurePhrase(view, target, mark.match) : null;
+      if (rects !== undefined) updates.push([id, { key, rects: rects ?? undefined }]);
+    }
+    for (const [id, entry] of updates) {
+      this.marks.set(id, entry);
+      const item = this.lookup.get(id)!,
+        record = this.records.get(id)!,
+        box = itemBounds(item, this.lookup, this.resolveOutline);
+      this.index.remove(record.entry);
+      record.entry = { minX: box.x, minY: box.y, maxX: box.x + box.w, maxY: box.y + box.h, id };
+      this.index.insert(record.entry);
+      record.view.bounds = box;
+      record.view.paint(
+        item,
+        this.doc!,
+        this.lookup,
+        this.theme,
+        this.kinds.get(item.kind),
+        this.options.sanitizeHTML,
+        this.resolveOutline,
+      );
+    }
+    if (updates.length) {
+      this.paintOverlay();
+      this.options.onMarks?.();
+    }
   }
   private paintOverlay(): void {
     const parts: string[] = [];
@@ -367,7 +480,8 @@ export class Stage {
       .filter((item): item is Item => !!item && !item.hidden);
     if (items.length) {
       const single =
-        items.length === 1 && !['connector', 'line', 'path', 'group'].includes(items[0].kind);
+        items.length === 1 &&
+        !['connector', 'line', 'path', 'group', 'mark'].includes(items[0].kind);
       const box = single ? items[0] : boundsOf(items, this.lookup, this.resolveOutline);
       const rotation = single ? (items[0].rotation ?? 0) : 0;
       const points = boxCorners(box, rotation).map((point) => this.lens.toScreen(point));
@@ -398,7 +512,7 @@ export class Stage {
           'ew-resize',
         ],
       ];
-      if (!items.some((item) => this.locked.has(item.id))) {
+      if (!items.some((item) => this.locked.has(item.id) || isOverlay(item))) {
         for (const [handle, point, cursor] of positions)
           parts.push(
             `<rect class="annie-selection-handle" data-ad-handle="${handle}" x="${point.x - 4}" y="${point.y - 4}" width="8" height="8" rx="2" style="cursor:${cursor}" aria-label="Resize ${handle}"/>`,
@@ -444,6 +558,8 @@ export class Stage {
   destroy(): void {
     this.disposed = true;
     this.presence?.destroy();
+    cancelAnimationFrame(this.markFrame);
+    this.host.ownerDocument.fonts?.removeEventListener('loadingdone', this.fontsLoaded);
     clearTimeout(this.settleTimer);
     cancelAnimationFrame(this.cameraFrame);
     if (this.mediaQuery && this.mediaListener)

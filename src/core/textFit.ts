@@ -1,10 +1,11 @@
-import type { Item, ItemText } from './types';
+import { layoutRichText, parseRichText, richLineWidth } from './richText';
+import type { Item, ItemText, Op, Placement } from './types';
 
 /** Shapes whose label is laid out inside the box. */
 export const LABEL_BOX_KINDS = new Set(['rect', 'ellipse', 'diamond', 'note', 'text']);
 
 /** Average glyph width as a fraction of font size. Generous for the default hand stack. */
-const TEXT_ADVANCE = 0.62;
+export const TEXT_ADVANCE = 0.62;
 /** Comfortable wrap width inside the padding. Standalone text uses the 600 default. */
 const MAX_INNER = 320;
 const TEXT_MAX_INNER = 600;
@@ -20,7 +21,8 @@ export function wrapPlainText(
   fontPx: number,
   advance = TEXT_ADVANCE,
 ): string[] {
-  const maxChars = Math.max(1, Math.floor(width / (fontPx * advance)));
+  // The epsilon keeps a line exactly as wide as `width` on one row despite float rounding.
+  const maxChars = Math.max(1, Math.floor(width / (fontPx * advance) + 1e-6));
   const result: string[] = [];
   for (const paragraph of value.split('\n')) {
     if (!paragraph) {
@@ -81,27 +83,53 @@ export function labeledBoxSize(
   const fontPx = textFontSize(text);
   const { lineHeight } = boxMetrics(kind);
   const value = text.value;
-  const unconstrained = Math.max(
-    1,
-    ...value.split('\n').map((line) => line.length * fontPx * TEXT_ADVANCE),
-  );
+  const rich = text.format === 'md' ? parseRichText(value) : undefined;
+  const unconstrained = rich
+    ? rich.reduce((most, line) => Math.max(most, richLineWidth(line, fontPx, TEXT_ADVANCE)), 1)
+    : Math.max(1, ...value.split('\n').map((line) => line.length * fontPx * TEXT_ADVANCE));
   const provided = innerSize(kind, w, h);
   const cap = kind === 'text' ? TEXT_MAX_INNER : MAX_INNER;
   const wrapInner = Math.min(unconstrained, Math.max(cap, provided.w));
-  const lines = wrapPlainText(value, wrapInner, fontPx);
-  const innerH = Math.max(fontPx * lineHeight, lines.length * fontPx * lineHeight);
+  const contentH = rich
+    ? layoutRichText(rich, wrapInner, fontPx, TEXT_ADVANCE).reduce(
+        (sum, row) => sum + row.size * lineHeight,
+        0,
+      )
+    : wrapPlainText(value, wrapInner, fontPx).length * fontPx * lineHeight;
+  const innerH = Math.max(fontPx * lineHeight, contentH);
   return boxFromInner(kind, wrapInner, innerH);
 }
 
-/** Grow a labeled box so stored w/h can hold its text. Never shrinks. */
-export function growLabeledBox(item: Item): void {
+/**
+ * Default gap when a `text` item is sent with `place` relative to another `text` item: one line of
+ * the larger text. Undefined for any other pair and for placement the caller did not send.
+ */
+export function textPlaceGap(
+  item: Item,
+  place: Placement,
+  items: Item[],
+  sent: Op,
+): number | undefined {
+  if (sent.op !== 'add' || !(sent.place ?? (sent.item as { place?: unknown }).place)) return;
+  const target = place.below ?? place.above ?? place.rightOf ?? place.leftOf;
+  const other = item.kind === 'text' && target ? items.find((e) => e.id === target) : undefined;
+  if (other?.kind !== 'text') return undefined;
+  return Math.ceil(Math.max(textFontSize(item.text), textFontSize(other.text)) * 1.35);
+}
+
+/**
+ * Grow a labeled box so stored w/h can hold its text. Never shrinks, except that `fitTextHeight`
+ * gives a `text` item sent without `h` the height of its lines, as browser measuring does.
+ */
+export function growLabeledBox(item: Item, fitTextHeight = false): void {
   if (!LABEL_BOX_KINDS.has(item.kind) || !item.text?.value.trim()) return;
   const fit = labeledBoxSize(item.kind, item.text, item.w, item.h);
   item.w = Math.max(item.w, Math.ceil(fit.w));
-  item.h = Math.max(item.h, Math.ceil(fit.h));
+  item.h =
+    fitTextHeight && item.kind === 'text' ? Math.ceil(fit.h) : Math.max(item.h, Math.ceil(fit.h));
 }
 
-export function growAgentLabeledTree(item: Item): void {
-  growLabeledBox(item);
-  item.children?.forEach(growAgentLabeledTree);
+export function growAgentLabeledTree(item: Item, fitTextHeight = false): void {
+  growLabeledBox(item, fitTextHeight);
+  item.children?.forEach((child) => growAgentLabeledTree(child));
 }

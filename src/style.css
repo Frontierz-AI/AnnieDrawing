@@ -17,7 +17,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 .annie-root :focus-visible {
-  outline: 3px solid #05b48f;
+  outline: 3px solid var(--ad-focus, var(--annie-strong, #05b48f));
   outline-offset: 3px;
 }
 .annie-root button:focus:not(:focus-visible) {
@@ -34,7 +34,6 @@
   --ad-ui-border: #10363912;
   --ad-ui-text: #103639;
   --ad-ui-muted: #5e716b;
-  --ad-ui-accent: #05d9ab;
   --ad-shadow: 0 4px 20px #10363907, 0 1px 3px #10363905;
   background: #fcfdfb !important;
   font-family: var(--ad-font-sans);
@@ -78,8 +77,12 @@
 }
 .annie-header {
   position: absolute;
-  left: max(var(--ad-inset), env(safe-area-inset-left, 0px));
-  right: max(var(--ad-inset), env(safe-area-inset-right, 0px));
+  inset-inline-start: calc(
+    max(var(--ad-inset), env(safe-area-inset-left, 0px)) + var(--ad-header-inset-start, 0px)
+  );
+  inset-inline-end: calc(
+    max(var(--ad-inset), env(safe-area-inset-right, 0px)) + var(--ad-header-inset-end, 0px)
+  );
   top: max(var(--ad-edge), env(safe-area-inset-top, 0px));
   display: flex;
   justify-content: space-between;
@@ -117,11 +120,11 @@
 .annie-brand-mark {
   width: 32px;
   height: 32px;
-  background: #05d9ab;
+  background: var(--annie-accent);
   border-radius: 11px;
   display: grid;
   place-items: center;
-  color: #103639;
+  color: var(--annie-fg);
 }
 .annie-brand-mark svg {
   width: 28px;
@@ -166,13 +169,13 @@
   transform: translateY(1px);
 }
 .annie-primary {
-  background: #05d9ab;
-  border-color: #05d9ab;
-  color: #103639;
+  background: var(--annie-accent);
+  border-color: var(--annie-accent);
+  color: var(--annie-fg);
 }
 .annie-primary:hover {
-  background: #04c49a;
-  border-color: #04c49a;
+  background: var(--annie-strong, #04c49a);
+  border-color: var(--annie-strong, #04c49a);
 }
 .annie-secondary {
   background: #103639;
@@ -216,7 +219,7 @@
 }
 .annie-icon-button[aria-pressed='true'],
 .annie-icon-button[aria-expanded='true'] {
-  background: #05d9ab25;
+  background: var(--ad-ui-accent-soft, color-mix(in srgb, var(--annie-accent) 14.51%, transparent));
   color: var(--ad-ui-text);
 }
 .annie-toolbar {
@@ -245,7 +248,7 @@
   height: var(--ad-tool-icon);
 }
 .annie-toolbar .annie-icon-button[aria-pressed='true'] {
-  background: #05d9ab30;
+  background: var(--ad-ui-accent-soft, color-mix(in srgb, var(--annie-accent) 18.82%, transparent));
   color: var(--ad-ui-text);
 }
 .annie-toolbar-divider {
@@ -336,7 +339,7 @@
   text-align: center;
 }
 .annie-tool-option[aria-pressed='true'] {
-  background: #05d9ab25;
+  background: var(--ad-ui-accent-soft, color-mix(in srgb, var(--annie-accent) 14.51%, transparent));
 }
 .annie-ui > .annie-style-dock {
   position: absolute;
@@ -468,7 +471,7 @@
 }
 .annie-field input[type='range'] {
   width: 100%;
-  accent-color: #05b48f;
+  accent-color: var(--annie-strong, #05b48f);
 }
 .annie-style-row {
   display: grid;
@@ -666,7 +669,7 @@
 }
 .annie-page-tab[aria-selected='true'],
 .annie-pages-popover [aria-current='true'] {
-  background: #05d9ab25;
+  background: var(--ad-ui-accent-soft, color-mix(in srgb, var(--annie-accent) 14.51%, transparent));
   color: var(--ad-ui-text);
 }
 .annie-page-row {
@@ -815,7 +818,7 @@
   font-family: var(--ad-font-hand);
 }
 .annie-editing {
-  outline: 2px solid #05d9ab !important;
+  outline: 2px solid var(--annie-accent) !important;
   outline-offset: 3px;
   user-select: text !important;
   cursor: text !important;

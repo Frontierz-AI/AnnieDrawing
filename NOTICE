@@ -35,7 +35,9 @@ Build and test tooling includes TypeScript, Vite, Vitest, Playwright, Terser
 and their transitive dependencies under the licenses in package-lock.json.
 Nano ID (MIT; Andrey Sitnik) remains a transitive PostCSS tooling dependency.
 Vite 8 uses Lightning CSS (MPL-2.0) to minify CSS; it is not shipped as a
-runtime dependency. Tooling is not a direct runtime dependency.
+runtime dependency. Rolldown's optional WebAssembly fallback lists tslib
+(0BSD; Microsoft), which is installed only on platforms without a native
+binding and is never shipped. Tooling is not a direct runtime dependency.
 
 The release build preserves third-party license comments. Distributors must
 retain applicable upstream notices for dependencies or font files they ship.
