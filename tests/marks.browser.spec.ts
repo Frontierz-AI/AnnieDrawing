@@ -287,3 +287,69 @@ test('an agent mark arrives on its target, fits nothing extra, and exports', asy
   expect(result.svg).toBe(true);
   expect(result.png).toBeGreaterThan(1000);
 });
+
+test('a highlight on a filled node is a halo around it and leaves its fill and label alone', async ({
+  page,
+}) => {
+  await ready(page);
+  const seen = await page.evaluate(async () => {
+    const board = window.__anniedrawing![0];
+    const frame = () => new Promise((done) => requestAnimationFrame(() => done(undefined)));
+    board.apply([
+      {
+        op: 'add',
+        item: {
+          id: 'step',
+          kind: 'rect',
+          x: 120,
+          y: 100,
+          w: 240,
+          h: 110,
+          text: 'Step one',
+          style: { fill: 'teal', fillMode: 'tint' },
+        },
+      },
+    ]);
+    await frame();
+    await frame();
+    const node = document.querySelector('[data-ad-id="step"]')!;
+    const look = () => ({
+      fill: getComputedStyle(node.querySelector('path')!).fill,
+      opacity: getComputedStyle(node.querySelector('path')!).fillOpacity,
+      label: getComputedStyle(node.querySelector('.annie-text')!).color,
+    });
+    const before = look();
+    board.apply([
+      { op: 'add', item: { id: 'm', kind: 'mark', target: 'step', style: { stroke: '#d35400' } } },
+    ]);
+    await frame();
+    await frame();
+    const path = document.querySelector('[data-ad-id="m"] path')!;
+    const box = path.getBoundingClientRect(),
+      own = node.getBoundingClientRect();
+    const png = (await board.export('png', { scope: 'page' })) as Blob;
+    return {
+      before,
+      after: look(),
+      paths: document.querySelectorAll('[data-ad-id="m"] path').length,
+      fill: path.getAttribute('fill'),
+      width: path.getAttribute('stroke-width'),
+      // The band's center line sits 6 px outside the node on every side.
+      around: [
+        own.left - box.left,
+        own.top - box.top,
+        box.right - own.right,
+        box.bottom - own.bottom,
+      ],
+      bounds: board.boundsOf(['m']),
+      png: [png.type, png.size > 500],
+    };
+  });
+  expect(seen.after).toEqual(seen.before);
+  expect(seen.paths).toBe(1);
+  expect(seen.fill).toBe('none');
+  expect(seen.width).toBe('8');
+  for (const gap of seen.around) expect(gap).toBeGreaterThanOrEqual(1.5);
+  expect(seen.bounds).toEqual({ x: 110, y: 90, w: 260, h: 130 });
+  expect(seen.png).toEqual(['image/png', true]);
+});

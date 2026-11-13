@@ -1,10 +1,11 @@
-import type { AgentLayout, Box, Endpoint, Item, ItemText, Page } from '../core/types';
+import type { AgentLayout, Box, Endpoint, Item, ItemText, Page, Placement } from '../core/types';
 import { lockedItems } from '../core/locks';
-import { textFontSize } from '../core/textFit';
+import { textFontSize, textPlaceGap } from '../core/textFit';
 import { flattenItems, itemBounds } from '../geo/box';
-import { isFlowNode, makeRoom, type PlaceShift } from './place';
+import { isFlowNode, makeRoom, placeAgentItem, type BatchLinks, type PlaceShift } from './place';
 
-// Whole-batch layout for `agent:` adds sent without `x`, `y`, or `place`. The batch's nodes and
+// Whole-batch layout for `agent:` adds sent without `x`, `y`, or a `place` beside an item that
+// existed before the batch; a `place` beside another add of the batch is a hint. The batch's nodes and
 // every connector between nodes on the page form a graph. Each connected group of new nodes is laid
 // out at once: rings, hubs, lanes, and otherwise ranked layers. A group without existing neighbors
 // goes below or right of the page content; a group that links to existing nodes is placed around
@@ -13,12 +14,27 @@ import { isFlowNode, makeRoom, type PlaceShift } from './place';
 type LayoutHint = Exclude<AgentLayout, 'auto' | 'none'>;
 type Direction = 'right' | 'down';
 type Edge = { a: string; b: string; text?: ItemText };
+const SIDES = ['rightOf', 'leftOf', 'above', 'below', 'near'] as const;
+type Side = (typeof SIDES)[number];
+/** A same-batch `place`: node, reference, side, gap, and alignment. */
+type Hint = [id: string, ref: string, side: Side, gap: number, align?: Placement['align']];
+const OPPOSITE = {
+  rightOf: 'leftOf',
+  leftOf: 'rightOf',
+  above: 'below',
+  below: 'above',
+  near: 'near',
+} as const;
 
 /** New nodes the batch layout arranges after the ops run, and items placed beside them. */
 export interface PendingLayout {
   pending: Set<string>;
   /** Item id to the id of the node it was placed beside. */
   attached: Map<string, string>;
+  /** Pending node id to its `place` beside another add of the batch, resolved after the ops. */
+  hints: Map<string, Placement>;
+  /** Ids the batch's top-level adds create. */
+  batch: ReadonlySet<string>;
 }
 
 /**
@@ -28,13 +44,14 @@ export interface PendingLayout {
  */
 export function layoutPages(
   pages: Page[],
-  { pending, attached }: PendingLayout,
+  { pending, attached, hints }: PendingLayout,
   options: {
     placed: (id: string) => boolean;
     shift: (item: Item, shift: PlaceShift) => void;
     gap: number;
     viewport?: { w: number; h: number };
     hint?: AgentLayout;
+    links?: BatchLinks;
   },
 ): void {
   const view = options.viewport;
@@ -45,6 +62,45 @@ export function layoutPages(
   for (const page of pages) {
     const items = flattenItems(page.items),
       byId = new Map(items.map((item) => [item.id, item]));
+    // Hints whose node and reference are on this page; a missing reference leaves a plain node.
+    const open = new Map<string, Hint>();
+    for (const [id, place] of hints) {
+      const item = byId.get(id),
+        side = SIDES.find((key) => place[key])!,
+        ref = place[side]!;
+      if (item && byId.has(ref))
+        open.set(id, [
+          id,
+          ref,
+          side,
+          place.gap ?? textPlaceGap(item, place, items, { op: 'add', item, place }) ?? options.gap,
+          place.align,
+        ]);
+    }
+    // Beside a reference that is not laid out, a node is placed as per-node placement places it,
+    // once that reference has its final spot.
+    for (let changed = true; changed;) {
+      changed = false;
+      for (const [id, [, ref, side, gap, align]] of open) {
+        if (pending.has(ref)) continue;
+        open.delete(id);
+        pending.delete(id);
+        changed = true;
+        const item = byId.get(id)!,
+          follows = attached.has(ref);
+        if (follows) attached.set(id, ref);
+        const placed = placeAgentItem(
+          item,
+          { [side]: ref, gap, align },
+          follows ? [] : items.filter((entry) => entry !== item && !pending.has(entry.id)),
+          items,
+          options.links,
+        );
+        item.x = placed.item.x;
+        item.y = placed.item.y;
+        for (const shift of placed.shifts) options.shift(byId.get(shift.id)!, shift);
+      }
+    }
     const nodes = [...pending].filter((id) => byId.has(id));
     if (!nodes.length) continue;
     const start = new Map(
@@ -62,6 +118,7 @@ export function layoutPages(
       gap: options.gap,
       viewport,
       hint: typeof options.hint === 'object' ? options.hint : undefined,
+      hints: [...open.values()],
     });
     const translate = (item: Item, dx: number, dy: number) => {
       item.x += dx;
@@ -91,6 +148,8 @@ interface BatchLayout {
   gap: number;
   viewport: { w: number; h: number };
   hint?: LayoutHint;
+  /** Same-batch `place` relations between two of `nodes`, in batch order. */
+  hints: Hint[];
 }
 
 /** What the layout arranges or keeps clear of. Connectors, strokes, groups, and derived kinds are neither. */
@@ -185,12 +244,6 @@ function layoutBatch(input: BatchLayout): void {
       edges.push({ a: a!, b: b!, text: item.text });
   }
   const linked = new Set(edges.flatMap((edge) => [edge.a, edge.b]));
-  const first = byId.get(fresh[0]);
-  // A first text without arrows titles the batch's diagram, when there is one.
-  const caption =
-    first?.kind === 'text' && !linked.has(first.id) && fresh.some((id) => linked.has(id))
-      ? first.id
-      : undefined;
 
   // Groups of new nodes joined by arrows, with the existing nodes they touch.
   const up = new Map<string, string>();
@@ -203,12 +256,26 @@ function layoutBatch(input: BatchLayout): void {
   };
   for (const edge of edges)
     if (isFresh.has(edge.a) || isFresh.has(edge.b)) up.set(find(edge.a), find(edge.b));
+  // A hint counts only between nodes that no arrow path relates; otherwise the arrows decide.
+  const hints = input.hints.filter(
+    ([id, ref]) => isFresh.has(id) && isFresh.has(ref) && find(id) !== find(ref),
+  );
+  const hinted = new Set(hints.flatMap(([id, ref]) => [id, ref]));
+  const first = byId.get(fresh[0]);
+  // A first text without arrows or hints titles the batch's diagram, when there is one.
+  const caption =
+    first?.kind === 'text' &&
+    !linked.has(first.id) &&
+    !hinted.has(first.id) &&
+    fresh.some((id) => linked.has(id))
+      ? first.id
+      : undefined;
   const units: string[][] = [];
   const unitOf = new Map<string, string[]>();
   let grid: string[] | undefined;
   for (const id of fresh) {
     if (id === caption) continue;
-    if (!linked.has(id)) {
+    if (!linked.has(id) && !hinted.has(id)) {
       if (!grid) units.push((grid = []));
       grid.push(id);
       continue;
@@ -222,6 +289,27 @@ function layoutBatch(input: BatchLayout): void {
   for (const item of items) {
     const unit = !isFresh.has(item.id) && linked.has(item.id) && unitOf.get(find(item.id));
     if (unit && node(item.id)) pinsOf.set(unit, [...(pinsOf.get(unit) ?? []), item]);
+  }
+  // Units joined by hints: the first one with existing neighbors, else the first in batch order, is
+  // laid out, and each other one is then placed beside its hint partner.
+  const satellites = new Map<string[], [string[], Hint][]>(),
+    owned = new Set<string[]>();
+  for (const root of [...pinsOf.keys(), ...units]) {
+    if (owned.has(root) || root === grid) continue;
+    owned.add(root);
+    const queue = [root],
+      list: [string[], Hint][] = [];
+    for (let index = 0; index < queue.length; index++)
+      for (const hint of hints) {
+        const a = unitOf.get(find(hint[0])),
+          b = unitOf.get(find(hint[1]));
+        const other = a === queue[index] ? b : b === queue[index] ? a : undefined;
+        if (!other || owned.has(other) || pinsOf.has(other)) continue;
+        owned.add(other);
+        list.push([other, hint]);
+        queue.push(other);
+      }
+    satellites.set(root, list);
   }
 
   const done = new Set<string>();
@@ -833,8 +921,55 @@ function layoutBatch(input: BatchLayout): void {
     return chains ? rows(chains, graph) : flow(ids);
   }
 
-  const titled = units.find((unit) => unit !== grid);
+  /**
+   * Place each satellite unit beside its hint partner as per-node placement would, on the stated
+   * side, keeping the unit's own layout; the rest of the unit slides on until it covers nothing.
+   */
+  const compose = (boxes: Map<string, Box>, list: [string[], Hint][], others: Box[] = []) => {
+    for (const [unit, [id, ref, side, gap, align]] of list) {
+      const local = arrange(unit, unit.length < 2),
+        own = local.has(id),
+        mine = own ? id : ref,
+        from = local.get(mine)!,
+        rel = own ? side : OPPOSITE[side],
+        vertical = rel === 'above' || rel === 'below',
+        sign = rel === 'leftOf' || rel === 'above' ? -1 : 1,
+        blockers = [...others, ...boxes.values()];
+      const at = placeAgentItem(
+        { ...byId.get(mine)!, ...from },
+        { [rel]: own ? ref : id, gap, align },
+        [
+          ...others.map((box): Item => ({ id: '', kind: 'rect', ...box })),
+          ...[...boxes].map(([key, box]) => ({ ...byId.get(key)!, ...box })),
+        ],
+      ).item;
+      let dx = at.x - from.x,
+        dy = at.y - from.y;
+      for (let step = 0, push = 1; push && step < 64; step++) {
+        push = 0;
+        for (const box of local.values()) {
+          const b = { ...box, x: box.x + dx, y: box.y + dy },
+            hit = blockers.find((other) => apart(b, other) < 0);
+          if (hit)
+            push = vertical
+              ? sign > 0
+                ? hit.y + hit.h + gap - b.y
+                : hit.y - gap - b.y - b.h
+              : sign > 0
+                ? hit.x + hit.w + gap - b.x
+                : hit.x - gap - b.x - b.w;
+          if (push) break;
+        }
+        if (vertical) dy += push;
+        else dx += push;
+      }
+      for (const [key, box] of local) boxes.set(key, { ...box, x: box.x + dx, y: box.y + dy });
+    }
+  };
+
+  const titled = units.find((unit) => satellites.has(unit));
   units.forEach((ids) => {
+    if (ids !== grid && !satellites.has(ids)) return;
     const title = ids === titled ? caption : undefined;
     const pins = pinsOf.get(ids);
     if (pins) {
@@ -861,6 +996,13 @@ function layoutBatch(input: BatchLayout): void {
         placed.push(box);
         move(id, box);
       }
+      const beside = new Map(ids.map((id, index) => [id, placed[index]]));
+      compose(beside, satellites.get(ids)!, blockers);
+      for (const [id, box] of beside)
+        if (!done.has(id)) {
+          placed.push(box);
+          move(id, box);
+        }
       if (title) {
         const area = union(placed)!,
           item = byId.get(title)!;
@@ -875,7 +1017,8 @@ function layoutBatch(input: BatchLayout): void {
       }
       return;
     }
-    const boxes = arrange(ids, ids === grid);
+    const boxes = arrange(ids, ids === grid || ids.length < 2);
+    compose(boxes, satellites.get(ids) ?? []);
     if (title) {
       const area = union([...boxes.values()])!,
         item = byId.get(title)!;

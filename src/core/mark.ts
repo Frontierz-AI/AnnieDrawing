@@ -31,11 +31,14 @@ export function markFrame(target: Item, bounds: Box): MarkFrame {
     : { x: target.x, y: target.y, w: target.w, h: target.h, rotation: target.rotation ?? 0 };
 }
 
-/** One stroke or fill of a mark, in frame coordinates. */
+/** One stroke or fill of a mark, in frame coordinates. `halo` is the wide band around a whole item, a closed outline. */
 export interface MarkShape {
   fill: boolean;
   points: Point[];
+  halo?: true;
 }
+/** A whole-item highlight is a band this wide, this far outside the item, so the item keeps its fill. */
+export const MARK_HALO = { width: 8, gap: 6 };
 
 /** Glyph advance the SVG exporter wraps with (`textMarkup` in `src/porter/svg.ts`). */
 const ADVANCE = 0.53;
@@ -198,10 +201,42 @@ function loop(box: Box, seed: string): Point[] {
   return points;
 }
 
-/** Strokes and fills of a mark in frame coordinates. */
-export function markShapes(mark: Item, rects: Box[]): MarkShape[] {
+/** The outline of a rectangle, ellipse, or diamond of size `w` by `h`, `gap` outside it. Drawn closed. */
+function haloPoints(kind: string, w: number, h: number, gap: number): Point[] {
+  const a = w / 2,
+    b = h / 2;
+  let points: Point[];
+  if (kind === 'ellipse')
+    points = Array.from({ length: 48 }, (_, i) => {
+      const angle = (i / 48) * Math.PI * 2;
+      return { x: a + Math.cos(angle) * (a + gap), y: b + Math.sin(angle) * (b + gap) };
+    });
+  else if (kind === 'diamond') {
+    // Each edge moves out by `gap` along its normal.
+    const edge = Math.hypot(a, b) || 1,
+      dx = b ? (gap * edge) / b : gap,
+      dy = a ? (gap * edge) / a : gap;
+    points = [
+      { x: a, y: -dy },
+      { x: w + dx, y: b },
+      { x: a, y: h + dy },
+      { x: -dx, y: b },
+    ];
+  } else points = corners(around(corners({ x: 0, y: 0, w, h }), gap));
+  return points;
+}
+
+/**
+ * Strokes and fills of a mark in frame coordinates. `whole` is the target when a highlight covers
+ * all of it: every kind but `text` then gets a halo around the item instead of a fill over it.
+ */
+export function markShapes(mark: Item, rects: Box[], whole?: Item): MarkShape[] {
   const type = mark.mark ?? 'highlight',
     all = rects.flatMap(corners);
+  if (type === 'highlight' && whole && whole.kind !== 'text') {
+    const { w, h } = around(all, 0);
+    return [{ fill: false, halo: true, points: haloPoints(whole.kind, w, h, MARK_HALO.gap) }];
+  }
   if (type === 'underline')
     return rects.map((r) => ({
       fill: false,
@@ -227,7 +262,8 @@ export function markBounds(mark: Item, frame: MarkFrame, shapes: MarkShape[]): B
   const page = local.map((p) =>
     rotatePoint({ x: frame.x + p.x, y: frame.y + p.y }, frameCenter(frame), frame.rotation),
   );
-  return around(page, shapes.some((shape) => !shape.fill) ? markStroke(mark) / 2 : 0);
+  const stroke = shapes.some((shape) => shape.halo) ? MARK_HALO.width : markStroke(mark);
+  return around(page, shapes.some((shape) => !shape.fill) ? stroke / 2 : 0);
 }
 
 /** Whether a page point touches a visible stroke. A highlight is a fill and is never hit. */
@@ -244,6 +280,7 @@ export function markHit(
   return shapes.some(
     (shape) =>
       !shape.fill &&
+      !shape.halo &&
       shape.points.slice(1).some((q, i) => segmentDistance(local, shape.points[i], q) <= reach),
   );
 }

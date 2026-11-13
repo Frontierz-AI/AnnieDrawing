@@ -80,7 +80,12 @@ export function markGeometry(
     rects = measured
       ? [measured].flat().map((shape) => boxFromPoints(shape.points))
       : markRects(item, target, frame);
-  return { target, frame, rects, shapes: markShapes(item, rects) };
+  // Without a phrase, or when the phrase is gone, the mark covers the whole frame.
+  const whole =
+    rects.length === 1 && !rects[0].x && !rects[0].y && rects[0].w === frame.w
+      ? rects[0].h === frame.h
+      : false;
+  return { target, frame, rects, shapes: markShapes(item, rects, whole ? target : undefined) };
 }
 export function itemBounds(item: Item, lookup?: ItemLookup, outline?: OutlineResolver): Box {
   if (item.kind === 'connector') return routeConnector(item, lookup, outline).bounds;

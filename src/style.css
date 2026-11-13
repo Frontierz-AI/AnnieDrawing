@@ -176,6 +176,7 @@
 .annie-primary:hover {
   background: var(--annie-strong, #04c49a);
   border-color: var(--annie-strong, #04c49a);
+  color: var(--ad-ui-accent-strong-fg, var(--annie-fg));
 }
 .annie-secondary {
   background: #103639;

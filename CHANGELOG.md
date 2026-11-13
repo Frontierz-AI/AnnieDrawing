@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.1
+
+Four fixes found in real calls on 0.8.0. The document format and the kind catalog are unchanged. Two things look different: a whole-item `highlight` mark is now a band around the item instead of a fill over it, and the connector between two rows of a wrapped flow uses the bottom and top sides.
+
+Agent diagrams:
+
+- In an `agent:` batch with the batch layout on, a `place` that names another node added in the same batch no longer pins the node. The node joins the batch layout like a node sent without `place`. When arrows connect the two nodes, the arrows decide where they go. When nothing connects them, they still end up side by side, on the stated side and at the stated `gap` and `align`, or else at the gap per-node placement uses. A diagram whose steps each carry `place: { rightOf: <previous step> }` now gets the same layout as the same diagram without `place`: for one host's five-step flow at 920×455, two rows and 1057×340 instead of one row 1815 px wide.
+- A `place` may name a node added later in the same batch. Before, the batch was rejected with `Placement reference ... does not exist.` A reference that is neither on the page nor in the batch is still rejected with that message.
+- Unchanged: a `place` beside an item that existed before the batch, `inside`, explicit `x`/`y`, every non-agent origin, and `layout: 'none'`, where a forward reference still fails. Text lines chained with `place: { below: <previous> }` in one batch keep their one-line spacing. Several nodes placed beside one new node now stack beside each other; 0.8.0 put them on top of each other. A `text` that holds or receives such a `place` is not used as the diagram's title.
+- When a flow wraps into rows, the arrow from the last node of a row to the first node of the next leaves the bottom of the one and enters the top of the other, through the gap between the rows. The arrows beside it stay two-point straight lines at the nodes' centers instead of sharing a side and jogging 18 px. A top-down flow wrapped into columns changes column from the right side to the left side in the same way. When that top is already taken, the row change enters the bottom of the node rather than its left side, which would cross the arrow that holds the top. This follows from geometry alone, so hand-placed and loaded diagrams with the same shape route the same way.
+- An automatic elbow whose two ends leave on different axes turns once, in an L, instead of making a three-bend step between them.
+
+Marks:
+
+- A `highlight` on a whole item is a band around it, 8 px wide and 6 px outside its outline, following a rectangle, ellipse, or diamond. The item keeps its own fill and its label keeps its contrast. 0.8.0 filled the box with the mark color over its tint, which turned a teal node olive and a node under a dark mark color brown. A highlight on a phrase, or on a whole `text` item, is still a marker band behind the text. The board and the SVG, PNG, and JPEG exports draw the same result, and `board.boundsOf()` of such a mark is now 10 px larger than the item on every side.
+
+Theming:
+
+- New token `--ad-ui-accent-strong-fg` for text and icons on the strong accent, used by the hovered Export button. It defaults to `--ad-ui-accent-fg`, so nothing changes for hosts that do not set it.
+
+The package lockfile matches `0.8.1`. The private MCP example stays `0.1.0`.
+
 ## 0.8.0
 
 A minor release with new kinds, a layout pass for agent diagrams, and several changed defaults. The document format stays version 2, and the kind catalog is 4. A host will notice these default changes: `agent:` batches are laid out together as a graph (`agentLayout: 'none'` or `layout: 'none'` restores per-node placement); automatic elbow connectors attach and route differently, and a connector label moves off the path midpoint when something is under it; `createFellowBoard` reveals with `'created'` instead of `'fit'`; agent reveals move the camera only while `board.view.follow` is true, and the person's own camera input, including the built-in zoom and fit controls and keys, turns it off; `view` events carry `cause`; images added without `w` and `h` take their media's aspect ratio instead of 240×180; an agent `text` sent without `h` stores the height of its lines (25 for one line at the default size) instead of 48, and two `text` items placed relative to each other default to a one-line gap; `ApplyResult` always has `updated` and `removed`, and `created` no longer lists an item the same batch removed; `describe()` prints a neutral overflow line, stroke and dash, and marks only items an agent created; and the stylesheet no longer declares `--ad-ui-accent` or `--ad-focus`, so host values inherit. A host custom kind that stores a different shape under one of the new item field names (`rows`, `header`, `pending`, `progress`, `fitMedia`, `target`, `mark`, `match`, or `text.format`) now fails validation.
