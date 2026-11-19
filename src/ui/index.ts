@@ -5,7 +5,7 @@ import { button, icon } from './icons';
 import { GITHUB_REPO_URL, PACKAGE_VERSION } from './version';
 import { color as resolveColor, DEFAULT_FONT, fonts, fontSize, styleFor } from '../stage/paint';
 import { LIMITS } from '../core/schema';
-import { tableRows } from '../core/table';
+import { layoutTable, tableRows } from '../core/table';
 import { pageId } from '../core/ids';
 import { ANNIE_MIME } from '../porter/json';
 /** PNG, SVG, or AnnieDoc (`json`, saved as `.annie`). */
@@ -1330,21 +1330,17 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       'grid',
       () => {
         const { x, y } = board.view.center;
+        const rows = [
+          ['Column 1', 'Column 2'],
+          ['', ''],
+        ];
+        const { w, h } = layoutTable({ rows, header: true, w: 0, h: 0 });
         const result = board.apply(
           [
             {
               op: 'add',
               page: board.pageId,
-              item: {
-                kind: 'table',
-                x,
-                y,
-                rows: [
-                  ['Column 1', 'Column 2'],
-                  ['', ''],
-                ],
-                header: true,
-              },
+              item: { kind: 'table', x: x - w / 2, y: y - h / 2, rows, header: true },
             },
           ],
           { origin: 'user', label: 'Insert table' },

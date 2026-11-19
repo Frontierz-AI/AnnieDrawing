@@ -53,7 +53,11 @@ const scaleTo = (sizes: number[], target: number, min = 0) => {
  * a smaller `w` narrows columns proportionally down to a minimum and wraps more. The height never
  * drops below what the wrapped text needs, so a table never clips its text. Pass 0 for natural size.
  */
-export function layoutTable(item: Item, w = item.w, h = item.h): TableLayout {
+export function layoutTable(
+  item: Pick<Item, 'rows' | 'header' | 'w' | 'h'>,
+  w = item.w,
+  h = item.h,
+): TableLayout {
   const cells = tableRows(item),
     header = item.header === true,
     { font, line, padX, padY, maxInner, minInner } = TABLE;

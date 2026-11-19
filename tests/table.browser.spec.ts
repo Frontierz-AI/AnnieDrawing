@@ -203,8 +203,21 @@ test('insert and reshape a table with keyboard and pointer, then round-trip the 
   page,
 }) => {
   await page.goto('/?blank');
+  await page.waitForFunction(() => !!window.__anniedrawing?.length);
+  await page.evaluate(() => {
+    const board = window.__anniedrawing![0];
+    board.view.zoom = 1.5;
+    board.view.center = { x: 750, y: -180 };
+  });
   await page.getByRole('button', { name: 'Board menu' }).click();
   await page.getByRole('button', { name: 'Insert table' }).press('Enter');
+  expect(
+    await page.evaluate(() => {
+      const board = window.__anniedrawing![0];
+      const table = board.get(board.selection[0])!;
+      return { x: table.x + table.w / 2, y: table.y + table.h / 2 };
+    }),
+  ).toEqual({ x: 750, y: -180 });
   const cells = page.locator('[data-ad-kind="table"] [data-ad-cell]');
   await expect(cells).toHaveCount(4);
   await page.getByRole('button', { name: 'Add column' }).click();
