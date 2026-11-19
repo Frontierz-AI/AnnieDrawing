@@ -124,3 +124,60 @@ for (const { name, items, labeled: expected } of cases)
       expect(measured.exported[id]).toEqual(headless);
     }
   });
+
+for (const rotation of [0, 22]) {
+  test(`shared fallback ports at ${rotation} degrees remain distinct on the board and in SVG`, async ({
+    page,
+  }) => {
+    await page.goto('/?blank');
+    await page.waitForFunction(() => !!window.__anniedrawing?.length);
+    const paths = await page.evaluate(async (rotation) => {
+      const board = window.__anniedrawing![0];
+      const box = (id: string, x: number, y: number, w: number, h: number) => ({
+        id,
+        kind: 'rect',
+        x,
+        y,
+        w,
+        h,
+      });
+      const targets = ['a', 'b', 'c'];
+      const items = [
+        { ...box('source', 0, 0, 160, 140), rotation },
+        ...targets.map((id, i) => box(id, 430, -140 + 65 * i, 60, 40)),
+        box('right', 160, -10, 30, 165),
+        box('below', -5, 140, 175, 35),
+        ...targets.map((id) => ({
+          id: 'wire' + id,
+          kind: 'arrow',
+          from: 'source',
+          to: id,
+          route: 'elbow' as const,
+        })),
+      ];
+      const result = board.apply(
+        items.map((item) => ({ op: 'add', item })),
+        { origin: 'user' },
+      );
+      if (!result.ok) throw Error(JSON.stringify(result.errors));
+      board.view.fit();
+      await new Promise(requestAnimationFrame);
+      const svg = new DOMParser().parseFromString(
+        (await board.export('svg')) as string,
+        'image/svg+xml',
+      );
+      return targets.map((id) => {
+        const selector = `[data-ad-id="wire${id}"] path`;
+        return [
+          board.stage.world.querySelector(selector)?.getAttribute('d'),
+          svg.querySelector(selector)?.getAttribute('d'),
+        ];
+      });
+    }, rotation);
+    for (const [view, exported] of paths) {
+      expect(view).toBeTruthy();
+      expect(exported).toBe(view);
+    }
+    expect(new Set(paths.map(([path]) => path!.split(' L')[0])).size).toBe(3);
+  });
+}

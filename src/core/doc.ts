@@ -681,6 +681,20 @@ function perform(
         flattenItems(at.page.items),
         (mark) => !oldLookup.has(mark.id),
       );
+      const gone = new Set(
+        flattenItems(previous.children ?? [])
+          .map((item) => item.id)
+          .filter((id) => !newDescendants.has(id)),
+      );
+      if (gone.size) {
+        // The inverse children patch already restores marks inside the replacement subtree.
+        const restored = dropMarks(at.page, gone);
+        inverse.push(
+          ...restored.filter(
+            (add) => add.parent !== op.id && !newDescendants.has(add.parent ?? ''),
+          ),
+        );
+      }
       inverse.push(...detachMissingEndpoints(at.page.items, oldLookup, outline));
     }
     return { op: { ...op, patch }, moved, inverse, created };
@@ -688,7 +702,7 @@ function perform(
   if (op.op === 'remove') {
     const found = requireItem(doc, op.id),
       lookup = new Map(flattenItems(found.page.items).map((i) => [i.id, i])),
-      marks = dropMarks(found.page, found.item),
+      marks = dropMarks(found.page, new Set(flattenItems([found.item]).map((item) => item.id))),
       at = marks.length ? requireItem(doc, op.id) : found;
     inverse = [
       {

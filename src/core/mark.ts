@@ -326,17 +326,10 @@ export function checkNewMarks(
 }
 
 /**
- * Remove the marks on `root` or its descendants from the page, so a removed target takes its
- * marks with it. Marks inside `root` leave with it anyway. Returns the inverse adds in undo order.
+ * Remove surviving marks on deleted targets. Inverse adds retain their original stacking order.
  */
-export function dropMarks(page: Page, root: Item): Op[] {
-  const gone = new Set<string>();
-  const collect = (item: Item) => {
-    gone.add(item.id);
-    item.children?.forEach(collect);
-  };
-  collect(root);
-  const inverse: Op[] = [];
+export function dropMarks(page: Page, gone: ReadonlySet<string>): Extract<Op, { op: 'add' }>[] {
+  const inverse: Extract<Op, { op: 'add' }>[] = [];
   const walk = (list: Item[], parent?: string) => {
     for (let index = list.length - 1; index >= 0; index--) {
       const item = list[index];

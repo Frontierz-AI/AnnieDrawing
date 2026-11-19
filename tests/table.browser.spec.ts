@@ -198,3 +198,29 @@ test('readonly boards and locked tables do not open the cell editor', async ({ p
   await page.mouse.dblclick(opened.x, opened.y);
   await expect(page.getByRole('textbox')).toHaveCount(0);
 });
+
+test('insert and reshape a table with keyboard and pointer, then round-trip the drawing', async ({
+  page,
+}) => {
+  await page.goto('/?blank');
+  await page.getByRole('button', { name: 'Board menu' }).click();
+  await page.getByRole('button', { name: 'Insert table' }).press('Enter');
+  const cells = page.locator('[data-ad-kind="table"] [data-ad-cell]');
+  await expect(cells).toHaveCount(4);
+  await page.getByRole('button', { name: 'Add column' }).click();
+  await page.getByRole('button', { name: 'Add row' }).press('Enter');
+  await expect(cells).toHaveCount(9);
+  await page.getByRole('button', { name: 'Remove last column' }).press('Space');
+  await page.getByRole('button', { name: 'Remove last row' }).click();
+  await expect(cells).toHaveCount(4);
+  await page.evaluate(() => window.__anniedrawing![0].undo());
+  await expect(cells).toHaveCount(6);
+  const exported = await page.evaluate(async () => {
+    const board = window.__anniedrawing![0];
+    const saved = (await board.export('json')) as string;
+    board.load(JSON.parse(saved));
+    return board.export('svg') as Promise<string>;
+  });
+  expect(exported).toContain('Column 2');
+  await expect(cells).toHaveCount(6);
+});

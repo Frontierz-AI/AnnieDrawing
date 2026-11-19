@@ -1,5 +1,9 @@
 # Design decisions
 
+## 2026-11-19 · Table controls and connector ports
+
+The editor uses ordinary `rows` patches for structural table edits so history, persistence, and export share the existing table model. Automatic elbow routing keeps the selected path when its ports are free and searches for another attachment when an alternative side is occupied.
+
 ## 2026-11-13: A same-batch `place` is a hint
 
 A model that chains `place: { rightOf: <previous> }` on every node of a diagram it also connects with arrows turned the batch layout off, because a node with `place` skipped it, and a schema cannot stop a model from sending that `place`. In an `agent:` batch with the layout on, a `place` on an unpositioned layout node whose single relation (`rightOf`, `leftOf`, `above`, `below`, or `near`) names another add of the same batch is therefore stored as a hint, and the node joins the batch layout. Hints are resolved after all the batch's operations, so their order inside the batch does not matter and a forward reference commits.

@@ -23,6 +23,8 @@ npm run dev
 
 The development server uses Vite's default port 5173. Open http://127.0.0.1:5173 for the editor, or http://127.0.0.1:5173/docs/index.html for this manual. If 5173 is already in use, Vite prints the next free address. The same demo is published at https://anniedrawing.com.
 
+Use **Board menu → Insert table** to add a table. Select it to add rows and columns or remove the last row or column. Double-click a cell to edit its text.
+
 The demo stores the current drawing in the browser. That storage is local to the browser profile. Its Export control offers PNG, SVG, and AnnieDoc. Export a `.annie` file for a portable copy. New files use format version 2 and `pages`. Version 1 files with `sheets` migrate on load.
 
 ## Install

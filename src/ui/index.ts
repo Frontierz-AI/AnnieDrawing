@@ -4,6 +4,8 @@ import type { Item, Point } from '../core/types';
 import { button, icon } from './icons';
 import { GITHUB_REPO_URL, PACKAGE_VERSION } from './version';
 import { color as resolveColor, DEFAULT_FONT, fonts, fontSize, styleFor } from '../stage/paint';
+import { LIMITS } from '../core/schema';
+import { tableRows } from '../core/table';
 import { pageId } from '../core/ids';
 import { ANNIE_MIME } from '../porter/json';
 /** PNG, SVG, or AnnieDoc (`json`, saved as `.annie`). */
@@ -1041,6 +1043,36 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       edit.setAttribute('aria-label', label);
       stylePanel.append(edit);
     }
+    if (single && item.kind === 'table') {
+      const rows = tableRows(item);
+      const controls = el('div', 'annie-action-grid');
+      const change = (label: string, disabled: boolean, edit: (cells: string[][]) => void) => {
+        const control = textButton(label, () => {
+          const current = board.get(item.id);
+          if (current?.kind !== 'table' || board.isLocked(item.id)) return;
+          const cells = tableRows(current);
+          edit(cells);
+          board.apply([{ op: 'set', id: item.id, patch: { rows: cells } }], {
+            origin: 'user',
+            label,
+          });
+        });
+        control.setAttribute('aria-label', label);
+        control.disabled = disabled;
+        controls.append(control);
+      };
+      change('Add row', rows.length >= LIMITS.maxTableRows, (cells) =>
+        cells.push(cells[0].map(() => '')),
+      );
+      change('Remove last row', rows.length <= 1, (cells) => cells.pop());
+      change('Add column', rows[0].length >= LIMITS.maxTableColumns, (cells) =>
+        cells.forEach((row) => row.push('')),
+      );
+      change('Remove last column', rows[0].length <= 1, (cells) =>
+        cells.forEach((row) => row.pop()),
+      );
+      stylePanel.append(controls);
+    }
     const lock = button(
       locked ? 'Unlock selection' : 'Lock selection',
       locked ? 'lock' : 'unlock',
@@ -1293,6 +1325,38 @@ export function mountUI(board: Board, options: UiOptions = {}): () => void {
       option.disabled = disabled;
       panel.append(option);
     };
+    add(
+      'Insert table',
+      'grid',
+      () => {
+        const { x, y } = board.view.center;
+        const result = board.apply(
+          [
+            {
+              op: 'add',
+              page: board.pageId,
+              item: {
+                kind: 'table',
+                x,
+                y,
+                rows: [
+                  ['Column 1', 'Column 2'],
+                  ['', ''],
+                ],
+                header: true,
+              },
+            },
+          ],
+          { origin: 'user', label: 'Insert table' },
+        );
+        if (result.ok) {
+          board.setTool('select');
+          board.select(result.created);
+          board.focus();
+        }
+      },
+      board.readonly,
+    );
     add('Open a drawing', 'upload', () => drawingInput?.click(), board.readonly);
     if (phoneChrome(board.stage.root.clientWidth, board.stage.root.clientHeight)) {
       add('Hand', 'hand', () => {
