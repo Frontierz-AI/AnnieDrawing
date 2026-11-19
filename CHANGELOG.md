@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.2
+
+- Replacing a group's children removes marks on discarded descendants in the same edit. The result lists the removed IDs, and undo restores the marks in their original stacking order.
+- Choose **Insert table** in the board menu to create a two-column table. Select it to append a row or column or remove the last one. Each action is one undo step.
+- Automatic elbow connectors spread their endpoints along rotated shapes. When an obstacle forces a connector onto an occupied alternative port, the router looks for space on the outline. The board and SVG export use the same paths.
+
 ## 0.8.1
 
 Four fixes found in real calls on 0.8.0. The document format and the kind catalog are unchanged. Two things look different: a whole-item `highlight` mark is now a band around the item instead of a fill over it, and the connector between two rows of a wrapped flow uses the bottom and top sides.

@@ -365,6 +365,8 @@ const opposite = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' } 
 interface Slot {
   side: Side;
   f?: number;
+  /** Number of preferred ports reserved on each local side of this node. */
+  counts?: Partial<Record<Side, number>>;
   /** Sides its fallbacks avoid. */
   skip?: Side[];
 }
@@ -387,11 +389,40 @@ function sidePoint(item: Item, side: Side, f: number): Point {
     : { x: c.x + (t * item.w) / 2, y: c.y + (sign * reach * item.h) / 2 };
 }
 
+/** Pick a fallback attachment between preferred ports and previously routed endpoints. */
+function fallbackFraction(item: Item, side: Side, count: number, area: Field): number {
+  const length = side === 'left' || side === 'right' ? item.h : item.w;
+  const free = (f: number) => {
+    const step = 1 / (count + 1);
+    const nearest = Math.round(f / step);
+    if (nearest > 0 && nearest <= count && Math.abs(f - nearest * step) * length < LANE)
+      return false;
+    const p = rotatePoint(sidePoint(item, side, f), centerOf(item), item.rotation ?? 0);
+    return !area.lanes
+      .search(around(p, p, LANE))
+      .some(
+        (lane) =>
+          lane.owner < area.limit &&
+          ((lane.first && distance(lane.a, p) < LANE) || (lane.last && distance(lane.b, p) < LANE)),
+      );
+  };
+  if (free(0.5)) return 0.5;
+  for (
+    let divisions = 4;
+    divisions <= Math.max(4, Math.min(256, (2 * length) / LANE));
+    divisions *= 2
+  ) {
+    for (let k = 1; k < divisions; k += 2) if (free(k / divisions)) return k / divisions;
+  }
+  return 0.5;
+}
+
 function ports(
   endpoint: Endpoint | undefined,
   other: Endpoint | undefined,
   lookup: ItemLookup | undefined,
   outline: OutlineResolver | undefined,
+  area: Field | undefined,
   axis?: 'x' | 'y',
   slot?: Slot,
 ): Port[] {
@@ -425,15 +456,23 @@ function ports(
   // Orthogonal exits remain outside the target even for rotated shapes.
   const box = boxFromPoints(boxCorners(item, item.rotation));
   return endpoints.map((end, index) => {
-    const spread = !index && slot?.f !== undefined;
-    const point = spread
-      ? sidePoint(item, sides[0], slot.f!)
-      : resolveEndpoint(end, other, lookup, outline);
-    const dx = point.x - center.x,
-      dy = point.y - center.y;
-    const across = spread
-      ? sides[0] === 'left' || sides[0] === 'right'
-      : Math.abs(dx) / Math.max(1, box.w) >= Math.abs(dy) / Math.max(1, box.h);
+    const side = sides[index];
+    const f =
+      index && area && slot?.counts
+        ? fallbackFraction(item, side, slot.counts[side] ?? 0, area)
+        : index === 0
+          ? slot?.f
+          : undefined;
+    const point =
+      f === undefined
+        ? resolveEndpoint(end, other, lookup, outline)
+        : rotatePoint(sidePoint(item, side, f), center, item.rotation ?? 0);
+    // For a displaced port choose its outward axis using the center of the same side.
+    const normal =
+      f === undefined ? point : rotatePoint(sidePoint(item, side, 0.5), center, item.rotation ?? 0);
+    const dx = normal.x - center.x,
+      dy = normal.y - center.y;
+    const across = Math.abs(dx) / Math.max(1, box.w) >= Math.abs(dy) / Math.max(1, box.h);
     const exit = across
       ? { x: dx >= 0 ? box.x + box.w + CLEAR : box.x - CLEAR, y: point.y }
       : { x: point.x, y: dy >= 0 ? box.y + box.h + CLEAR : box.y - CLEAR };
@@ -460,6 +499,7 @@ function attach(
     pairs = new Set<string>(),
     gaps = new Map<number, [number, number, Box, Box]>(),
     sides = new Map<string, [Slot, number, number][]>(),
+    counts = new Map<string, Partial<Record<Side, number>>>(),
     claims = new Map<string, number>(),
     diagonal: [Slot, string, number, Point, Point, 'x' | 'y'][] = [],
     slotted: [Slot, string, Point, number][] = [];
@@ -543,7 +583,6 @@ function attach(
         target = node(endpoint);
       if (
         !target ||
-        target.rotation ||
         !endpoint ||
         !('item' in endpoint) ||
         endpoint.anchor ||
@@ -562,13 +601,27 @@ function attach(
               ? 'bottom'
               : 'top',
       };
+      const localFar = target.rotation ? rotatePoint(o, c, -target.rotation) : o;
+      if (target.rotation) {
+        if (outline?.(target)) continue;
+        const dx = localFar.x - c.x,
+          dy = localFar.y - c.y;
+        slot.side =
+          Math.abs(dx) / Math.max(1, target.w) >= Math.abs(dy) / Math.max(1, target.h)
+            ? dx >= 0
+              ? 'right'
+              : 'left'
+            : dy >= 0
+              ? 'bottom'
+              : 'top';
+      }
       result[end] = slot;
       if (outline?.(target)) continue;
       const id = `${target.id}|`;
       // Straight connectors claim their sides: 1 leaving the node, 2 arriving.
       if (gx > 0 !== gy > 0) claims.set(id + slot.side, (claims.get(id + slot.side) ?? 0) | role);
-      else if (gx > 0 && !flip) diagonal.push([slot, id, role, c, o, axis]);
-      slotted.push([slot, id, o, index]);
+      else if (gx > 0 && !flip && !target.rotation) diagonal.push([slot, id, role, c, o, axis]);
+      slotted.push([slot, id, localFar, index]);
     }
   }
   // A diagonal end does not share a side with straight connectors that flow the other way. It
@@ -584,6 +637,10 @@ function attach(
       [slot.side, slot.skip] = [side, (Object.keys(opposite) as Side[]).filter((s) => !free(s))];
   }
   for (const [slot, id, o, index] of slotted) {
+    const reserved = counts.get(id) ?? {};
+    counts.set(id, reserved);
+    slot.counts = reserved;
+    reserved[slot.side] = (reserved[slot.side] ?? 0) + 1;
     const list = sides.get(id + slot.side) ?? [];
     list.push([slot, slot.side === 'left' || slot.side === 'right' ? o.y : o.x, index]);
     sides.set(id + slot.side, list);
@@ -609,8 +666,39 @@ function clearElbow(
 ): Point[] {
   const fromId = item.from && 'item' in item.from ? item.from.item : undefined;
   const toId = item.to && 'item' in item.to ? item.to.item : undefined;
-  const starts = ports(item.from, item.to, lookup, outline, ends.axis, ends.from);
-  const finishes = ports(item.to, item.from, lookup, outline, ends.axis, ends.to);
+  const candidates = (end: 'from' | 'to', field?: Field) =>
+    ports(
+      item[end],
+      item[end === 'from' ? 'to' : 'from'],
+      lookup,
+      outline,
+      field,
+      ends.axis,
+      ends[end],
+    );
+  const starts = candidates('from'),
+    finishes = candidates('to');
+  const route = bestElbow(starts, finishes, area, fromId, toId);
+  // Preserve a clear existing route. Only search displaced fallback ports when the
+  // chosen route uses a fallback whose centered port is already occupied.
+  const spread = (end: 'from' | 'to', list: Port[], point: Point) => {
+    const index = list.findIndex((port) => port.point.x === point.x && port.point.y === point.y);
+    if (index <= 0 || !ends[end]?.counts) return list;
+    const shifted = candidates(end, area);
+    return distance(shifted[index].point, point) > 1e-6 ? shifted : list;
+  };
+  const from = spread('from', starts, route[0]),
+    to = spread('to', finishes, route.at(-1)!);
+  return from === starts && to === finishes ? route : bestElbow(from, to, area, fromId, toId);
+}
+
+function bestElbow(
+  starts: Port[],
+  finishes: Port[],
+  area: Field,
+  fromId?: string,
+  toId?: string,
+): Point[] {
   let best: Point[] = [],
     bestCost: Cost = [Infinity, Infinity, Infinity];
   const better = (cost: Cost, than: Cost) => {

@@ -754,3 +754,35 @@ describe('mark export', () => {
     expect(svg).not.toMatch(/data-ad-kind="mark"[^]*?<rect x="0" y="-22"/);
   });
 });
+
+it('cascades lost descendants through marks and preserves stacking across undo and redo', () => {
+  const doc = board([
+    {
+      op: 'add',
+      item: {
+        id: 'g',
+        kind: 'group',
+        children: [
+          { id: 'lost', kind: 'rect' },
+          { id: 'kept', kind: 'rect' },
+          { id: 'internal', kind: 'mark', target: 'lost' },
+        ],
+      },
+    },
+    { op: 'add', item: { id: 'external', kind: 'mark', target: 'lost' }, index: 0 },
+    { op: 'add', item: { id: 'survivor', kind: 'mark', target: 'kept' } },
+  ]);
+  const before = doc.toJSON();
+  const children = doc.get('g')!.children!.filter((child) => child.id !== 'lost');
+  const result = doc.apply([{ op: 'set', id: 'g', patch: { children } }]);
+  expect(result.errors).toEqual([]);
+  expect(result.removed.sort()).toEqual(['external', 'internal', 'lost']);
+  expect(doc.get('survivor')?.target).toBe('kept');
+  const after = doc.toJSON();
+  for (let i = 0; i < 2; i++) {
+    expect(doc.undo()).toBe(true);
+    expect(doc.toJSON()).toEqual(before);
+    expect(doc.redo()).toBe(true);
+    expect(doc.toJSON()).toEqual(after);
+  }
+});
